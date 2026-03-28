@@ -1,6 +1,6 @@
 # Story 1.2: User Registration & Email Verification
 
-Status: review
+Status: done
 
 ## Story
 
@@ -250,6 +250,22 @@ Supabase Auth default minimum password length is **6 characters**. Add client-si
 - Route structure: [architecture.md — Complete Project Directory Structure]
 - Enforcement rules: [architecture.md — Enforcement Guidelines]
 - Email non-persistence: [architecture.md — Data Boundaries] (no email content in DB — applies to auth email too; only store email address as profile identifier)
+
+### Review Findings
+
+- [ ] [Review][Decision] **`proxy.ts` ignoré par Next.js — middleware inactif** — Next.js exige que le middleware soit nommé `middleware.ts` à la racine. `proxy.ts` n'est jamais exécuté : zéro session refresh, zéro protection de routes. Décision requise : renommer `proxy.ts` → `middleware.ts` et `lib/supabase/proxy.ts` → `lib/supabase/middleware.ts`, OU créer un vrai `middleware.ts` qui délègue à `proxy.ts`. [proxy.ts]
+- [ ] [Review][Patch] **`SECURITY DEFINER` trigger sans `SET search_path`** — vecteur d'escalade de privilèges possible. Fix : ajouter `SET search_path = public` à la déclaration de la fonction. [supabase/migrations/001_init_schema.sql]
+- [ ] [Review][Patch] **Pas de contrainte `UNIQUE` sur `public.users.email`** — la colonne peut contenir des doublons. Fix : `ALTER TABLE public.users ADD CONSTRAINT users_email_unique UNIQUE (email)`. [supabase/migrations/001_init_schema.sql]
+- [ ] [Review][Patch] **Pas de validation serveur email/password dans `signUpAction`** — `formData.get()` retourne `null` si le champ est absent ; le cast `as string` passe silencieusement `null` à Supabase. Fix : vérifier `if (!email || !password) return { error: '...' }`. [app/(auth)/signup/actions.ts]
+- [ ] [Review][Patch] **`NEXT_PUBLIC_SITE_URL` sans garde produit `"undefined/auth/confirm?..."`** — lien de vérification cassé si la var d'env est absente. Fix : `const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'` avec un warning si absent. [app/(auth)/signup/actions.ts]
+- [ ] [Review][Patch] **Test "already registered" teste le mauvais chemin** — quand email confirmation est activée, Supabase retourne succès (pas d'erreur) pour un email déjà enregistré. Le branch `error.message.includes("already")` est dead code en prod. Fix : ajouter un commentaire expliquant les deux paths + un test pour le cas succès-sans-user-session. [app/(auth)/signup/actions.test.ts]
+- [ ] [Review][Patch] **`top-level await import()` dans le fichier de test** — `const { signUpAction } = await import("./actions")` hors de `beforeEach` peut importer le module avant que les mocks soient établis. Fix : déplacer l'import dans `beforeEach` ou utiliser un import statique avec `vi.resetModules()`. [app/(auth)/signup/actions.test.ts]
+- [ ] [Review][Patch] **`users_update_owner` manque la clause `WITH CHECK`** — sans `WITH CHECK`, un UPDATE peut changer `id` vers un autre utilisateur. Fix : `FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id)`. [supabase/migrations/001_init_schema.sql]
+- [ ] [Review][Patch] **`handle_new_user` trigger sans `ON CONFLICT`** — un double INSERT (retry, réplication) lance une violation de PK qui fait échouer la création du user. Fix : `INSERT INTO public.users ... ON CONFLICT (id) DO NOTHING`. [supabase/migrations/001_init_schema.sql]
+- [ ] [Review][Patch] **`supabase.auth.getUser()` : erreur réseau non gérée dans `OnboardingLayout`** — si l'appel échoue (réseau, client mal configuré), la déstructure `data.user` lance une exception non gérée. Fix : vérifier `const { data, error } = await supabase.auth.getUser(); if (error || !data.user) redirect('/login')`. [app/(onboarding)/layout.tsx]
+- [x] [Review][Defer] **`public.users.email` non synchronisé sur UPDATE auth** — pas de trigger `AFTER UPDATE` sur `auth.users`. Hors scope story 1.2 — à adresser dans story 1.4 (suppression compte) ou migration dédiée. [supabase/migrations/001_init_schema.sql] — deferred, pre-existing
+- [x] [Review][Defer] **`updated_at` sans trigger auto-update** — la colonne ne se met pas à jour lors des UPDATE. Mineur, hors scope. — deferred, pre-existing
+- [x] [Review][Defer] **Pas de rate limiting sur `signUpAction`** — hors scope story 1.2, à adresser en Epic 6 ou infra. — deferred, pre-existing
 
 ## Dev Agent Record
 

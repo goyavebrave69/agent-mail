@@ -1,8 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { LogoutButton } from "@/components/shared/logout-button"
 
-export default async function OnboardingLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode
@@ -14,12 +13,5 @@ export default async function OnboardingLayout({
     redirect("/login")
   }
 
-  return (
-    <>
-      <div className="absolute top-4 right-4">
-        <LogoutButton />
-      </div>
-      {children}
-    </>
-  )
+  return <>{children}</>
 }
