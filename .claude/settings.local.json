@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(npx create-next-app@latest --example with-supabase . --yes)",
+      "Read(//private/tmp/**)",
+      "Bash(npx create-next-app@latest --example with-supabase mail-agent-init --yes)",
+      "Bash(rsync -av --exclude='.git' --exclude='node_modules' /tmp/mail-agent-init/ /Users/goyave/Dev/mail-agent/)",
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

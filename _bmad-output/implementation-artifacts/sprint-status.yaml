@@ -1,0 +1,87 @@
+# generated: 2026-03-27
+# last_updated: 2026-03-27
+# project: mail-agent
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-27
+last_updated: 2026-03-28T09:59:00Z
+project: mail-agent
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  1-1-project-initialization-and-ci-cd-setup: done
+  1-2-user-registration-and-email-verification: review
+  1-3-user-login-and-logout: backlog
+  1-4-account-deletion-and-gdpr-data-cleanup: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-gmail-mailbox-connection-via-oauth: backlog
+  2-2-outlook-mailbox-connection-via-oauth: backlog
+  2-3-imap-smtp-mailbox-connection: backlog
+  2-4-mailbox-disconnection: backlog
+  2-5-automatic-email-sync: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-knowledge-base-file-upload: backlog
+  3-2-knowledge-base-indexing-pipeline: backlog
+  3-3-knowledge-base-file-list-and-status: backlog
+  3-4-knowledge-base-file-deletion-and-re-indexing: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-automatic-email-categorization-and-priority-ranking: backlog
+  4-2-priority-sorted-inbox-view: backlog
+  4-3-inbox-filtering-by-category: backlog
+  4-4-manual-email-actions-spam-read-archive: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-asynchronous-draft-generation-pipeline: backlog
+  5-2-draft-view-with-confidence-score: backlog
+  5-3-validate-and-send-draft: backlog
+  5-4-edit-draft-before-sending: backlog
+  5-5-regenerate-draft-with-instruction: backlog
+  5-6-reject-draft-and-compose-own-reply: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-step-by-step-onboarding-flow: backlog
+  6-2-reply-tone-and-language-configuration: backlog
+  6-3-onboarding-help-video: backlog
+  epic-6-retrospective: optional
