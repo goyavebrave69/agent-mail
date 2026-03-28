@@ -15,11 +15,14 @@ vi.mock("next/navigation", () => ({
   redirect: mockRedirect,
 }))
 
-const { signUpAction } = await import("./actions")
+let signUpAction: typeof import("./actions").signUpAction
 
 describe("signUpAction", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    vi.resetModules()
+    const mod = await import("./actions")
+    signUpAction = mod.signUpAction
   })
 
   it("redirects to /verify-email on successful signup", async () => {
@@ -57,6 +60,9 @@ describe("signUpAction", () => {
   })
 
   it("returns generic message for already-registered email errors", async () => {
+    // This path is triggered only when Supabase email confirmation is disabled
+    // (e.g. local dev). With confirmation enabled, Supabase returns success + no
+    // error to prevent enumeration — the user lands on /verify-email either way.
     mockSignUp.mockResolvedValue({
       error: { message: "User already registered" },
     })
@@ -70,5 +76,12 @@ describe("signUpAction", () => {
       error:
         "If this email is not registered, you will receive a confirmation email.",
     })
+  })
+
+  it("returns error when email or password is missing", async () => {
+    const formData = new FormData()
+    const result = await signUpAction(formData)
+    expect(result).toEqual({ error: "Email and password are required." })
+    expect(mockSignUp).not.toHaveBeenCalled()
   })
 })

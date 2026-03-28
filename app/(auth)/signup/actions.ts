@@ -6,16 +6,21 @@ import { redirect } from "next/navigation"
 export async function signUpAction(
   formData: FormData,
 ): Promise<{ error: string } | void> {
-  const email = formData.get("email") as string
-  const password = formData.get("password") as string
+  const email = formData.get("email") as string | null
+  const password = formData.get("password") as string | null
 
+  if (!email || !password) {
+    return { error: "Email and password are required." }
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
   const supabase = await createClient()
 
   const { error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm?next=/onboarding/connect-mailbox`,
+      emailRedirectTo: `${siteUrl}/auth/confirm?next=/onboarding/connect-mailbox`,
     },
   })
 
