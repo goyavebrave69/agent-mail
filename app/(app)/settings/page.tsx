@@ -4,6 +4,7 @@ import { DeleteAccountButton } from "@/components/shared/delete-account-button"
 import { ConnectGmailButton } from "@/components/shared/connect-gmail-button"
 import { ConnectOutlookButton } from "@/components/shared/connect-outlook-button"
 import { ImapConnectForm } from "@/components/shared/imap-connect-form"
+import { DisconnectMailboxButton } from "@/components/shared/disconnect-mailbox-button"
 
 interface SettingsPageProps {
   searchParams: Promise<{ connected?: string; error?: string }>
@@ -34,13 +35,7 @@ async function ConnectedAccounts() {
             )}
           </div>
           {gmailConnection ? (
-            <button
-              disabled
-              className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground opacity-50"
-              title="Disconnect available in Story 2.4"
-            >
-              Disconnect
-            </button>
+            <DisconnectMailboxButton provider="gmail" />
           ) : (
             <ConnectGmailButton />
           )}
@@ -56,13 +51,7 @@ async function ConnectedAccounts() {
             )}
           </div>
           {outlookConnection ? (
-            <button
-              disabled
-              className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground opacity-50"
-              title="Disconnect available in Story 2.4"
-            >
-              Disconnect
-            </button>
+            <DisconnectMailboxButton provider="outlook" />
           ) : (
             <ConnectOutlookButton />
           )}
@@ -73,13 +62,7 @@ async function ConnectedAccounts() {
           {imapConnection ? (
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">{imapConnection.email}</p>
-              <button
-                disabled
-                className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground opacity-50"
-                title="Disconnect available in Story 2.4"
-              >
-                Disconnect
-              </button>
+              <DisconnectMailboxButton provider="imap" />
             </div>
           ) : (
             <div className="mt-3">

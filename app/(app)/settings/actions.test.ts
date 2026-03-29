@@ -153,6 +153,103 @@ describe("connectImapAction", () => {
   })
 })
 
+describe("disconnectMailboxAction", () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockRpc: ReturnType<typeof vi.fn>
+  let mockSelectSingle: ReturnType<typeof vi.fn>
+  let mockDelete: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.clearAllMocks()
+
+    mockGetUser = vi.fn()
+    mockRpc = vi.fn()
+    mockSelectSingle = vi.fn()
+    mockDelete = vi.fn()
+
+    const { createClient } = await import("@/lib/supabase/server")
+    ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: mockGetUser },
+    })
+
+    const { createAdminClient } = await import("@/lib/supabase/admin")
+    ;(createAdminClient as ReturnType<typeof vi.fn>).mockReturnValue({
+      rpc: mockRpc,
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          match: vi.fn().mockReturnValue({ single: mockSelectSingle }),
+        }),
+        delete: vi.fn().mockReturnValue({
+          match: mockDelete,
+        }),
+        upsert: vi.fn(),
+      }),
+      auth: { admin: { deleteUser: vi.fn() } },
+    })
+  })
+
+  it("returns error when user is not authenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
+
+    const { disconnectMailboxAction } = await import("./actions")
+    const result = await disconnectMailboxAction({ provider: "gmail" })
+
+    expect(result).toEqual({ error: "Not authenticated." })
+    expect(mockRpc).not.toHaveBeenCalled()
+  })
+
+  it("returns NOT_FOUND when no connection exists", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null })
+    mockSelectSingle.mockResolvedValue({ data: null, error: null })
+
+    const { disconnectMailboxAction } = await import("./actions")
+    const result = await disconnectMailboxAction({ provider: "gmail" })
+
+    expect(result).toEqual({ error: "NOT_FOUND" })
+    expect(mockRpc).not.toHaveBeenCalled()
+    expect(mockDelete).not.toHaveBeenCalled()
+  })
+
+  it("returns success when vault and DB deletion succeed", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null })
+    mockSelectSingle.mockResolvedValue({ data: { vault_secret_id: "vault-id-abc" }, error: null })
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    mockDelete.mockResolvedValue({ error: null })
+
+    const { disconnectMailboxAction } = await import("./actions")
+    const result = await disconnectMailboxAction({ provider: "gmail" })
+
+    expect(result).toEqual({ success: true })
+    expect(mockRpc).toHaveBeenCalledWith("delete_vault_secret", { secret_id: "vault-id-abc" })
+    expect(mockDelete).toHaveBeenCalledWith({ user_id: "user-123", provider: "gmail" })
+  })
+
+  it("returns DISCONNECT_FAILED and does NOT delete DB row when vault RPC fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null })
+    mockSelectSingle.mockResolvedValue({ data: { vault_secret_id: "vault-id-abc" }, error: null })
+    mockRpc.mockResolvedValue({ data: null, error: { message: "vault error" } })
+
+    const { disconnectMailboxAction } = await import("./actions")
+    const result = await disconnectMailboxAction({ provider: "outlook" })
+
+    expect(result).toEqual({ error: "DISCONNECT_FAILED" })
+    expect(mockDelete).not.toHaveBeenCalled()
+  })
+
+  it("returns DISCONNECT_FAILED when DB delete fails after vault success", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null })
+    mockSelectSingle.mockResolvedValue({ data: { vault_secret_id: "vault-id-abc" }, error: null })
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    mockDelete.mockResolvedValue({ error: { message: "db error" } })
+
+    const { disconnectMailboxAction } = await import("./actions")
+    const result = await disconnectMailboxAction({ provider: "imap" })
+
+    expect(result).toEqual({ error: "DISCONNECT_FAILED" })
+  })
+})
+
 describe("deleteAccountAction", () => {
   let mockGetUser: ReturnType<typeof vi.fn>
   let mockDeleteUser: ReturnType<typeof vi.fn>
