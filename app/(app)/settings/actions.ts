@@ -2,7 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { randomUUID } from "crypto"
 
 export async function connectGmailAction(): Promise<{ error: string } | { url: string }> {
   const supabase = await createClient()
@@ -22,6 +24,15 @@ export async function connectGmailAction(): Promise<{ error: string } | { url: s
   // Google requires the redirect_uri to be registered exactly — no query params allowed.
   // We pass provider identity via the `state` parameter instead.
   const redirectUri = `${siteUrl}/auth/callback`
+  const stateToken = `gmail:${randomUUID()}`
+  const cookieStore = await cookies()
+  cookieStore.set("oauth_state_gmail", stateToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 10 * 60,
+  })
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -34,10 +45,56 @@ export async function connectGmailAction(): Promise<{ error: string } | { url: s
     ].join(" "),
     access_type: "offline",
     prompt: "consent",
-    state: "gmail",
+    state: stateToken,
   })
 
   return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` }
+}
+
+export async function connectOutlookAction(): Promise<{ error: string } | { url: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.getUser()
+
+  if (error || !data.user) {
+    return { error: "Not authenticated." }
+  }
+
+  const clientId = process.env.MICROSOFT_CLIENT_ID
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+
+  if (!clientId || !siteUrl) {
+    return { error: "Outlook OAuth is not configured." }
+  }
+
+  const redirectUri = `${siteUrl}/auth/callback`
+  const stateToken = `outlook:${randomUUID()}`
+  const cookieStore = await cookies()
+  cookieStore.set("oauth_state_outlook", stateToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 10 * 60,
+  })
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    response_mode: "query",
+    scope: [
+      "https://graph.microsoft.com/Mail.Read",
+      "https://graph.microsoft.com/Mail.Send",
+      "https://graph.microsoft.com/User.Read",
+      "offline_access",
+    ].join(" "),
+    access_type: "offline",
+    state: stateToken,
+  })
+
+  return {
+    url: `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`,
+  }
 }
 
 export async function deleteAccountAction(): Promise<{ error: string } | void> {

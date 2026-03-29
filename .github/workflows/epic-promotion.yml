@@ -1,0 +1,96 @@
+name: Epic Completion Promotion
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - _bmad-output/implementation-artifacts/sprint-status.yaml
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  promote-dev-to-qa:
+    name: Open dev->qa PR when epic completes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect newly completed epics
+        id: detect
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+          STATUS_FILE: _bmad-output/implementation-artifacts/sprint-status.yaml
+        run: |
+          set -euo pipefail
+
+          if [ "${BEFORE_SHA}" = "0000000000000000000000000000000000000000" ]; then
+            echo "should_open=false" >> "$GITHUB_OUTPUT"
+            echo "No previous commit SHA (new branch push); skipping."
+            exit 0
+          fi
+
+          if ! git cat-file -e "${BEFORE_SHA}:${STATUS_FILE}" 2>/dev/null; then
+            echo "should_open=false" >> "$GITHUB_OUTPUT"
+            echo "sprint-status file not found in before SHA; skipping."
+            exit 0
+          fi
+
+          extract_done_epics() {
+            local sha="$1"
+            git show "${sha}:${STATUS_FILE}" \
+              | grep -E '^  epic-[0-9]+: done$' \
+              | sed -E 's/^  (epic-[0-9]+): done$/\1/' \
+              | sort -u || true
+          }
+
+          before_done="$(extract_done_epics "${BEFORE_SHA}")"
+          after_done="$(extract_done_epics "${AFTER_SHA}")"
+
+          before_file="$(mktemp)"
+          after_file="$(mktemp)"
+          printf '%s\n' "${before_done}" > "${before_file}"
+          printf '%s\n' "${after_done}" > "${after_file}"
+
+          newly_done="$(comm -13 "${before_file}" "${after_file}" | sed '/^$/d' || true)"
+
+          if [ -z "${newly_done}" ]; then
+            echo "should_open=false" >> "$GITHUB_OUTPUT"
+            echo "No newly completed epics detected."
+            exit 0
+          fi
+
+          epics_csv="$(echo "${newly_done}" | paste -sd ', ' -)"
+          echo "should_open=true" >> "$GITHUB_OUTPUT"
+          echo "epics=${epics_csv}" >> "$GITHUB_OUTPUT"
+          echo "Detected newly completed epics: ${epics_csv}"
+
+      - name: Open or update dev->qa promotion PR
+        if: steps.detect.outputs.should_open == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EPICS: ${{ steps.detect.outputs.epics }}
+        run: |
+          set -euo pipefail
+
+          existing_pr_count="$(gh pr list --base qa --head dev --state open --json number --jq 'length')"
+
+          if [ "${existing_pr_count}" -gt 0 ]; then
+            pr_number="$(gh pr list --base qa --head dev --state open --json number --jq '.[0].number')"
+            gh pr comment "${pr_number}" --body "New epic completion detected on dev: ${EPICS}. This PR is ready for QA promotion when CI is green."
+            echo "Updated existing dev->qa PR #${pr_number}."
+            exit 0
+          fi
+
+          gh pr create \
+            --base qa \
+            --head dev \
+            --title "chore: promote dev to qa (epic complete: ${EPICS})" \
+            --body "Automated promotion trigger: newly completed epic(s) detected on dev (${EPICS}).\n\nNext step: review and merge this PR to promote dev into qa."
