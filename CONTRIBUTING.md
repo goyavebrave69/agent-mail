@@ -74,6 +74,17 @@ Blocked by CI:
 - any unsupported source/target combination
 ```
 
+### Automatic Epic-End Promotion (dev -> qa)
+
+When an epic is completed on `dev` (status changes to `done` in `_bmad-output/implementation-artifacts/sprint-status.yaml`), GitHub Actions automatically opens a promotion PR from `dev` to `qa`.
+
+- Workflow file: `.github/workflows/epic-promotion.yml`
+- Trigger: push on `dev` where `sprint-status.yaml` changed
+- Condition: at least one `epic-*` status newly changed to `done`
+- Behavior:
+  - if no open `dev -> qa` PR exists: create one automatically
+  - if one already exists: add a comment with newly completed epic(s)
+
 ### Branch Protection (GitHub Settings)
 
 Configure branch rules in GitHub so CI is mandatory before merge:
