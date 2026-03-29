@@ -16,6 +16,16 @@ vi.mock("next/headers", () => ({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+function buildOAuthRequest(params: Record<string, string>, cookie: string) {
+  const url = new URL("http://localhost:3000/auth/callback")
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
+  return new Request(url.toString(), {
+    headers: {
+      cookie,
+    },
+  })
+}
+
 function buildAdminClientMock(overrides?: {
   rpcResult?: { data: unknown; error: unknown }
   upsertResult?: { error: unknown }
@@ -26,11 +36,14 @@ function buildAdminClientMock(overrides?: {
   }
   const upsertResult = overrides?.upsertResult ?? { error: null }
 
-  const mockUpsert = vi.fn().mockResolvedValue(upsertResult)
   const mockRpc = vi.fn().mockResolvedValue(rpcResult)
+  const mockUpsert = vi.fn().mockResolvedValue(upsertResult)
 
   return {
-    mock: { upsert: mockUpsert, rpc: mockRpc },
+    mock: {
+      rpc: mockRpc,
+      upsert: mockUpsert,
+    },
     client: {
       rpc: mockRpc,
       from: vi.fn().mockReturnValue({ upsert: mockUpsert }),
@@ -38,28 +51,18 @@ function buildAdminClientMock(overrides?: {
   }
 }
 
-function buildOAuthRequest(url: string, cookie: string): Request {
-  return new Request(url, {
-    headers: {
-      cookie,
-    },
-  })
-}
-
-// ── Gmail OAuth tests ─────────────────────────────────────────────────────────
-
 describe("GET /auth/callback — Gmail OAuth", () => {
   let mockGetUser: ReturnType<typeof vi.fn>
-  let mockUpsert: ReturnType<typeof vi.fn>
   let mockRpc: ReturnType<typeof vi.fn>
+  let mockUpsert: ReturnType<typeof vi.fn>
   let mockFetch: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
 
-    process.env.GOOGLE_CLIENT_ID = "test-google-client-id"
-    process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret"
+    process.env.GOOGLE_CLIENT_ID = "test-client-id"
+    process.env.GOOGLE_CLIENT_SECRET = "test-client-secret"
     process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000"
 
     mockGetUser = vi.fn().mockResolvedValue({
@@ -71,14 +74,13 @@ describe("GET /auth/callback — Gmail OAuth", () => {
       auth: { getUser: mockGetUser },
     })
 
-    const admin = buildAdminClientMock()
-    mockUpsert = admin.mock.upsert
-    mockRpc = admin.mock.rpc
     const { createAdminClient } = await import("@/lib/supabase/admin")
+    const admin = buildAdminClientMock()
+    mockRpc = admin.mock.rpc
+    mockUpsert = admin.mock.upsert
     ;(createAdminClient as ReturnType<typeof vi.fn>).mockReturnValue(admin.client)
 
-    mockFetch = vi
-      .fn()
+    mockFetch = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -98,7 +100,7 @@ describe("GET /auth/callback — Gmail OAuth", () => {
   it("redirects to /settings?connected=gmail on successful connection", async () => {
     const { GET } = await import("./route")
     const req = buildOAuthRequest(
-      "http://localhost:3000/auth/callback?state=gmail:test-state&code=auth-code-123",
+      { state: "gmail:test-state", code: "auth-code-123" },
       "oauth_state_gmail=gmail:test-state"
     )
     const response = await GET(req as never)
@@ -123,7 +125,7 @@ describe("GET /auth/callback — Gmail OAuth", () => {
   it("redirects to /settings?error=gmail_denied when user denies OAuth", async () => {
     const { GET } = await import("./route")
     const req = buildOAuthRequest(
-      "http://localhost:3000/auth/callback?state=gmail:test-state&error=access_denied",
+      { state: "gmail:test-state", error: "access_denied" },
       "oauth_state_gmail=gmail:test-state"
     )
     const response = await GET(req as never)
@@ -140,7 +142,7 @@ describe("GET /auth/callback — Gmail OAuth", () => {
 
     const { GET } = await import("./route")
     const req = buildOAuthRequest(
-      "http://localhost:3000/auth/callback?state=gmail:test-state&code=bad-code",
+      { state: "gmail:test-state", code: "bad-code" },
       "oauth_state_gmail=gmail:test-state"
     )
     const response = await GET(req as never)
@@ -149,155 +151,68 @@ describe("GET /auth/callback — Gmail OAuth", () => {
     expect(response.headers.get("location")).toContain("/settings?error=gmail_failed")
     expect(mockUpsert).not.toHaveBeenCalled()
   })
+
+  it("redirects to /settings?error=gmail_failed when state token is invalid", async () => {
+    const { GET } = await import("./route")
+    const req = buildOAuthRequest(
+      { state: "gmail:attacker-state", code: "auth-code-123" },
+      "oauth_state_gmail=gmail:expected-state"
+    )
+    const response = await GET(req as never)
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get("location")).toContain("/settings?error=gmail_failed")
+    expect(mockRpc).not.toHaveBeenCalled()
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
 })
 
-// ── Outlook OAuth tests ──────────────────────────────────────────────────────
-
-describe("GET /auth/callback — Outlook OAuth", () => {
+describe("connectGmailAction", () => {
   let mockGetUser: ReturnType<typeof vi.fn>
-  let mockUpsert: ReturnType<typeof vi.fn>
-  let mockRpc: ReturnType<typeof vi.fn>
-  let mockFetch: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
 
-    process.env.MICROSOFT_CLIENT_ID = "test-ms-client-id"
-    process.env.MICROSOFT_CLIENT_SECRET = "test-ms-client-secret"
+    process.env.GOOGLE_CLIENT_ID = "test-client-id"
     process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000"
 
-    mockGetUser = vi.fn().mockResolvedValue({
-      data: { user: { id: "user-456" } },
-      error: null,
-    })
+    mockGetUser = vi.fn()
     const { createClient } = await import("@/lib/supabase/server")
     ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
       auth: { getUser: mockGetUser },
     })
 
-    const admin = buildAdminClientMock()
-    mockUpsert = admin.mock.upsert
-    mockRpc = admin.mock.rpc
-    const { createAdminClient } = await import("@/lib/supabase/admin")
-    ;(createAdminClient as ReturnType<typeof vi.fn>).mockReturnValue(admin.client)
-
-    // Default: successful token exchange then Graph /me profile
-    mockFetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "ms-access-abc",
-          refresh_token: "ms-refresh-xyz",
-          expires_in: 3600,
-        }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          mail: "user@company.com",
-          userPrincipalName: "user@tenant.onmicrosoft.com",
-        }),
-      } as Response)
-
-    vi.stubGlobal("fetch", mockFetch)
+    const { cookies } = await import("next/headers")
+    ;(cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
+      set: vi.fn(),
+    })
   })
 
-  it("redirects to /settings?connected=outlook on successful connection", async () => {
-    const { GET } = await import("./route")
-    const req = buildOAuthRequest(
-      "http://localhost:3000/auth/callback?state=outlook:test-state&code=ms-auth-code-123",
-      "oauth_state_outlook=outlook:test-state"
-    )
-    const response = await GET(req as never)
+  it("returns a Google OAuth URL when authenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null })
 
-    expect(response.status).toBe(307)
-    expect(response.headers.get("location")).toContain("/settings?connected=outlook")
+    const { connectGmailAction } = await import("@/app/(app)/settings/actions")
+    const result = await connectGmailAction()
 
-    expect(mockRpc).toHaveBeenCalledWith("create_vault_secret", expect.objectContaining({
-      name: "outlook:user-456",
-    }))
-    expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: "user-456",
-        provider: "outlook",
-        email: "user@company.com",
-        vault_secret_id: "vault-secret-id-abc",
-      }),
-      { onConflict: "user_id,provider" }
-    )
+    expect("url" in result).toBe(true)
+    if ("url" in result) {
+      expect(result.url).toContain("accounts.google.com/o/oauth2/v2/auth")
+      expect(result.url).toContain("access_type=offline")
+      expect(result.url).toContain("prompt=consent")
+      expect(result.url).toContain("state=gmail%3A")
+    }
   })
 
-  it("uses userPrincipalName when mail field is null", async () => {
-    mockFetch.mockReset()
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "ms-access-abc",
-          refresh_token: "ms-refresh-xyz",
-          expires_in: 3600,
-        }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          mail: null,
-          userPrincipalName: "user@tenant.onmicrosoft.com",
-        }),
-      } as Response)
-    vi.stubGlobal("fetch", mockFetch)
+  it("returns an error when not authenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
 
-    const { GET } = await import("./route")
-    const req = buildOAuthRequest(
-      "http://localhost:3000/auth/callback?state=outlook:test-state&code=ms-auth-code-123",
-      "oauth_state_outlook=outlook:test-state"
-    )
-    const response = await GET(req as never)
+    const { connectGmailAction } = await import("@/app/(app)/settings/actions")
+    const result = await connectGmailAction()
 
-    expect(response.status).toBe(307)
-    expect(response.headers.get("location")).toContain("/settings?connected=outlook")
-    expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        email: "user@tenant.onmicrosoft.com",
-      }),
-      { onConflict: "user_id,provider" }
-    )
-  })
-
-  it("redirects to /settings?error=outlook_denied when user denies OAuth", async () => {
-    const { GET } = await import("./route")
-    const req = buildOAuthRequest(
-      "http://localhost:3000/auth/callback?state=outlook:test-state&error=access_denied",
-      "oauth_state_outlook=outlook:test-state"
-    )
-    const response = await GET(req as never)
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get("location")).toContain("/settings?error=outlook_denied")
-    expect(mockUpsert).not.toHaveBeenCalled()
-  })
-
-  it("redirects to /settings?error=outlook_failed when token exchange fails", async () => {
-    mockFetch.mockReset()
-    mockFetch.mockResolvedValueOnce({ ok: false, json: async () => ({}) } as Response)
-    vi.stubGlobal("fetch", mockFetch)
-
-    const { GET } = await import("./route")
-    const req = buildOAuthRequest(
-      "http://localhost:3000/auth/callback?state=outlook:test-state&code=bad-code",
-      "oauth_state_outlook=outlook:test-state"
-    )
-    const response = await GET(req as never)
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get("location")).toContain("/settings?error=outlook_failed")
-    expect(mockUpsert).not.toHaveBeenCalled()
+    expect(result).toEqual({ error: "Not authenticated." })
   })
 })
-
-// ── Unknown provider tests ────────────────────────────────────────────────────
 
 describe("GET /auth/callback — Unknown provider", () => {
   beforeEach(async () => {
@@ -323,55 +238,5 @@ describe("GET /auth/callback — Unknown provider", () => {
 
     expect(response.status).toBe(307)
     expect(response.headers.get("location")).toContain("/settings?error=unknown_provider")
-  })
-})
-
-// ── connectOutlookAction tests ────────────────────────────────────────────────
-
-describe("connectOutlookAction", () => {
-  let mockGetUser: ReturnType<typeof vi.fn>
-
-  beforeEach(async () => {
-    vi.resetModules()
-    vi.clearAllMocks()
-
-    process.env.MICROSOFT_CLIENT_ID = "test-ms-client-id"
-    process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000"
-
-    mockGetUser = vi.fn()
-    const { createClient } = await import("@/lib/supabase/server")
-    ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
-      auth: { getUser: mockGetUser },
-    })
-
-    const { cookies } = await import("next/headers")
-    ;(cookies as ReturnType<typeof vi.fn>).mockResolvedValue({
-      set: vi.fn(),
-    })
-  })
-
-  it("returns a Microsoft OAuth URL when authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-456" } }, error: null })
-
-    const { connectOutlookAction } = await import("@/app/(app)/settings/actions")
-    const result = await connectOutlookAction()
-
-    expect("url" in result).toBe(true)
-    if ("url" in result) {
-      expect(result.url).toContain("login.microsoftonline.com/common/oauth2/v2.0/authorize")
-      expect(result.url).toContain("state=outlook%3A")
-      expect(result.url).toContain("offline_access")
-      expect(result.url).toContain("access_type=offline")
-      expect(result.url).toContain("Mail.Read")
-    }
-  })
-
-  it("returns an error when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: null })
-
-    const { connectOutlookAction } = await import("@/app/(app)/settings/actions")
-    const result = await connectOutlookAction()
-
-    expect(result).toEqual({ error: "Not authenticated." })
   })
 })

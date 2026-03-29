@@ -3,12 +3,61 @@ name: CI
 on:
   pull_request:
     branches:
+      - dev
+      - qa
       - main
 
 jobs:
+  branch-policy:
+    name: Branch flow policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source and target branches
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          echo "Validating branch flow: ${HEAD_REF} -> ${BASE_REF}"
+
+          if [ "${BASE_REF}" = "dev" ]; then
+            case "${HEAD_REF}" in
+              feature/*|story/*|fix/*|chore/*|docs/*|refactor/*)
+                echo "✅ Allowed: ${HEAD_REF} -> dev"
+                exit 0
+                ;;
+            esac
+
+            echo "❌ Invalid PR flow: only feature/story/fix/chore/docs/refactor branches can target dev."
+            exit 1
+          fi
+
+          if [ "${BASE_REF}" = "qa" ]; then
+            if [ "${HEAD_REF}" = "dev" ]; then
+              echo "✅ Allowed: dev -> qa"
+              exit 0
+            fi
+
+            echo "❌ Invalid PR flow: only dev can target qa."
+            exit 1
+          fi
+
+          if [ "${BASE_REF}" = "main" ]; then
+            if [ "${HEAD_REF}" = "qa" ]; then
+              echo "✅ Allowed: qa -> main"
+              exit 0
+            fi
+
+            echo "❌ Invalid PR flow: only qa can target main."
+            exit 1
+          fi
+
+          echo "❌ Unsupported base branch: ${BASE_REF}. Allowed base branches: dev, qa, main."
+          exit 1
+
   quality:
     name: Type-check, Lint & Test
     runs-on: ubuntu-latest
+    needs: branch-policy
 
     steps:
       - name: Checkout
