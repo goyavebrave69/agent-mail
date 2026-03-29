@@ -45,17 +45,39 @@ async function refreshGmailToken(refreshToken: string): Promise<RefreshResult> {
 
 async function listMessageIds(accessToken: string, after: number): Promise<string[]> {
   const query = after > 0 ? `after:${after}` : ''
-  const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages${query ? `?q=${encodeURIComponent(query)}` : ''}`
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) {
-    const err = new Error(`Gmail list messages failed: ${res.status}`) as Error & { status: number }
-    err.status = res.status
-    throw err
-  }
-  const data = (await res.json()) as { messages?: Array<{ id: string }> }
-  return data.messages?.map(m => m.id) ?? []
+  let pageToken: string | null = null
+  const messageIds: string[] = []
+
+  do {
+    const params = new URLSearchParams()
+    if (query) {
+      params.set('q', query)
+    }
+    if (pageToken) {
+      params.set('pageToken', pageToken)
+    }
+
+    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages${params.size > 0 ? `?${params.toString()}` : ''}`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+
+    if (!res.ok) {
+      const err = new Error(`Gmail list messages failed: ${res.status}`) as Error & { status: number }
+      err.status = res.status
+      throw err
+    }
+
+    const data = (await res.json()) as {
+      messages?: Array<{ id: string }>
+      nextPageToken?: string
+    }
+
+    messageIds.push(...(data.messages?.map(m => m.id) ?? []))
+    pageToken = data.nextPageToken ?? null
+  } while (pageToken)
+
+  return messageIds
 }
 
 async function fetchMessageMetadata(

@@ -45,18 +45,25 @@ async function listMessages(accessToken: string, lastSyncedAt: Date | null): Pro
   const filter = lastSyncedAt
     ? `&$filter=receivedDateTime gt ${lastSyncedAt.toISOString()}`
     : ''
-  const url = `https://graph.microsoft.com/v1.0/me/messages?${select}${filter}&$top=50`
+  let nextUrl: string | null = `https://graph.microsoft.com/v1.0/me/messages?${select}${filter}&$top=50`
+  const messages: GraphMessage[] = []
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) {
-    const err = new Error(`Outlook list messages failed: ${res.status}`) as Error & { status: number }
-    err.status = res.status
-    throw err
+  while (nextUrl) {
+    const res = await fetch(nextUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      const err = new Error(`Outlook list messages failed: ${res.status}`) as Error & { status: number }
+      err.status = res.status
+      throw err
+    }
+
+    const data = (await res.json()) as { value?: GraphMessage[]; '@odata.nextLink'?: string }
+    messages.push(...(data.value ?? []))
+    nextUrl = data['@odata.nextLink'] ?? null
   }
-  const data = (await res.json()) as { value?: GraphMessage[] }
-  return data.value ?? []
+
+  return messages
 }
 
 function toEmailMessage(msg: GraphMessage): EmailMessage {

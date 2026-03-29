@@ -19,9 +19,18 @@ function formatLastSynced(ts: string | null): string {
 
 export async function SyncStatusIndicator() {
   const supabase = await createClient()
-  const { data: jobs } = await supabase
+  const { data: jobs, error } = await supabase
     .from("email_sync_jobs")
     .select("provider, status, last_synced_at, last_error, retry_count")
+
+  if (error) {
+    return (
+      <section className="mb-8 rounded-lg border border-destructive/30 p-6">
+        <h2 className="mb-2 text-lg font-semibold">Email Sync Status</h2>
+        <p className="text-sm text-destructive">Unable to load sync status right now. Please retry.</p>
+      </section>
+    )
+  }
 
   if (!jobs || jobs.length === 0) return null
 

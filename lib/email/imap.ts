@@ -43,14 +43,11 @@ export async function fetchNewEmails(
 
   await client.connect()
 
-  const lock = await client.getMailboxLock('INBOX')
   const emails: EmailMessage[] = []
+  let lock: { release: () => void } | null = null
 
   try {
-    const searchCriteria: { since?: Date } = {}
-    if (lastSyncedAt) {
-      searchCriteria.since = lastSyncedAt
-    }
+    lock = await client.getMailboxLock('INBOX')
 
     const searchResult = await client.search(lastSyncedAt ? { since: lastSyncedAt } : { all: true })
     const uids: number[] = searchResult === false ? [] : searchResult
@@ -71,7 +68,7 @@ export async function fetchNewEmails(
       }
     }
   } finally {
-    lock.release()
+    lock?.release()
     await client.logout()
   }
 

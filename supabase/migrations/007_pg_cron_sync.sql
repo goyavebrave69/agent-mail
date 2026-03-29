@@ -5,6 +5,18 @@
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
+DO $$
+BEGIN
+  IF NULLIF(current_setting('app.supabase_functions_url', true), '') IS NULL THEN
+    RAISE EXCEPTION 'Missing required setting: app.supabase_functions_url';
+  END IF;
+
+  IF NULLIF(current_setting('app.service_role_key', true), '') IS NULL THEN
+    RAISE EXCEPTION 'Missing required setting: app.service_role_key';
+  END IF;
+END;
+$$;
+
 -- Remove existing schedule if any (idempotent)
 SELECT cron.unschedule('sync-emails-every-5min')
   WHERE EXISTS (

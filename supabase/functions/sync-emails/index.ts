@@ -50,10 +50,14 @@ async function getVaultSecret(vaultSecretId: string): Promise<Record<string, unk
 }
 
 async function upsertVaultSecret(name: string, secret: Record<string, unknown>): Promise<void> {
-  await supabase.rpc('create_vault_secret', {
+  const { error } = await supabase.rpc('create_vault_secret', {
     secret: JSON.stringify(secret),
     name,
   })
+
+  if (error) {
+    throw new Error(`Vault secret update failed: ${error.message}`)
+  }
 }
 
 async function storeEmails(userId: string, provider: string, emails: EmailMessage[]): Promise<void> {
@@ -245,12 +249,12 @@ async function syncImap(
 ): Promise<void> {
   // imapflow is not available as a Deno-compatible ESM package.
   // IMAP sync for Edge Functions requires a separate approach.
-  // For now, mark as success with no emails — IMAP sync will be handled
-  // via a dedicated Next.js API route or server-side cron alternative.
+  // For now, mark the job as error to avoid reporting a false-success state.
+  // IMAP sync will be handled via a dedicated Node.js-compatible runtime.
   // TODO(imap-edge): implement IMAP sync via a Node.js-compatible runtime
-  console.log(`IMAP sync skipped in Edge Function for user ${job.user_id} — see TODO(imap-edge)`)
-  await storeEmails(job.user_id, 'imap', [])
-  await markJobSuccess(job.id)
+  const reason = 'IMAP sync not supported in Edge Function runtime (todo: imap-edge)'
+  console.log(`IMAP sync skipped in Edge Function for user ${job.user_id}: ${reason}`)
+  await markJobError(job.id, reason, job.retry_count)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

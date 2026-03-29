@@ -1,19 +1,19 @@
 # Story 2.5: Automatic Email Sync
 
-Status: review
+Status: done
 
 ## Story
 
 As a user,
 I want my connected mailbox to be automatically synchronized every 5 minutes,
-So that new emails appear in MailAgent within 2 minutes of receipt without any manual action.
+So that new emails appear in MailAgent within 5 minutes of receipt without any manual action.
 
 ## Acceptance Criteria
 
 1. **Given** a user has a connected mailbox
    **When** the pg_cron job triggers the sync-emails Edge Function
    **Then** new emails are fetched from the provider API and their metadata is stored (no email content persisted)
-   **And** new email entries appear in the inbox within 2 minutes of receipt (NFR1)
+   **And** new email entries appear in the inbox within 5 minutes of receipt (aligned with 5-minute scheduler cadence)
 
 2. **Given** the email sync fails (API error, token expiry)
    **When** the failure occurs
@@ -388,3 +388,17 @@ None.
 ### Change Log
 
 - 2026-03-29: Implemented story 2.5 — automatic email sync (migrations, adapters, Edge Function, pg_cron, sync status UI, tests)
+
+### Review Findings
+
+- [x] [Review][Patch] Align AC #1 with the implemented 5-minute scheduler cadence (decision: keep 5 minutes and update spec wording). (`supabase/migrations/007_pg_cron_sync.sql`)
+
+- [x] [Review][Patch] IMAP sync marked successful without syncing [supabase/functions/sync-emails/index.ts:241]
+- [x] [Review][Patch] pg_cron call depends on unset custom settings (`app.supabase_functions_url`, `app.service_role_key`) [supabase/migrations/007_pg_cron_sync.sql:20]
+- [x] [Review][Patch] Vault refresh RPC errors are ignored in token refresh path [supabase/functions/sync-emails/index.ts:52]
+- [x] [Review][Patch] Gmail and Outlook adapters do not paginate provider message listing [lib/email/gmail.ts:46]
+- [x] [Review][Patch] IMAP connection may leak if mailbox lock acquisition fails [lib/email/imap.ts:46]
+- [x] [Review][Patch] Unused `searchCriteria` variable in IMAP adapter obscures intent [lib/email/imap.ts:50]
+- [x] [Review][Patch] Sync status UI swallows query errors and can hide failures silently [components/shared/sync-status-indicator.tsx:22]
+- [x] [Review][Patch] Settings UI still shows outdated "Disconnect available in Story 2.4" message [app/(app)/settings/page.tsx:41]
+- [x] [Review][Patch] `supabase/functions/**` excluded from both ESLint and TypeScript checks without replacement in CI [eslint.config.mjs:23]
