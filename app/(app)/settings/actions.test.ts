@@ -125,6 +125,32 @@ describe("connectImapAction", () => {
       { onConflict: "user_id,provider" }
     )
   })
+
+  it("returns IMAP_STORAGE_FAILED when vault RPC fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null })
+    mockImapConnect.mockResolvedValue(undefined)
+    mockImapLogout.mockResolvedValue(undefined)
+    mockRpc.mockResolvedValue({ data: null, error: { message: "vault down" } })
+
+    const { connectImapAction } = await import("./actions")
+    const result = await connectImapAction(validParams)
+
+    expect(result).toEqual({ error: "IMAP_STORAGE_FAILED" })
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it("returns IMAP_STORAGE_FAILED when upsert fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null })
+    mockImapConnect.mockResolvedValue(undefined)
+    mockImapLogout.mockResolvedValue(undefined)
+    mockRpc.mockResolvedValue({ data: "vault-secret-id-abc", error: null })
+    mockUpsert.mockResolvedValue({ error: { message: "db error" } })
+
+    const { connectImapAction } = await import("./actions")
+    const result = await connectImapAction(validParams)
+
+    expect(result).toEqual({ error: "IMAP_STORAGE_FAILED" })
+  })
 })
 
 describe("deleteAccountAction", () => {

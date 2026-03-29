@@ -32,6 +32,8 @@ export function ImapConnectForm() {
       ? "Invalid username or password"
       : result?.error === "IMAP_UNREACHABLE"
         ? "Server unreachable — check host and port"
+        : result?.error === "IMAP_STORAGE_FAILED"
+          ? "Unable to save connection. Please try again."
         : result?.error === "IMAP_INVALID_INPUT"
           ? "Please fill all fields"
           : result?.error

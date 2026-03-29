@@ -103,6 +103,7 @@ async function testImapConnection(host: string, port: number, username: string, 
     host,
     port,
     secure: port === 993,
+    doSTARTTLS: port === 143,
     auth: { user: username, pass: password },
     logger: false,
     connectionTimeout: 10000,
@@ -117,7 +118,7 @@ export async function connectImapAction(params: {
   port: number
   username: string
   password: string
-}): Promise<{ success: true } | { error: string }> {
+}): Promise<{ success: true } | { error: "IMAP_INVALID_INPUT" | "IMAP_AUTH_FAILED" | "IMAP_UNREACHABLE" | "IMAP_STORAGE_FAILED" | "Not authenticated." }> {
   const { host, port, username, password } = params
 
   if (!host || !username || !password) {
@@ -155,8 +156,8 @@ export async function connectImapAction(params: {
     name: `imap:${userId}`,
   })
 
-  if (vaultError) {
-    return { error: "IMAP_UNREACHABLE" }
+  if (vaultError || !vaultSecretId) {
+    return { error: "IMAP_STORAGE_FAILED" }
   }
 
   const { error: upsertError } = await adminClient.from("email_connections").upsert(
@@ -171,7 +172,7 @@ export async function connectImapAction(params: {
   )
 
   if (upsertError) {
-    return { error: "IMAP_UNREACHABLE" }
+    return { error: "IMAP_STORAGE_FAILED" }
   }
 
   return { success: true }
