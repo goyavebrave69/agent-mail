@@ -5,7 +5,7 @@ SECURITY DEFINER
 SET search_path = vault, public
 AS $$
 BEGIN
-  PERFORM vault.delete_secret(secret_id);
+  DELETE FROM vault.secrets WHERE id = secret_id;
 END;
 $$;
 

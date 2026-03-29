@@ -18,12 +18,17 @@ export function DisconnectMailboxButton({ provider }: DisconnectMailboxButtonPro
   function handleDisconnect() {
     setError(null)
     startTransition(async () => {
-      const result = await disconnectMailboxAction({ provider })
-      if ('error' in result) {
+      try {
+        const result = await disconnectMailboxAction({ provider })
+        if ('error' in result) {
+          setError('Failed to disconnect. Please try again.')
+          setConfirming(false)
+        } else {
+          router.refresh()
+        }
+      } catch (e) {
         setError('Failed to disconnect. Please try again.')
         setConfirming(false)
-      } else {
-        router.refresh()
       }
     })
   }
