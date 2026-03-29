@@ -4,6 +4,42 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { redirect } from "next/navigation"
 
+export async function connectGmailAction(): Promise<{ error: string } | { url: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.getUser()
+
+  if (error || !data.user) {
+    return { error: "Not authenticated." }
+  }
+
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+
+  if (!clientId || !siteUrl) {
+    return { error: "Gmail OAuth is not configured." }
+  }
+
+  // Google requires the redirect_uri to be registered exactly — no query params allowed.
+  // We pass provider identity via the `state` parameter instead.
+  const redirectUri = `${siteUrl}/auth/callback`
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: [
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://mail.google.com/",
+    ].join(" "),
+    access_type: "offline",
+    prompt: "consent",
+    state: "gmail",
+  })
+
+  return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` }
+}
+
 export async function deleteAccountAction(): Promise<{ error: string } | void> {
   try {
     const supabase = await createClient()

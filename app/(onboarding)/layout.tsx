@@ -1,19 +1,10 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
 import { LogoutButton } from "@/components/shared/logout-button"
 
-export default async function OnboardingLayout({
+export default function OnboardingLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data, error } = await supabase.auth.getUser()
-
-  if (error || !data.user) {
-    redirect("/login")
-  }
-
   return (
     <>
       <div className="absolute top-4 right-4">
