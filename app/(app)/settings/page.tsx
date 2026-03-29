@@ -5,6 +5,7 @@ import { ConnectGmailButton } from "@/components/shared/connect-gmail-button"
 import { ConnectOutlookButton } from "@/components/shared/connect-outlook-button"
 import { ImapConnectForm } from "@/components/shared/imap-connect-form"
 import { DisconnectMailboxButton } from "@/components/shared/disconnect-mailbox-button"
+import { SyncStatusIndicator } from "@/components/shared/sync-status-indicator"
 
 interface SettingsPageProps {
   searchParams: Promise<{ connected?: string; error?: string }>
@@ -118,6 +119,14 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         }
       >
         <ConnectedAccounts />
+      </Suspense>
+
+      <Suspense
+        fallback={
+          <div className="mb-8 h-24 rounded-lg border p-6 animate-pulse bg-muted" />
+        }
+      >
+        <SyncStatusIndicator />
       </Suspense>
 
       <section className="rounded-lg border border-destructive/30 p-6">
