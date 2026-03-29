@@ -25,3 +25,7 @@ CREATE POLICY email_connections_delete_owner ON public.email_connections
 
 -- Index for efficient lookups by user
 CREATE INDEX IF NOT EXISTS idx_email_connections_user_id ON public.email_connections(user_id);
+
+-- Unique constraint to support upsert on reconnection (one connection per provider per user)
+ALTER TABLE public.email_connections
+  ADD CONSTRAINT email_connections_user_provider_unique UNIQUE (user_id, provider);
