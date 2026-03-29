@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { randomUUID } from "crypto"
+import { ImapFlow } from "imapflow"
 
 export async function connectGmailAction(): Promise<{ error: string } | { url: string }> {
   const supabase = await createClient()
@@ -95,6 +96,86 @@ export async function connectOutlookAction(): Promise<{ error: string } | { url:
   return {
     url: `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`,
   }
+}
+
+async function testImapConnection(host: string, port: number, username: string, password: string): Promise<void> {
+  const client = new ImapFlow({
+    host,
+    port,
+    secure: port === 993,
+    doSTARTTLS: port === 143,
+    auth: { user: username, pass: password },
+    logger: false,
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+  })
+  await client.connect()
+  await client.logout()
+}
+
+export async function connectImapAction(params: {
+  host: string
+  port: number
+  username: string
+  password: string
+}): Promise<{ success: true } | { error: "IMAP_INVALID_INPUT" | "IMAP_AUTH_FAILED" | "IMAP_UNREACHABLE" | "IMAP_STORAGE_FAILED" | "Not authenticated." }> {
+  const { host, port, username, password } = params
+
+  if (!host || !username || !password) {
+    return { error: "IMAP_INVALID_INPUT" }
+  }
+  if (port !== 993 && port !== 143) {
+    return { error: "IMAP_INVALID_INPUT" }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data.user) {
+    return { error: "Not authenticated." }
+  }
+  const userId = data.user.id
+
+  try {
+    await testImapConnection(host, port, username, password)
+  } catch (e: unknown) {
+    const err = e as { code?: string; responseCode?: string; message?: string }
+    if (
+      err.responseCode === "AUTHENTICATIONFAILED" ||
+      err.message?.includes("Invalid credentials") ||
+      err.message?.includes("Authentication failed")
+    ) {
+      return { error: "IMAP_AUTH_FAILED" }
+    }
+    return { error: "IMAP_UNREACHABLE" }
+  }
+
+  const adminClient = createAdminClient()
+
+  const { data: vaultSecretId, error: vaultError } = await adminClient.rpc("create_vault_secret", {
+    secret: JSON.stringify({ host, port, username, password }),
+    name: `imap:${userId}`,
+  })
+
+  if (vaultError || !vaultSecretId) {
+    return { error: "IMAP_STORAGE_FAILED" }
+  }
+
+  const { error: upsertError } = await adminClient.from("email_connections").upsert(
+    {
+      user_id: userId,
+      provider: "imap",
+      email: username,
+      vault_secret_id: vaultSecretId as string,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,provider" }
+  )
+
+  if (upsertError) {
+    return { error: "IMAP_STORAGE_FAILED" }
+  }
+
+  return { success: true }
 }
 
 export async function deleteAccountAction(): Promise<{ error: string } | void> {
