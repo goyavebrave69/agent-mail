@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { DeleteAccountButton } from "@/components/shared/delete-account-button"
 import { ConnectGmailButton } from "@/components/shared/connect-gmail-button"
 import { ConnectOutlookButton } from "@/components/shared/connect-outlook-button"
+import { ImapConnectForm } from "@/components/shared/imap-connect-form"
 
 interface SettingsPageProps {
   searchParams: Promise<{ connected?: string; error?: string }>
@@ -16,6 +17,7 @@ async function ConnectedAccounts() {
 
   const gmailConnection = connections?.find((c) => c.provider === "gmail")
   const outlookConnection = connections?.find((c) => c.provider === "outlook")
+  const imapConnection = connections?.find((c) => c.provider === "imap")
 
   return (
     <section className="mb-8 rounded-lg border p-6">
@@ -63,6 +65,26 @@ async function ConnectedAccounts() {
             </button>
           ) : (
             <ConnectOutlookButton />
+          )}
+        </div>
+
+        <div>
+          <p className="font-medium">IMAP / SMTP</p>
+          {imapConnection ? (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">{imapConnection.email}</p>
+              <button
+                disabled
+                className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground opacity-50"
+                title="Disconnect available in Story 2.4"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3">
+              <ImapConnectForm />
+            </div>
           )}
         </div>
       </div>

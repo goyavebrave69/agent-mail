@@ -1,5 +1,6 @@
 import { ConnectGmailButton } from "@/components/shared/connect-gmail-button"
 import { ConnectOutlookButton } from "@/components/shared/connect-outlook-button"
+import { ImapConnectForm } from "@/components/shared/imap-connect-form"
 
 export default function ConnectMailboxPage() {
   return (
@@ -14,13 +15,7 @@ export default function ConnectMailboxPage() {
           <ConnectGmailButton />
           <ConnectOutlookButton />
 
-          <button
-            disabled
-            className="w-full rounded-md border px-4 py-2 text-sm text-muted-foreground opacity-50"
-            title="Coming in Story 2.3"
-          >
-            Connect IMAP/SMTP (coming soon)
-          </button>
+          <ImapConnectForm />
         </div>
       </div>
     </div>
