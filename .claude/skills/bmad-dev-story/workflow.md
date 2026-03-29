@@ -225,7 +225,11 @@ Load config from `{project-root}/_bmad/bmm/config.yaml` and resolve:
     </check>
   </step>
 
-  <step n="4" goal="Mark story in-progress" tag="sprint-status">
+  <step n="4" goal="Git branch setup + mark story in-progress" tag="sprint-status">
+    <!-- Git workflow: create story branch before any file changes -->
+    <action>Run bmad-git-workflow --branch {{story_key}} to ensure work happens on the correct story branch</action>
+    <critical>All implementation work MUST happen on the story branch, never on main or another story's branch</critical>
+
     <check if="{{sprint_status}} file exists">
       <action>Load the FULL file: {{sprint_status}}</action>
       <action>Read all development_status entries to find {{story_key}}</action>
@@ -359,12 +363,16 @@ Load config from `{project-root}/_bmad/bmm/config.yaml` and resolve:
     </action>
   </step>
 
-  <step n="9" goal="Story completion and mark for review" tag="sprint-status">
+  <step n="9" goal="Story completion, git PR, and mark for review" tag="sprint-status">
     <action>Verify ALL tasks and subtasks are marked [x] (re-scan the story document now)</action>
     <action>Run the full regression suite (do not skip)</action>
     <action>Confirm File List includes every changed file</action>
     <action>Execute enhanced definition-of-done validation</action>
     <action>Update the story Status to: "review"</action>
+
+    <!-- Git workflow: commit all story changes and open PR -->
+    <action>Run bmad-git-workflow --finish {{story_key}} "{{story_title}}" to commit, push, and open the PR</action>
+    <action>Include the PR URL in the completion output</action>
 
     <!-- Enhanced Definition of Done Validation -->
     <action>Validate definition-of-done checklist with essential requirements:
