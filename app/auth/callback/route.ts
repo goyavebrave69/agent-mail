@@ -56,16 +56,17 @@ async function handleGmailCallback(request: NextRequest): Promise<NextResponse> 
     tokenData = await tokenResponse.json()
 
     if (!tokenResponse.ok) {
-      const msg = encodeURIComponent(tokenData.error ?? `token_http_${tokenResponse.status}`)
-      return NextResponse.redirect(new URL(`/settings?error=gmail_failed&detail=${msg}`, request.url))
+      console.error("[gmail-callback] token exchange failed", tokenData.error, tokenResponse.status)
+      return NextResponse.redirect(new URL("/settings?error=gmail_failed", request.url))
     }
   } catch (e) {
-    const msg = encodeURIComponent(e instanceof Error ? e.message : "token_fetch_exception")
-    return NextResponse.redirect(new URL(`/settings?error=gmail_failed&detail=${msg}`, request.url))
+    console.error("[gmail-callback] token fetch exception", e)
+    return NextResponse.redirect(new URL("/settings?error=gmail_failed", request.url))
   }
 
   if (!tokenData.access_token) {
-    return NextResponse.redirect(new URL("/settings?error=gmail_failed&detail=no_access_token", request.url))
+    console.error("[gmail-callback] no access_token in token response")
+    return NextResponse.redirect(new URL("/settings?error=gmail_failed", request.url))
   }
 
   // Fetch the user's Gmail address
@@ -78,18 +79,20 @@ async function handleGmailCallback(request: NextRequest): Promise<NextResponse> 
     )
 
     if (!profileResponse.ok) {
-      return NextResponse.redirect(new URL(`/settings?error=gmail_failed&detail=profile_http_${profileResponse.status}`, request.url))
+      console.error("[gmail-callback] profile fetch failed", profileResponse.status)
+      return NextResponse.redirect(new URL("/settings?error=gmail_failed", request.url))
     }
 
     const profile = await profileResponse.json()
     gmailEmail = profile.emailAddress
   } catch (e) {
-    const msg = encodeURIComponent(e instanceof Error ? e.message : "profile_exception")
-    return NextResponse.redirect(new URL(`/settings?error=gmail_failed&detail=${msg}`, request.url))
+    console.error("[gmail-callback] profile fetch exception", e)
+    return NextResponse.redirect(new URL("/settings?error=gmail_failed", request.url))
   }
 
   if (!gmailEmail) {
-    return NextResponse.redirect(new URL("/settings?error=gmail_failed&detail=no_email", request.url))
+    console.error("[gmail-callback] no emailAddress in profile response")
+    return NextResponse.redirect(new URL("/settings?error=gmail_failed", request.url))
   }
 
   // Get the currently logged-in Supabase user
@@ -123,8 +126,8 @@ async function handleGmailCallback(request: NextRequest): Promise<NextResponse> 
     })
 
   if (vaultError || !vaultSecretId) {
-    const msg = encodeURIComponent(vaultError?.message ?? "vault_unknown")
-    return NextResponse.redirect(new URL(`/settings?error=gmail_failed&detail=vault_${msg}`, request.url))
+    console.error("[gmail-callback] vault storage failed", vaultError)
+    return NextResponse.redirect(new URL("/settings?error=gmail_failed", request.url))
   }
 
   const vaultData = { id: vaultSecretId as string }
@@ -144,8 +147,8 @@ async function handleGmailCallback(request: NextRequest): Promise<NextResponse> 
     )
 
   if (upsertError) {
-    const msg = encodeURIComponent(upsertError.message)
-    return NextResponse.redirect(new URL(`/settings?error=gmail_failed&detail=insert_${msg}`, request.url))
+    console.error("[gmail-callback] email_connections upsert failed", upsertError)
+    return NextResponse.redirect(new URL("/settings?error=gmail_failed", request.url))
   }
 
   return NextResponse.redirect(new URL("/settings?connected=gmail", request.url))
