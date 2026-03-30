@@ -1,5 +1,6 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 
 const ACCEPTED_MIME_TYPES = [
@@ -122,12 +123,17 @@ export async function retriggerIndexKbAction(
   if (fetchError || !kbFile) return { error: "Not found" }
   if (kbFile.status !== "error") return { error: "File is not in error state" }
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("kb_files")
     .update({ status: "pending", error_message: null })
     .eq("id", kbFileId)
+    .eq("user_id", user.id)
+    .select("id, status")
 
   if (updateError) return { error: `Failed to reset status: ${updateError.message}` }
+  if (!updated || updated.length === 0) return { error: "Update matched no rows" }
+
+  revalidatePath("/knowledge-base")
 
   // Fire-and-forget: re-trigger the index-kb Edge Function
   const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/index-kb`
