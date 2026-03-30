@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-27
-last_updated: 2026-03-29T19:05:00Z
+last_updated: 2026-03-30T00:00:00Z
 project: mail-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -58,8 +58,8 @@ development_status:
   2-5-automatic-email-sync: done
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-knowledge-base-file-upload: backlog
+  epic-3: in-progress
+  3-1-knowledge-base-file-upload: review
   3-2-knowledge-base-indexing-pipeline: backlog
   3-3-knowledge-base-file-list-and-status: backlog
   3-4-knowledge-base-file-deletion-and-re-indexing: backlog
