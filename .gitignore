@@ -40,3 +40,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local IDE / MCP config
+.mcp.json
+.claude/settings.json
+.tmp_do_not_use
