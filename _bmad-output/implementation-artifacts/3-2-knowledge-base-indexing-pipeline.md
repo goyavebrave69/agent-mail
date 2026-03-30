@@ -1,6 +1,6 @@
 # Story 3.2: Knowledge Base Indexing Pipeline
 
-Status: review
+Status: done
 
 ## Story
 
@@ -61,6 +61,12 @@ So that the AI can immediately use my business data in newly generated drafts.
   - [x] Added 2 tests to `app/(app)/knowledge-base/actions.test.ts`
   - [x] Test: after successful upload, fetch is called with correct URL and body
   - [x] Test: trigger fetch failure does not affect action return value
+
+### Review Findings
+
+- [x] [Review][Decision] Accès non contraint à `index-kb` — stratégie retenue: endpoint interne uniquement (`service-role only`) avec vérification stricte du header `Authorization` côté Edge Function.
+- [x] [Review][Patch] Imports `npm:` incompatibles avec la règle Deno `no-import-prefix` dans la CI [supabase/functions/index-kb/index.ts:1]
+- [x] [Review][Patch] Les erreurs de parsing CSV (`Papa.parse().errors`) ne sont pas traitées, ce qui peut marquer `ready` un fichier malformé [supabase/functions/index-kb/index.ts:81]
 
 ## Dev Notes
 

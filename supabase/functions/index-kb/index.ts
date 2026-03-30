@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-import-prefix
 // Supabase Edge Function: index-kb
 // Triggered via HTTP POST after a KB file is uploaded (story 3.1).
 // Parses CSV/Excel content, generates embeddings, and stores them in the
@@ -76,6 +77,13 @@ function parseFile(filename: string, buffer: ArrayBuffer): string[] {
       header: true,
       skipEmptyLines: true,
     })
+
+    if (result.errors.length > 0) {
+      const firstError = result.errors[0]
+      const rowInfo = typeof firstError.row === 'number' ? ` at row ${firstError.row}` : ''
+      throw new Error(`CSV parse failed${rowInfo}: ${firstError.message}`)
+    }
+
     return chunkRows(result.data as Record<string, unknown>[])
   }
 
@@ -124,6 +132,12 @@ async function cleanupEmbeddings(kbFileId: string): Promise<void> {
 deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+  }
+
+  const authHeader = req.headers.get('authorization')
+  const expectedAuthHeader = `Bearer ${serviceRoleKey}`
+  if (authHeader !== expectedAuthHeader) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
   }
 
   let kbFileId: string
