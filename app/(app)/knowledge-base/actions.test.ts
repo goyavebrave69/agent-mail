@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
+const mockFetch = vi.fn()
+vi.stubGlobal("fetch", mockFetch)
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }))
@@ -18,6 +21,8 @@ describe("uploadKbFileAction", () => {
   beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
+    mockFetch.mockReset()
+    mockFetch.mockResolvedValue({ ok: true })
 
     mockGetUser = vi.fn()
     mockUpload = vi.fn()
@@ -128,5 +133,134 @@ describe("uploadKbFileAction", () => {
     const result = await uploadKbFileAction(formData)
     expect(result).toMatchObject({ error: expect.stringContaining("Failed to record file") })
     expect(mockRemove).toHaveBeenCalledOnce()
+  })
+})
+
+describe("retriggerIndexKbAction", () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockSelect: ReturnType<typeof vi.fn>
+  let mockUpdate: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    mockFetch.mockReset()
+    mockFetch.mockResolvedValue({ ok: true })
+
+    mockGetUser = vi.fn()
+    mockSelect = vi.fn()
+    mockUpdate = vi.fn()
+
+    const { createClient } = await import("@/lib/supabase/server")
+    ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: mockSelect,
+            }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue(mockUpdate()),
+        }),
+      }),
+    })
+  })
+
+  it("returns error when not authenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+
+    const { retriggerIndexKbAction } = await import("./actions")
+    const result = await retriggerIndexKbAction("file-uuid")
+    expect(result).toEqual({ error: "Unauthorized" })
+  })
+
+  it("returns error when file not found or belongs to different user", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSelect.mockResolvedValue({ data: null, error: { message: "not found" } })
+
+    const { retriggerIndexKbAction } = await import("./actions")
+    const result = await retriggerIndexKbAction("file-uuid")
+    expect(result).toEqual({ error: "Not found" })
+  })
+
+  it("returns error when file status is not error", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSelect.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", status: "ready" },
+      error: null,
+    })
+
+    const { retriggerIndexKbAction } = await import("./actions")
+    const result = await retriggerIndexKbAction("file-uuid")
+    expect(result).toEqual({ error: "File is not in error state" })
+  })
+
+  it("resets status to pending, fires fetch, returns success", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSelect.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", status: "error" },
+      error: null,
+    })
+    mockUpdate.mockReturnValue({ error: null })
+
+    const { createClient } = await import("@/lib/supabase/server")
+    ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: mockSelect,
+            }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+      }),
+    })
+
+    const { retriggerIndexKbAction } = await import("./actions")
+    const result = await retriggerIndexKbAction("file-uuid")
+    expect(result).toEqual({ success: true })
+
+    await new Promise((r) => setTimeout(r, 0))
+    expect(mockFetch).toHaveBeenCalledOnce()
+    const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain("/functions/v1/index-kb")
+    expect(JSON.parse(opts.body as string)).toEqual({ kb_file_id: "file-uuid" })
+  })
+
+  it("returns success even if index-kb trigger fetch fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSelect.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", status: "error" },
+      error: null,
+    })
+    mockFetch.mockRejectedValue(new Error("network error"))
+
+    const { createClient } = await import("@/lib/supabase/server")
+    ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: mockSelect,
+            }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+      }),
+    })
+
+    const { retriggerIndexKbAction } = await import("./actions")
+    const result = await retriggerIndexKbAction("file-uuid")
+    expect(result).toEqual({ success: true })
   })
 })

@@ -1,6 +1,9 @@
 "use client"
 
+import { useTransition, useState } from "react"
+import { useRouter } from "next/navigation"
 import { KbFile } from "@/app/(app)/knowledge-base/page"
+import { retriggerIndexKbAction } from "@/app/(app)/knowledge-base/actions"
 
 interface KbFileListProps {
   files: KbFile[]
@@ -27,6 +30,22 @@ function formatDate(iso: string): string {
 }
 
 export function KbFileList({ files }: KbFileListProps) {
+  const [isPending, startTransition] = useTransition()
+  const [retryError, setRetryError] = useState<string | null>(null)
+  const router = useRouter()
+
+  function handleRetry(id: string) {
+    setRetryError(null)
+    startTransition(async () => {
+      const result = await retriggerIndexKbAction(id)
+      if ("error" in result) {
+        setRetryError(result.error)
+      } else {
+        router.refresh()
+      }
+    })
+  }
+
   if (files.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -38,6 +57,9 @@ export function KbFileList({ files }: KbFileListProps) {
   return (
     <section>
       <h2 className="mb-3 text-base font-semibold">Uploaded Files</h2>
+      {retryError && (
+        <p className="mb-2 text-xs text-destructive">{retryError}</p>
+      )}
       <div className="overflow-hidden rounded-lg border">
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/40">
@@ -68,6 +90,15 @@ export function KbFileList({ files }: KbFileListProps) {
                     )}
                   </td>
                   <td className="px-4 py-3">
+                    {file.status === "error" && (
+                      <button
+                        onClick={() => handleRetry(file.id)}
+                        disabled={isPending}
+                        className="text-xs text-primary underline hover:no-underline disabled:opacity-50"
+                      >
+                        {isPending ? "Retrying…" : "Retry"}
+                      </button>
+                    )}
                     {/* Delete button added in story 3.4 */}
                   </td>
                 </tr>

@@ -88,5 +88,57 @@ export async function uploadKbFileAction(
     return { error: `Failed to record file: ${insertError?.message ?? "unknown error"}` }
   }
 
+  // Fire-and-forget: trigger the index-kb Edge Function asynchronously
+  const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/index-kb`
+  fetch(fnUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({ kb_file_id: inserted.id }),
+  }).catch((err: unknown) => console.error("[index-kb trigger]", err))
+
   return { id: inserted.id, filename: inserted.filename, status: inserted.status }
+}
+
+export async function retriggerIndexKbAction(
+  kbFileId: string
+): Promise<{ success: true } | { error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Unauthorized" }
+
+  const { data: kbFile, error: fetchError } = await supabase
+    .from("kb_files")
+    .select("id, user_id, status")
+    .eq("id", kbFileId)
+    .eq("user_id", user.id)
+    .single()
+
+  if (fetchError || !kbFile) return { error: "Not found" }
+  if (kbFile.status !== "error") return { error: "File is not in error state" }
+
+  const { error: updateError } = await supabase
+    .from("kb_files")
+    .update({ status: "pending", error_message: null })
+    .eq("id", kbFileId)
+
+  if (updateError) return { error: `Failed to reset status: ${updateError.message}` }
+
+  // Fire-and-forget: re-trigger the index-kb Edge Function
+  const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/index-kb`
+  fetch(fnUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({ kb_file_id: kbFileId }),
+  }).catch((err: unknown) => console.error("[index-kb retrigger]", err))
+
+  return { success: true }
 }
