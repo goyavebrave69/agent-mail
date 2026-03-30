@@ -4,7 +4,7 @@
 // NO email content is persisted (NFR8, FR33).
 
 import { createClient } from '@supabase/supabase-js'
-import { triageEmail, type EmailCategory } from '../../lib/ai/triage.ts'
+import { triageEmail, type EmailCategory } from '../../../lib/ai/triage.ts'
 
 type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
 type DenoLike = {
