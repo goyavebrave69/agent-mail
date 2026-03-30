@@ -4,24 +4,39 @@ import { useState, useTransition, useRef, DragEvent } from "react"
 import { useRouter } from "next/navigation"
 import { uploadKbFileAction } from "@/app/(app)/knowledge-base/actions"
 
-const ACCEPTED_EXTENSIONS = ".csv,.xls,.xlsx"
+const ACCEPTED_EXTENSIONS_ATTR = ".csv,.xls,.xlsx"
 const ACCEPTED_MIME_TYPES = [
   "text/csv",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]
+const ACCEPTED_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"]
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+
+interface UploadingFile {
+  id: string
+  name: string
+}
+
+function getFileExtension(filename: string): string {
+  const dotIndex = filename.lastIndexOf(".")
+  if (dotIndex < 0) return ""
+  return filename.slice(dotIndex).toLowerCase()
+}
 
 export function KbUploadZone() {
   const [isPending, startTransition] = useTransition()
   const [errors, setErrors] = useState<string[]>([])
-  const [uploadingFiles, setUploadingFiles] = useState<string[]>([])
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const router = useRouter()
 
   function validateFile(file: File): string | null {
-    if (!ACCEPTED_MIME_TYPES.includes(file.type)) {
+    const hasAcceptedMimeType = ACCEPTED_MIME_TYPES.includes(file.type)
+    const hasAcceptedExtension = ACCEPTED_FILE_EXTENSIONS.includes(getFileExtension(file.name))
+
+    if (!hasAcceptedMimeType && !hasAcceptedExtension) {
       return `"${file.name}": unsupported format. Please upload a CSV or Excel file.`
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
@@ -41,7 +56,8 @@ export function KbUploadZone() {
         continue
       }
 
-      setUploadingFiles((prev) => [...prev, file.name])
+      const uploadId = `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      setUploadingFiles((prev) => [...prev, { id: uploadId, name: file.name }])
 
       const formData = new FormData()
       formData.set("file", file)
@@ -57,7 +73,7 @@ export function KbUploadZone() {
         } catch {
           setErrors((prev) => [...prev, `Failed to upload "${file.name}". Please try again.`])
         } finally {
-          setUploadingFiles((prev) => prev.filter((n) => n !== file.name))
+          setUploadingFiles((prev) => prev.filter((uploadingFile) => uploadingFile.id !== uploadId))
         }
       })
     }
@@ -115,7 +131,7 @@ export function KbUploadZone() {
         <input
           ref={inputRef}
           type="file"
-          accept={ACCEPTED_EXTENSIONS}
+          accept={ACCEPTED_EXTENSIONS_ATTR}
           multiple
           className="hidden"
           onChange={handleInputChange}
@@ -125,7 +141,7 @@ export function KbUploadZone() {
         {isUploading ? (
           <>
             <p className="text-sm font-medium text-muted-foreground">
-              Uploading {uploadingFiles[0] ?? "file"}…
+              Uploading {uploadingFiles[0]?.name ?? "file"}…
             </p>
             <p className="mt-1 text-xs text-muted-foreground">Indexing will start automatically.</p>
           </>

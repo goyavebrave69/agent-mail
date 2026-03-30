@@ -95,6 +95,27 @@ describe("uploadKbFileAction", () => {
     expect(mockInsert).toHaveBeenCalledOnce()
   })
 
+  it("accepts csv extension when MIME type is empty", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockUpload.mockResolvedValue({ error: null })
+    mockInsert.mockResolvedValue({
+      data: { id: "file-uuid", filename: "prices.csv", status: "pending" },
+      error: null,
+    })
+
+    const { uploadKbFileAction } = await import("./actions")
+    const formData = new FormData()
+    formData.set("file", makeFile("prices.csv", "", 1000))
+
+    const result = await uploadKbFileAction(formData)
+    expect(result).toEqual({ id: "file-uuid", filename: "prices.csv", status: "pending" })
+    expect(mockUpload).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(File),
+      expect.objectContaining({ contentType: "text/csv", upsert: false })
+    )
+  })
+
   it("cleans up storage and returns error when db insert fails", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
     mockUpload.mockResolvedValue({ error: null })

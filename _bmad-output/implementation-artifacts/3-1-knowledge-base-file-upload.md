@@ -1,6 +1,6 @@
 # Story 3.1: Knowledge Base File Upload
 
-Status: review
+Status: done
 
 ## Story
 
@@ -78,6 +78,13 @@ So that the AI can use my business data (prices, availability, policies) to gene
   - [x] Test: invalid mime type → returns `{ error }` without storing
   - [x] Test: file too large → returns `{ error }` without storing
   - [x] Mock Supabase client (storage upload + db insert) with `vi.mock`
+
+### Review Findings
+
+- [x] [Review][Decision] Inbox nav points to missing route — resolved by removing the `Inbox` link from `app/(app)/layout.tsx` until a dedicated route exists.
+- [x] [Review][Patch] MIME-only validation rejects valid CSV/Excel uploads when browser provides empty or inconsistent MIME type [app/(app)/knowledge-base/actions.ts:31]
+- [x] [Review][Patch] Client validation has same MIME-only rejection path, causing UX false negatives before server upload [components/kb/kb-upload-zone.tsx:24]
+- [x] [Review][Patch] Upload progress tracking keyed by filename collides for duplicate filenames, breaking per-file pending state [components/kb/kb-upload-zone.tsx:18]
 
 ## Dev Notes
 

@@ -7,7 +7,24 @@ const ACCEPTED_MIME_TYPES = [
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]
+const ACCEPTED_EXTENSIONS = [".csv", ".xls", ".xlsx"]
+const EXTENSION_TO_MIME: Record<string, string> = {
+  ".csv": "text/csv",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
+
+function getFileExtension(filename: string): string {
+  const dotIndex = filename.lastIndexOf(".")
+  if (dotIndex < 0) return ""
+  return filename.slice(dotIndex).toLowerCase()
+}
+
+function inferMimeType(filename: string): string | null {
+  const extension = getFileExtension(filename)
+  return EXTENSION_TO_MIME[extension] ?? null
+}
 
 export interface KbFileRecord {
   id: string
@@ -28,7 +45,10 @@ export async function uploadKbFileAction(
   const file = formData.get("file") as File | null
   if (!file) return { error: "No file provided" }
 
-  if (!ACCEPTED_MIME_TYPES.includes(file.type)) {
+  const hasAcceptedMimeType = ACCEPTED_MIME_TYPES.includes(file.type)
+  const hasAcceptedExtension = ACCEPTED_EXTENSIONS.includes(getFileExtension(file.name))
+
+  if (!hasAcceptedMimeType && !hasAcceptedExtension) {
     return {
       error: `Unsupported file type: ${file.type || "unknown"}. Please upload a CSV or Excel file (.csv, .xls, .xlsx).`,
     }
@@ -39,10 +59,11 @@ export async function uploadKbFileAction(
   }
 
   const storagePath = `${user.id}/${Date.now()}-${file.name}`
+  const uploadContentType = hasAcceptedMimeType ? file.type : (inferMimeType(file.name) ?? file.type)
 
   const { error: uploadError } = await supabase.storage
     .from("knowledge-base")
-    .upload(storagePath, file, { contentType: file.type, upsert: false })
+    .upload(storagePath, file, { contentType: uploadContentType, upsert: false })
 
   if (uploadError) {
     return { error: `Upload failed: ${uploadError.message}` }
