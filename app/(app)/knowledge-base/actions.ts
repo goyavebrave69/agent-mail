@@ -148,3 +148,53 @@ export async function retriggerIndexKbAction(
 
   return { success: true }
 }
+
+export async function deleteKbFileAction(
+  kbFileId: string
+): Promise<{ success: true } | { error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Unauthorized" }
+
+  const { data: kbFile, error: fetchError } = await supabase
+    .from("kb_files")
+    .select("id, user_id, storage_path")
+    .eq("id", kbFileId)
+    .eq("user_id", user.id)
+    .single()
+
+  if (fetchError || !kbFile) return { error: "Not found" }
+
+  const { error: storageError } = await supabase.storage
+    .from("knowledge-base")
+    .remove([kbFile.storage_path])
+
+  if (storageError) return { error: `Failed to delete file: ${storageError.message}` }
+
+  const { error: embeddingsError } = await supabase
+    .from("embeddings")
+    .delete()
+    .eq("kb_file_id", kbFileId)
+    .eq("user_id", user.id)
+
+  if (embeddingsError) {
+    console.error("[deleteKbFile] embeddings delete error:", embeddingsError.message)
+  }
+
+  const { data: deleted, error: deleteError } = await supabase
+    .from("kb_files")
+    .delete()
+    .eq("id", kbFileId)
+    .eq("user_id", user.id)
+    .select("id")
+
+  if (deleteError) return { error: `Failed to delete record: ${deleteError.message}` }
+  if (!deleted || deleted.length === 0) return { error: "Delete matched no rows" }
+
+  revalidatePath("/knowledge-base")
+
+  return { success: true }
+}

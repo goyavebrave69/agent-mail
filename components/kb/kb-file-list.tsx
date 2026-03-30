@@ -3,7 +3,7 @@
 import { useTransition, useState } from "react"
 import { useRouter } from "next/navigation"
 import { KbFile } from "@/app/(app)/knowledge-base/page"
-import { retriggerIndexKbAction } from "@/app/(app)/knowledge-base/actions"
+import { retriggerIndexKbAction, deleteKbFileAction } from "@/app/(app)/knowledge-base/actions"
 
 interface KbFileListProps {
   files: KbFile[]
@@ -32,6 +32,9 @@ function formatDate(iso: string): string {
 export function KbFileList({ files }: KbFileListProps) {
   const [isPending, startTransition] = useTransition()
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null)
   const router = useRouter()
 
   function handleRetry(id: string) {
@@ -44,6 +47,19 @@ export function KbFileList({ files }: KbFileListProps) {
         router.refresh()
       }
     })
+  }
+
+  async function handleDeleteConfirm(id: string) {
+    setConfirmingId(null)
+    setDeleteError(null)
+    setIsDeletingId(id)
+    const result = await deleteKbFileAction(id)
+    setIsDeletingId(null)
+    if ("error" in result) {
+      setDeleteError(result.error)
+    } else {
+      router.refresh()
+    }
   }
 
   if (files.length === 0) {
@@ -60,6 +76,9 @@ export function KbFileList({ files }: KbFileListProps) {
       {retryError && (
         <p className="mb-2 text-xs text-destructive">{retryError}</p>
       )}
+      {deleteError && (
+        <p className="mb-2 text-xs text-destructive">{deleteError}</p>
+      )}
       <div className="overflow-hidden rounded-lg border">
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/40">
@@ -74,6 +93,8 @@ export function KbFileList({ files }: KbFileListProps) {
           <tbody>
             {files.map((file) => {
               const badge = STATUS_BADGE[file.status]
+              const isDeleting = isDeletingId === file.id
+              const isConfirming = confirmingId === file.id
               return (
                 <tr key={file.id} className="border-b last:border-0">
                   <td className="px-4 py-3 font-medium">{file.filename}</td>
@@ -90,16 +111,42 @@ export function KbFileList({ files }: KbFileListProps) {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {file.status === "error" && (
-                      <button
-                        onClick={() => handleRetry(file.id)}
-                        disabled={isPending}
-                        className="text-xs text-primary underline hover:no-underline disabled:opacity-50"
-                      >
-                        {isPending ? "Retrying…" : "Retry"}
-                      </button>
-                    )}
-                    {/* Delete button added in story 3.4 */}
+                    <div className="flex items-center gap-2">
+                      {file.status === "error" && (
+                        <button
+                          onClick={() => handleRetry(file.id)}
+                          disabled={isPending || isDeleting}
+                          className="text-xs text-primary underline hover:no-underline disabled:opacity-50"
+                        >
+                          {isPending ? "Retrying…" : "Retry"}
+                        </button>
+                      )}
+                      {isConfirming ? (
+                        <span className="flex items-center gap-1 text-xs">
+                          <span className="text-muted-foreground">Sure?</span>
+                          <button
+                            onClick={() => handleDeleteConfirm(file.id)}
+                            className="text-destructive underline hover:no-underline"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmingId(null)}
+                            className="text-muted-foreground underline hover:no-underline"
+                          >
+                            No
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmingId(file.id)}
+                          disabled={isDeleting || isPending}
+                          className="text-xs text-muted-foreground underline hover:text-destructive hover:no-underline disabled:opacity-50"
+                        >
+                          {isDeleting ? "Deleting…" : "Delete"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )
