@@ -3,10 +3,28 @@
 // Fetches new emails for all active sync jobs and stores metadata only.
 // NO email content is persisted (NFR8, FR33).
 
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
+type DenoLike = {
+  env: {
+    get: (name: string) => string | undefined
+  }
+  serve: DenoServe
+}
+
+const denoGlobal = globalThis as typeof globalThis & {
+  Deno?: DenoLike
+}
+
+const denoApi = denoGlobal.Deno
+if (!denoApi) {
+  throw new Error('Deno runtime not available')
+}
+const deno = denoApi
+
+const supabaseUrl = deno.env.get('SUPABASE_URL')!
+const serviceRoleKey = deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -115,7 +133,7 @@ async function syncGmail(
   const refresh_token = credentials.refresh_token as string
   const after = lastSyncedAt ? Math.floor(lastSyncedAt.getTime() / 1000) : 0
 
-  async function doFetch(token: string): Promise<Response> {
+  function doFetch(token: string): Promise<Response> {
     const query = after > 0 ? `?q=after:${after}` : ''
     return fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages${query}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -131,8 +149,8 @@ async function syncGmail(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: Deno.env.get('GOOGLE_CLIENT_ID') ?? '',
-        client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') ?? '',
+        client_id: deno.env.get('GOOGLE_CLIENT_ID') ?? '',
+        client_secret: deno.env.get('GOOGLE_CLIENT_SECRET') ?? '',
         refresh_token,
         grant_type: 'refresh_token',
       }),
@@ -192,7 +210,7 @@ async function syncOutlook(
   const filter = lastSyncedAt ? `&$filter=receivedDateTime gt ${lastSyncedAt.toISOString()}` : ''
   const url = `https://graph.microsoft.com/v1.0/me/messages?${select}${filter}&$top=50`
 
-  async function doFetch(token: string): Promise<Response> {
+  function doFetch(token: string): Promise<Response> {
     return fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   }
 
@@ -204,8 +222,8 @@ async function syncOutlook(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: Deno.env.get('MICROSOFT_CLIENT_ID') ?? '',
-        client_secret: Deno.env.get('MICROSOFT_CLIENT_SECRET') ?? '',
+        client_id: deno.env.get('MICROSOFT_CLIENT_ID') ?? '',
+        client_secret: deno.env.get('MICROSOFT_CLIENT_SECRET') ?? '',
         refresh_token,
         grant_type: 'refresh_token',
         scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send offline_access',
@@ -257,8 +275,7 @@ async function syncImap(
   await markJobError(job.id, reason, job.retry_count)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-;(globalThis as any).Deno?.serve(async (_req: Request) => {
+deno.serve(async (_req: Request) => {
   try {
     // Fetch all active sync jobs (service role bypasses RLS)
     const { data: jobs, error: jobsError } = await supabase
