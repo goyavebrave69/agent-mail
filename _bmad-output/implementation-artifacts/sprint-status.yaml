@@ -60,7 +60,7 @@ development_status:
 
   epic-3: in-progress
   3-1-knowledge-base-file-upload: done
-  3-2-knowledge-base-indexing-pipeline: backlog
+  3-2-knowledge-base-indexing-pipeline: review
   3-3-knowledge-base-file-list-and-status: backlog
   3-4-knowledge-base-file-deletion-and-re-indexing: backlog
   epic-3-retrospective: optional
