@@ -5,8 +5,8 @@
 // embeddings table. Updates kb_files.status to 'ready' or 'error'.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import Papa from 'npm:papaparse'
-import * as XLSX from 'npm:xlsx'
+import Papa from 'npm:papaparse@5.4.1'
+import * as XLSX from 'npm:xlsx@0.18.5'
 
 type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
 type DenoLike = {
