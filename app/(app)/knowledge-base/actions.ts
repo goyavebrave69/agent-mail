@@ -88,5 +88,16 @@ export async function uploadKbFileAction(
     return { error: `Failed to record file: ${insertError?.message ?? "unknown error"}` }
   }
 
+  // Fire-and-forget: trigger the index-kb Edge Function asynchronously
+  const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/index-kb`
+  fetch(fnUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({ kb_file_id: inserted.id }),
+  }).catch((err: unknown) => console.error("[index-kb trigger]", err))
+
   return { id: inserted.id, filename: inserted.filename, status: inserted.status }
 }

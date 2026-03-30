@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
+const mockFetch = vi.fn()
+vi.stubGlobal("fetch", mockFetch)
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }))
@@ -18,6 +21,9 @@ describe("uploadKbFileAction", () => {
   beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
+    mockFetch.mockReset()
+    // Default: fire-and-forget fetch resolves silently
+    mockFetch.mockResolvedValue({ ok: true })
 
     mockGetUser = vi.fn()
     mockUpload = vi.fn()
@@ -128,5 +134,45 @@ describe("uploadKbFileAction", () => {
     const result = await uploadKbFileAction(formData)
     expect(result).toMatchObject({ error: expect.stringContaining("Failed to record file") })
     expect(mockRemove).toHaveBeenCalledOnce()
+  })
+
+  it("triggers index-kb Edge Function after successful upload", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockUpload.mockResolvedValue({ error: null })
+    mockInsert.mockResolvedValue({
+      data: { id: "file-uuid", filename: "prices.csv", status: "pending" },
+      error: null,
+    })
+
+    const { uploadKbFileAction } = await import("./actions")
+    const formData = new FormData()
+    formData.set("file", makeFile("prices.csv", "text/csv", 1000))
+
+    const result = await uploadKbFileAction(formData)
+    expect(result).toMatchObject({ id: "file-uuid" })
+
+    // Allow the fire-and-forget fetch to be scheduled
+    await new Promise((r) => setTimeout(r, 0))
+    expect(mockFetch).toHaveBeenCalledOnce()
+    const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain("/functions/v1/index-kb")
+    expect(JSON.parse(opts.body as string)).toEqual({ kb_file_id: "file-uuid" })
+  })
+
+  it("returns success even if index-kb trigger fetch fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockUpload.mockResolvedValue({ error: null })
+    mockInsert.mockResolvedValue({
+      data: { id: "file-uuid", filename: "data.csv", status: "pending" },
+      error: null,
+    })
+    mockFetch.mockRejectedValue(new Error("network error"))
+
+    const { uploadKbFileAction } = await import("./actions")
+    const formData = new FormData()
+    formData.set("file", makeFile("data.csv", "text/csv", 500))
+
+    const result = await uploadKbFileAction(formData)
+    expect(result).toMatchObject({ id: "file-uuid", status: "pending" })
   })
 })
