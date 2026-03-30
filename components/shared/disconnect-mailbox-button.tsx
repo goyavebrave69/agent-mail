@@ -26,7 +26,7 @@ export function DisconnectMailboxButton({ provider }: DisconnectMailboxButtonPro
         } else {
           router.refresh()
         }
-      } catch (e) {
+      } catch {
         setError('Failed to disconnect. Please try again.')
         setConfirming(false)
       }
