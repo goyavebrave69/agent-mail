@@ -178,6 +178,52 @@ export async function connectImapAction(params: {
   return { success: true }
 }
 
+export async function disconnectMailboxAction(params: {
+  provider: 'gmail' | 'outlook' | 'imap'
+}): Promise<{ success: true } | { error: string }> {
+  const { provider } = params
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data.user) {
+    return { error: 'Not authenticated.' }
+  }
+  const userId = data.user.id
+
+  const adminClient = createAdminClient()
+
+  const { data: connection } = await adminClient
+    .from('email_connections')
+    .select('vault_secret_id')
+    .match({ user_id: userId, provider })
+    .single()
+
+  if (!connection) {
+    return { error: 'NOT_FOUND' }
+  }
+
+  // TODO(story-2.5): deactivate email sync job for this provider
+
+  const { error: vaultError } = await adminClient.rpc('delete_vault_secret', {
+    secret_id: connection.vault_secret_id,
+  })
+
+  if (vaultError) {
+    return { error: 'DISCONNECT_FAILED' }
+  }
+
+  const { error: deleteError } = await adminClient
+    .from('email_connections')
+    .delete()
+    .match({ user_id: userId, provider })
+
+  if (deleteError) {
+    return { error: 'DISCONNECT_FAILED' }
+  }
+
+  return { success: true }
+}
+
 export async function deleteAccountAction(): Promise<{ error: string } | void> {
   try {
     const supabase = await createClient()

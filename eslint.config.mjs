@@ -20,6 +20,7 @@ const eslintConfig = [
       ".windsurf/**",
       "design-artifacts/**",
       "*.tsx",  // root-level stray files
+      "supabase/functions/**",  // Deno Edge Functions — not linted by Node/Next.js ESLint
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

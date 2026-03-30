@@ -80,3 +80,14 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Lint Edge Functions (Deno)
+        run: deno lint supabase/functions
+
+      - name: Type-check Edge Functions (Deno)
+        run: deno check supabase/functions/sync-emails/index.ts
