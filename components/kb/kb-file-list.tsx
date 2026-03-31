@@ -53,12 +53,17 @@ export function KbFileList({ files }: KbFileListProps) {
     setConfirmingId(null)
     setDeleteError(null)
     setIsDeletingId(id)
-    const result = await deleteKbFileAction(id)
-    setIsDeletingId(null)
-    if ("error" in result) {
-      setDeleteError(result.error)
-    } else {
-      router.refresh()
+    try {
+      const result = await deleteKbFileAction(id)
+      if ("error" in result) {
+        setDeleteError(result.error)
+      } else {
+        router.refresh()
+      }
+    } catch {
+      setDeleteError("Failed to delete file. Please try again.")
+    } finally {
+      setIsDeletingId(null)
     }
   }
 

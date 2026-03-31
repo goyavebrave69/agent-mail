@@ -161,28 +161,12 @@ export async function deleteKbFileAction(
 
   const { data: kbFile, error: fetchError } = await supabase
     .from("kb_files")
-    .select("id, user_id, storage_path")
+    .select("id, user_id, filename, storage_path, file_size, mime_type")
     .eq("id", kbFileId)
     .eq("user_id", user.id)
     .single()
 
   if (fetchError || !kbFile) return { error: "Not found" }
-
-  const { error: storageError } = await supabase.storage
-    .from("knowledge-base")
-    .remove([kbFile.storage_path])
-
-  if (storageError) return { error: `Failed to delete file: ${storageError.message}` }
-
-  const { error: embeddingsError } = await supabase
-    .from("embeddings")
-    .delete()
-    .eq("kb_file_id", kbFileId)
-    .eq("user_id", user.id)
-
-  if (embeddingsError) {
-    console.error("[deleteKbFile] embeddings delete error:", embeddingsError.message)
-  }
 
   const { data: deleted, error: deleteError } = await supabase
     .from("kb_files")
@@ -193,6 +177,41 @@ export async function deleteKbFileAction(
 
   if (deleteError) return { error: `Failed to delete record: ${deleteError.message}` }
   if (!deleted || deleted.length === 0) return { error: "Delete matched no rows" }
+
+  const { error: storageError } = await supabase.storage
+    .from("knowledge-base")
+    .remove([kbFile.storage_path])
+
+  if (storageError) {
+    const { error: rollbackError } = await supabase.from("kb_files").insert({
+      id: kbFile.id,
+      user_id: kbFile.user_id,
+      filename: kbFile.filename,
+      storage_path: kbFile.storage_path,
+      file_size: kbFile.file_size,
+      mime_type: kbFile.mime_type,
+      status: "error",
+      error_message: `Delete rollback after storage failure: ${storageError.message}`,
+    })
+
+    if (rollbackError) {
+      return {
+        error: `Failed to delete file: ${storageError.message}. Rollback failed: ${rollbackError.message}`,
+      }
+    }
+
+    return { error: `Failed to delete file: ${storageError.message}` }
+  }
+
+  const { error: embeddingsError } = await supabase
+    .from("embeddings")
+    .delete()
+    .eq("kb_file_id", kbFileId)
+    .eq("user_id", user.id)
+
+  if (embeddingsError) {
+    console.error("[deleteKbFile] embeddings delete error:", embeddingsError.message)
+  }
 
   revalidatePath("/knowledge-base")
 

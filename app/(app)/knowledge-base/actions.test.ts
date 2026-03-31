@@ -294,6 +294,7 @@ describe("deleteKbFileAction", () => {
   let mockRemove: ReturnType<typeof vi.fn>
   let mockDeleteEmbeddings: ReturnType<typeof vi.fn>
   let mockDeleteKbFile: ReturnType<typeof vi.fn>
+  let mockRollbackInsert: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     vi.resetModules()
@@ -304,6 +305,7 @@ describe("deleteKbFileAction", () => {
     mockRemove = vi.fn()
     mockDeleteEmbeddings = vi.fn()
     mockDeleteKbFile = vi.fn()
+    mockRollbackInsert = vi.fn()
 
     const { createClient } = await import("@/lib/supabase/server")
     ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -337,6 +339,7 @@ describe("deleteKbFileAction", () => {
               }),
             }),
           }),
+          insert: mockRollbackInsert,
         }
       }),
     })
@@ -359,18 +362,37 @@ describe("deleteKbFileAction", () => {
     expect(result).toEqual({ error: "Not found" })
   })
 
-  it("returns error when storage removal fails and does NOT delete db record", async () => {
+  it("returns error when storage removal fails and restores kb_files record", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
     mockSingle.mockResolvedValue({
       data: { id: "file-uuid", user_id: "user-1", storage_path: "user-1/123-file.csv" },
       error: null,
     })
+    mockDeleteKbFile.mockResolvedValue({ data: [{ id: "file-uuid" }], error: null })
     mockRemove.mockResolvedValue({ error: { message: "storage error" } })
+    mockRollbackInsert.mockResolvedValue({ error: null })
 
     const { deleteKbFileAction } = await import("./actions")
     const result = await deleteKbFileAction("file-uuid")
     expect(result).toMatchObject({ error: expect.stringContaining("storage error") })
-    expect(mockDeleteKbFile).not.toHaveBeenCalled()
+    expect(mockDeleteKbFile).toHaveBeenCalledOnce()
+    expect(mockRollbackInsert).toHaveBeenCalledOnce()
+    expect(mockDeleteEmbeddings).not.toHaveBeenCalled()
+  })
+
+  it("returns detailed error when rollback fails after storage failure", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSingle.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", storage_path: "user-1/123-file.csv" },
+      error: null,
+    })
+    mockDeleteKbFile.mockResolvedValue({ data: [{ id: "file-uuid" }], error: null })
+    mockRemove.mockResolvedValue({ error: { message: "storage error" } })
+    mockRollbackInsert.mockResolvedValue({ error: { message: "rollback error" } })
+
+    const { deleteKbFileAction } = await import("./actions")
+    const result = await deleteKbFileAction("file-uuid")
+    expect(result).toMatchObject({ error: expect.stringContaining("Rollback failed: rollback error") })
   })
 
   it("happy path: removes storage, deletes embeddings, deletes kb_files, returns success", async () => {
@@ -382,6 +404,7 @@ describe("deleteKbFileAction", () => {
     mockRemove.mockResolvedValue({ error: null })
     mockDeleteEmbeddings.mockResolvedValue({ error: null })
     mockDeleteKbFile.mockResolvedValue({ data: [{ id: "file-uuid" }], error: null })
+    mockRollbackInsert.mockResolvedValue({ error: null })
 
     const { deleteKbFileAction } = await import("./actions")
     const result = await deleteKbFileAction("file-uuid")
@@ -400,6 +423,7 @@ describe("deleteKbFileAction", () => {
     mockRemove.mockResolvedValue({ error: null })
     mockDeleteEmbeddings.mockResolvedValue({ error: { message: "embeddings error" } })
     mockDeleteKbFile.mockResolvedValue({ data: [{ id: "file-uuid" }], error: null })
+    mockRollbackInsert.mockResolvedValue({ error: null })
 
     const { deleteKbFileAction } = await import("./actions")
     const result = await deleteKbFileAction("file-uuid")
@@ -416,9 +440,12 @@ describe("deleteKbFileAction", () => {
     mockRemove.mockResolvedValue({ error: null })
     mockDeleteEmbeddings.mockResolvedValue({ error: null })
     mockDeleteKbFile.mockResolvedValue({ data: [], error: null })
+    mockRollbackInsert.mockResolvedValue({ error: null })
 
     const { deleteKbFileAction } = await import("./actions")
     const result = await deleteKbFileAction("file-uuid")
     expect(result).toMatchObject({ error: expect.any(String) })
+    expect(mockRemove).not.toHaveBeenCalled()
+    expect(mockDeleteEmbeddings).not.toHaveBeenCalled()
   })
 })
