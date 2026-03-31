@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-import-prefix
 // Supabase Edge Function: sync-emails
 // Triggered every 5 minutes by pg_cron (migration 007).
 // Fetches new emails for all active sync jobs and stores metadata only.
