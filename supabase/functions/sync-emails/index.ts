@@ -209,19 +209,13 @@ async function syncOutlook(
   const access_token = credentials.access_token as string
   const refresh_token = credentials.refresh_token as string
 
-  const select = '$select=id,subject,from,receivedDateTime'
-  const filter = lastSyncedAt ? `&$filter=receivedDateTime gt ${lastSyncedAt.toISOString()}` : ''
-  const url = `https://graph.microsoft.com/v1.0/me/messages?${select}${filter}&$top=50`
-
-  function doFetch(token: string): Promise<Response> {
-    return fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-  }
-
-  let res = await doFetch(access_token)
+  // Refresh token if needed with a lightweight probe
   let currentToken = access_token
-  console.log('[outlook] initial fetch status:', res.status)
-
-  if (res.status === 401) {
+  const probe = await fetch(
+    'https://graph.microsoft.com/v1.0/me/mailFolders/Inbox/messages?$top=1',
+    { headers: { Authorization: `Bearer ${currentToken}` } }
+  )
+  if (probe.status === 401) {
     const refreshRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -237,10 +231,9 @@ async function syncOutlook(
     const refreshed = (await refreshRes.json()) as { access_token: string }
     currentToken = refreshed.access_token
     await upsertVaultSecret(`outlook:${job.user_id}`, { ...credentials, access_token: currentToken })
-    res = await doFetch(currentToken)
+  } else if (!probe.ok) {
+    throw new Error(`Outlook probe failed: ${probe.status}`)
   }
-
-  if (!res.ok) throw new Error(`Outlook list failed: ${res.status}`)
 
   interface GraphMsg {
     id: string
@@ -248,13 +241,29 @@ async function syncOutlook(
     from?: { emailAddress?: { name?: string; address?: string } }
     receivedDateTime?: string
   }
+  interface GraphPage {
+    value?: GraphMsg[]
+    '@odata.nextLink'?: string
+  }
 
-  const data = (await res.json()) as { value?: GraphMsg[]; error?: unknown }
-  console.log('[outlook] messages count:', data.value?.length ?? 0, 'error:', data.error ?? null)
-  const messages = data.value ?? []
+  // Fetch all Inbox messages with full pagination (Junk Email is a separate folder — excluded)
+  const dateFilter = lastSyncedAt
+    ? `&$filter=receivedDateTime gt ${lastSyncedAt.toISOString()}`
+    : ''
+  const allMessages: GraphMsg[] = []
+  let nextUrl: string | null =
+    `https://graph.microsoft.com/v1.0/me/mailFolders/Inbox/messages?$select=id,subject,from,receivedDateTime&$top=50${dateFilter}`
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { headers: { Authorization: `Bearer ${currentToken}` } })
+    if (!res.ok) throw new Error(`Outlook fetch failed: ${res.status}`)
+    const page = (await res.json()) as GraphPage
+    allMessages.push(...(page.value ?? []))
+    nextUrl = page['@odata.nextLink'] ?? null
+  }
 
   const emails: EmailMessage[] = await Promise.all(
-    messages.map(async m => {
+    allMessages.map(async m => {
       const subject = m.subject ?? null
       const fromEmail = m.from?.emailAddress?.address ?? null
       const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
