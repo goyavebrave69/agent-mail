@@ -3,8 +3,8 @@
 // Fetches new emails for all active sync jobs and stores metadata only.
 // NO email content is persisted (NFR8, FR33).
 
-import { createClient } from '@supabase/supabase-js'
-import { triageEmail, type EmailCategory } from '../../../lib/ai/triage.ts'
+import { createClient } from 'npm:@supabase/supabase-js@2'
+import { triageEmail, type EmailCategory } from './triage.ts'
 
 type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
 type DenoLike = {
@@ -57,15 +57,11 @@ interface EmailMessage {
 const MAX_RETRIES = 3
 
 async function getVaultSecret(vaultSecretId: string): Promise<Record<string, unknown> | null> {
-  const { data, error } = await supabase
-    .from('vault.decrypted_secrets')
-    .select('decrypted_secret')
-    .eq('id', vaultSecretId)
-    .single()
+  const { data, error } = await supabase.rpc('read_vault_secret', { secret_id: vaultSecretId })
 
   if (error || !data) return null
   try {
-    return JSON.parse((data as { decrypted_secret: string }).decrypted_secret) as Record<string, unknown>
+    return JSON.parse(data as string) as Record<string, unknown>
   } catch {
     return null
   }
@@ -226,6 +222,7 @@ async function syncOutlook(
 
   let res = await doFetch(access_token)
   let currentToken = access_token
+  console.log('[outlook] initial fetch status:', res.status)
 
   if (res.status === 401) {
     const refreshRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
@@ -255,7 +252,8 @@ async function syncOutlook(
     receivedDateTime?: string
   }
 
-  const data = (await res.json()) as { value?: GraphMsg[] }
+  const data = (await res.json()) as { value?: GraphMsg[]; error?: unknown }
+  console.log('[outlook] messages count:', data.value?.length ?? 0, 'error:', data.error ?? null)
   const messages = data.value ?? []
 
   const emails: EmailMessage[] = await Promise.all(
