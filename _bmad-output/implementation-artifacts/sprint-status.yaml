@@ -65,8 +65,8 @@ development_status:
   3-4-knowledge-base-file-deletion-and-re-indexing: review
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-automatic-email-categorization-and-priority-ranking: backlog
+  epic-4: in-progress
+  4-1-automatic-email-categorization-and-priority-ranking: review
   4-2-priority-sorted-inbox-view: backlog
   4-3-inbox-filtering-by-category: backlog
   4-4-manual-email-actions-spam-read-archive: backlog

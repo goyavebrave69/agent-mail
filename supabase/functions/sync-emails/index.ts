@@ -4,6 +4,7 @@
 // NO email content is persisted (NFR8, FR33).
 
 import { createClient } from '@supabase/supabase-js'
+import { triageEmail, type EmailCategory } from '../../../lib/ai/triage.ts'
 
 type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
 type DenoLike = {
@@ -25,6 +26,7 @@ const deno = denoApi
 
 const supabaseUrl = deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const openAiApiKey = deno.env.get('OPENAI_API_KEY') ?? ''
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -48,6 +50,8 @@ interface EmailMessage {
   fromEmail: string | null
   fromName: string | null
   receivedAt: Date
+  category: EmailCategory
+  priorityRank: number
 }
 
 const MAX_RETRIES = 3
@@ -89,6 +93,8 @@ async function storeEmails(userId: string, provider: string, emails: EmailMessag
     from_email: e.fromEmail,
     from_name: e.fromName,
     received_at: e.receivedAt.toISOString(),
+    category: e.category,
+    priority_rank: e.priorityRank,
   }))
 
   await supabase
@@ -191,7 +197,11 @@ async function syncGmail(
     const fromName = fromMatch ? fromMatch[1].trim() || null : null
     const receivedAt = dateStr ? new Date(dateStr) : msg.internalDate ? new Date(Number(msg.internalDate)) : new Date()
 
-    emails.push({ providerEmailId: msg.id, subject, fromEmail, fromName, receivedAt })
+    const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
+      category: 'other' as EmailCategory,
+      priorityRank: 20,
+    }))
+    emails.push({ providerEmailId: msg.id, subject, fromEmail, fromName, receivedAt, category: triage.category, priorityRank: triage.priorityRank })
   }
 
   await storeEmails(job.user_id, 'gmail', emails)
@@ -248,13 +258,25 @@ async function syncOutlook(
   const data = (await res.json()) as { value?: GraphMsg[] }
   const messages = data.value ?? []
 
-  const emails: EmailMessage[] = messages.map(m => ({
-    providerEmailId: m.id,
-    subject: m.subject ?? null,
-    fromEmail: m.from?.emailAddress?.address ?? null,
-    fromName: m.from?.emailAddress?.name ?? null,
-    receivedAt: m.receivedDateTime ? new Date(m.receivedDateTime) : new Date(),
-  }))
+  const emails: EmailMessage[] = await Promise.all(
+    messages.map(async m => {
+      const subject = m.subject ?? null
+      const fromEmail = m.from?.emailAddress?.address ?? null
+      const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
+        category: 'other' as EmailCategory,
+        priorityRank: 20,
+      }))
+      return {
+        providerEmailId: m.id,
+        subject,
+        fromEmail,
+        fromName: m.from?.emailAddress?.name ?? null,
+        receivedAt: m.receivedDateTime ? new Date(m.receivedDateTime) : new Date(),
+        category: triage.category,
+        priorityRank: triage.priorityRank,
+      }
+    })
+  )
 
   await storeEmails(job.user_id, 'outlook', emails)
   await markJobSuccess(job.id)
