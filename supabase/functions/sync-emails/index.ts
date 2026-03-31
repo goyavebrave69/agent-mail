@@ -130,8 +130,6 @@ async function syncGmail(
   credentials: Record<string, unknown>,
   lastSyncedAt: Date | null
 ): Promise<void> {
-  // Dynamic import — Edge Functions use Deno, adapters are co-located via npm: imports
-  // We inline the Gmail fetch logic here to avoid Node.js-only imports in the adapter
   const access_token = credentials.access_token as string
   const refresh_token = credentials.refresh_token as string
   const after = lastSyncedAt ? Math.floor(lastSyncedAt.getTime() / 1000) : 0
@@ -147,7 +145,6 @@ async function syncGmail(
   let currentToken = access_token
 
   if (listRes.status === 401) {
-    // Refresh token
     const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -161,7 +158,6 @@ async function syncGmail(
     if (!refreshRes.ok) throw new Error('Gmail token refresh failed')
     const refreshed = (await refreshRes.json()) as { access_token: string }
     currentToken = refreshed.access_token
-    // Update Vault with new token
     await upsertVaultSecret(`gmail:${job.user_id}`, { ...credentials, access_token: currentToken })
     listRes = await doFetch(currentToken)
   }
@@ -286,11 +282,6 @@ async function syncImap(
   _credentials: Record<string, unknown>,
   _lastSyncedAt: Date | null
 ): Promise<void> {
-  // imapflow is not available as a Deno-compatible ESM package.
-  // IMAP sync for Edge Functions requires a separate approach.
-  // For now, mark the job as error to avoid reporting a false-success state.
-  // IMAP sync will be handled via a dedicated Node.js-compatible runtime.
-  // TODO(imap-edge): implement IMAP sync via a Node.js-compatible runtime
   const reason = 'IMAP sync not supported in Edge Function runtime (todo: imap-edge)'
   console.log(`IMAP sync skipped in Edge Function for user ${job.user_id}: ${reason}`)
   await markJobError(job.id, reason, job.retry_count)
@@ -298,7 +289,6 @@ async function syncImap(
 
 deno.serve(async (_req: Request) => {
   try {
-    // Fetch all active sync jobs (service role bypasses RLS)
     const { data: jobs, error: jobsError } = await supabase
       .from('email_sync_jobs')
       .select('id, user_id, provider, last_synced_at, retry_count')
@@ -314,7 +304,6 @@ deno.serve(async (_req: Request) => {
 
     const results = await Promise.allSettled(
       (jobs as SyncJob[]).map(async (job) => {
-        // Get the email connection to retrieve vault_secret_id
         const { data: connection } = await supabase
           .from('email_connections')
           .select('vault_secret_id')
