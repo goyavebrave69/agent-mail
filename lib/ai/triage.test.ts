@@ -67,6 +67,13 @@ describe("triageEmail", () => {
     expect(result).toEqual({ category: "other", priorityRank: 20 })
   })
 
+  it("falls back to other/20 and skips fetch when API key is missing", async () => {
+    const { triageEmail } = await import("./triage")
+    const result = await triageEmail("Some email", "test@example.com", "   ")
+    expect(result).toEqual({ category: "other", priorityRank: 20 })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it("falls back to other/20 when LLM returns non-200", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,

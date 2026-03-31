@@ -45,6 +45,11 @@ export async function triageEmail(
   fromEmail: string | null,
   openAiApiKey: string
 ): Promise<TriageResult> {
+  const apiKey = openAiApiKey.trim()
+  if (!apiKey) {
+    return FALLBACK
+  }
+
   const content = [
     subject ? `Subject: ${subject}` : null,
     fromEmail ? `From: ${fromEmail}` : null,
@@ -57,7 +62,7 @@ export async function triageEmail(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${openAiApiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: TRIAGE_MODEL,
