@@ -8,6 +8,7 @@ import type { InboxEmail } from "@/app/(app)/inbox/page"
 interface InboxListProps {
   emails: InboxEmail[]
   userId: string
+  activeCategory: InboxEmail["category"] | null
 }
 
 export const CATEGORY_BADGE: Record<InboxEmail["category"], { label: string; className: string }> = {
@@ -26,7 +27,7 @@ function formatDate(iso: string): string {
   })
 }
 
-export function InboxList({ emails, userId }: InboxListProps) {
+export function InboxList({ emails, userId, activeCategory }: InboxListProps) {
   const router = useRouter()
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -76,6 +77,15 @@ export function InboxList({ emails, userId }: InboxListProps) {
   }, [userId, router])
 
   if (emails.length === 0) {
+    if (activeCategory) {
+      const activeLabel = CATEGORY_BADGE[activeCategory].label
+      return (
+        <p className="text-sm text-muted-foreground">
+          No {activeLabel.toLowerCase()} emails match this filter. Clear the filter to see all emails.
+        </p>
+      )
+    }
+
     return (
       <p className="text-sm text-muted-foreground">
         No emails yet. Connect a mailbox in Settings to start syncing.

@@ -59,7 +59,13 @@ async function InboxContent({ category }: { category: InboxCategory | null }) {
     .order("priority_rank", { ascending: false })
     .order("received_at", { ascending: false })
 
-  return <InboxList emails={(emails as InboxEmail[]) ?? []} userId={user.id} />
+  return (
+    <InboxList
+      emails={(emails as InboxEmail[]) ?? []}
+      userId={user.id}
+      activeCategory={category}
+    />
+  )
 }
 
 function InboxSkeleton() {
