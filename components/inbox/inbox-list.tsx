@@ -3,14 +3,14 @@
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { InboxEmail } from "@/app/(app)/inbox/page"
+import type { InboxEmail } from "@/app/(app)/inbox/page"
 
 interface InboxListProps {
   emails: InboxEmail[]
   userId: string
 }
 
-const CATEGORY_BADGE: Record<InboxEmail["category"], { label: string; className: string }> = {
+export const CATEGORY_BADGE: Record<InboxEmail["category"], { label: string; className: string }> = {
   quote: { label: "Quote", className: "bg-blue-100 text-blue-800" },
   invoice: { label: "Invoice", className: "bg-orange-100 text-orange-800" },
   inquiry: { label: "Inquiry", className: "bg-purple-100 text-purple-800" },

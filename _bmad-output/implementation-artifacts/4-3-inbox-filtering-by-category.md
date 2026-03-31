@@ -1,6 +1,6 @@
 # Story 4.3: Inbox Filtering by Category
 
-## Status: ready-for-dev
+## Status: review
 
 ## Story
 
@@ -133,12 +133,12 @@ Follow the co-located test pattern from `inbox-list.test.tsx` if it exists, othe
 
 ## Definition of Done
 
-- [ ] Filter buttons appear above inbox list
-- [ ] Clicking a category filters emails (RSC re-runs with DB-level filter)
-- [ ] Active filter highlighted in UI
-- [ ] URL reflects active filter (`?category=quote`)
-- [ ] Refresh keeps filter active
-- [ ] "All" or re-clicking active category clears filter
-- [ ] Empty state when no emails match filter
-- [ ] Realtime updates work with active filter
-- [ ] Tests pass
+- [x] Filter buttons appear above inbox list
+- [x] Clicking a category filters emails (RSC re-runs with DB-level filter)
+- [x] Active filter highlighted in UI
+- [x] URL reflects active filter (`?category=quote`)
+- [x] Refresh keeps filter active
+- [x] "All" or re-clicking active category clears filter
+- [x] Empty state when no emails match filter
+- [x] Realtime updates work with active filter
+- [x] Tests pass

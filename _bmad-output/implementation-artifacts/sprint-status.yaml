@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-27
-last_updated: 2026-03-31T00:00:00Z
+last_updated: 2026-03-31T10:26:00Z
 project: mail-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -68,7 +68,7 @@ development_status:
   epic-4: in-progress
   4-1-automatic-email-categorization-and-priority-ranking: review
   4-2-priority-sorted-inbox-view: review
-  4-3-inbox-filtering-by-category: ready-for-dev
+  4-3-inbox-filtering-by-category: review
   4-4-manual-email-actions-spam-read-archive: backlog
   epic-4-retrospective: optional
 
