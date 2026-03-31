@@ -32,6 +32,19 @@ export function InboxList({ emails, userId }: InboxListProps) {
 
   useEffect(() => {
     const supabase = createClient()
+    let isMounted = true
+
+    const stopPolling = () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+        pollingRef.current = null
+      }
+    }
+
+    const startPolling = () => {
+      if (!isMounted || pollingRef.current) return
+      pollingRef.current = setInterval(() => router.refresh(), 30_000)
+    }
 
     const channel = supabase
       .channel(`inbox:${userId}`)
@@ -46,24 +59,19 @@ export function InboxList({ emails, userId }: InboxListProps) {
         () => router.refresh()
       )
       .subscribe((status) => {
+        if (!isMounted) return
+
         if (status === "SUBSCRIBED") {
-          if (pollingRef.current) {
-            clearInterval(pollingRef.current)
-            pollingRef.current = null
-          }
+          stopPolling()
         } else {
-          if (!pollingRef.current) {
-            pollingRef.current = setInterval(() => router.refresh(), 30_000)
-          }
+          startPolling()
         }
       })
 
     return () => {
+      isMounted = false
+      stopPolling()
       supabase.removeChannel(channel)
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current)
-        pollingRef.current = null
-      }
     }
   }, [userId, router])
 
