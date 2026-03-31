@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { InboxList } from "@/components/inbox/inbox-list"
+import { InboxFilters } from "@/components/inbox/inbox-filters"
 
 export interface InboxEmail {
   id: string
@@ -14,7 +15,27 @@ export interface InboxEmail {
   priority_rank: number
 }
 
-async function InboxContent() {
+type InboxCategory = InboxEmail["category"]
+
+interface InboxPageProps {
+  searchParams: Promise<{ category?: string }>
+}
+
+const VALID_CATEGORIES: InboxCategory[] = [
+  "quote",
+  "inquiry",
+  "invoice",
+  "follow_up",
+  "spam",
+  "other",
+]
+
+function normalizeCategory(value?: string): InboxCategory | null {
+  if (!value) return null
+  return VALID_CATEGORIES.includes(value as InboxCategory) ? (value as InboxCategory) : null
+}
+
+async function InboxContent({ category }: { category: InboxCategory | null }) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -22,17 +43,29 @@ async function InboxContent() {
 
   if (!user) return null
 
-  const { data: emails } = await supabase
+  let query = supabase
     .from("emails")
     .select(
       "id, subject, from_email, from_name, received_at, is_read, is_archived, category, priority_rank"
     )
     .eq("user_id", user.id)
     .eq("is_archived", false)
+
+  if (category) {
+    query = query.eq("category", category)
+  }
+
+  const { data: emails } = await query
     .order("priority_rank", { ascending: false })
     .order("received_at", { ascending: false })
 
-  return <InboxList emails={(emails as InboxEmail[]) ?? []} userId={user.id} />
+  return (
+    <InboxList
+      emails={(emails as InboxEmail[]) ?? []}
+      userId={user.id}
+      activeCategory={category}
+    />
+  )
 }
 
 function InboxSkeleton() {
@@ -45,15 +78,19 @@ function InboxSkeleton() {
   )
 }
 
-export default function InboxPage() {
+export default async function InboxPage({ searchParams }: InboxPageProps) {
+  const resolvedParams = await searchParams
+  const category = normalizeCategory(resolvedParams.category)
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="mb-2 text-2xl font-bold">Inbox</h1>
       <p className="mb-8 text-sm text-muted-foreground">
         Emails sorted by priority. Most urgent first.
       </p>
+      <InboxFilters activeCategory={category} />
       <Suspense fallback={<InboxSkeleton />}>
-        <InboxContent />
+        <InboxContent category={category} />
       </Suspense>
     </main>
   )

@@ -3,14 +3,15 @@
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { InboxEmail } from "@/app/(app)/inbox/page"
+import type { InboxEmail } from "@/app/(app)/inbox/page"
 
 interface InboxListProps {
   emails: InboxEmail[]
   userId: string
+  activeCategory: InboxEmail["category"] | null
 }
 
-const CATEGORY_BADGE: Record<InboxEmail["category"], { label: string; className: string }> = {
+export const CATEGORY_BADGE: Record<InboxEmail["category"], { label: string; className: string }> = {
   quote: { label: "Quote", className: "bg-blue-100 text-blue-800" },
   invoice: { label: "Invoice", className: "bg-orange-100 text-orange-800" },
   inquiry: { label: "Inquiry", className: "bg-purple-100 text-purple-800" },
@@ -26,7 +27,7 @@ function formatDate(iso: string): string {
   })
 }
 
-export function InboxList({ emails, userId }: InboxListProps) {
+export function InboxList({ emails, userId, activeCategory }: InboxListProps) {
   const router = useRouter()
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -76,6 +77,15 @@ export function InboxList({ emails, userId }: InboxListProps) {
   }, [userId, router])
 
   if (emails.length === 0) {
+    if (activeCategory) {
+      const activeLabel = CATEGORY_BADGE[activeCategory].label
+      return (
+        <p className="text-sm text-muted-foreground">
+          No {activeLabel.toLowerCase()} emails match this filter. Clear the filter to see all emails.
+        </p>
+      )
+    }
+
     return (
       <p className="text-sm text-muted-foreground">
         No emails yet. Connect a mailbox in Settings to start syncing.
