@@ -287,3 +287,165 @@ describe("retriggerIndexKbAction", () => {
     expect(result).toEqual({ success: true })
   })
 })
+
+describe("deleteKbFileAction", () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockSingle: ReturnType<typeof vi.fn>
+  let mockRemove: ReturnType<typeof vi.fn>
+  let mockDeleteEmbeddings: ReturnType<typeof vi.fn>
+  let mockDeleteKbFile: ReturnType<typeof vi.fn>
+  let mockRollbackInsert: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.clearAllMocks()
+
+    mockGetUser = vi.fn()
+    mockSingle = vi.fn()
+    mockRemove = vi.fn()
+    mockDeleteEmbeddings = vi.fn()
+    mockDeleteKbFile = vi.fn()
+    mockRollbackInsert = vi.fn()
+
+    const { createClient } = await import("@/lib/supabase/server")
+    ;(createClient as ReturnType<typeof vi.fn>).mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      storage: {
+        from: vi.fn().mockReturnValue({ remove: mockRemove }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "embeddings") {
+          return {
+            delete: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: mockDeleteEmbeddings,
+              }),
+            }),
+          }
+        }
+        // kb_files
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: mockSingle,
+              }),
+            }),
+          }),
+          delete: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                select: mockDeleteKbFile,
+              }),
+            }),
+          }),
+          insert: mockRollbackInsert,
+        }
+      }),
+    })
+  })
+
+  it("returns error when not authenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+
+    const { deleteKbFileAction } = await import("./actions")
+    const result = await deleteKbFileAction("file-uuid")
+    expect(result).toEqual({ error: "Unauthorized" })
+  })
+
+  it("returns error when file not found or belongs to different user", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSingle.mockResolvedValue({ data: null, error: { message: "not found" } })
+
+    const { deleteKbFileAction } = await import("./actions")
+    const result = await deleteKbFileAction("file-uuid")
+    expect(result).toEqual({ error: "Not found" })
+  })
+
+  it("returns error when storage removal fails and restores kb_files record", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSingle.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", storage_path: "user-1/123-file.csv" },
+      error: null,
+    })
+    mockDeleteKbFile.mockResolvedValue({ data: [{ id: "file-uuid" }], error: null })
+    mockRemove.mockResolvedValue({ error: { message: "storage error" } })
+    mockRollbackInsert.mockResolvedValue({ error: null })
+
+    const { deleteKbFileAction } = await import("./actions")
+    const result = await deleteKbFileAction("file-uuid")
+    expect(result).toMatchObject({ error: expect.stringContaining("storage error") })
+    expect(mockDeleteKbFile).toHaveBeenCalledOnce()
+    expect(mockRollbackInsert).toHaveBeenCalledOnce()
+    expect(mockDeleteEmbeddings).not.toHaveBeenCalled()
+  })
+
+  it("returns detailed error when rollback fails after storage failure", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSingle.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", storage_path: "user-1/123-file.csv" },
+      error: null,
+    })
+    mockDeleteKbFile.mockResolvedValue({ data: [{ id: "file-uuid" }], error: null })
+    mockRemove.mockResolvedValue({ error: { message: "storage error" } })
+    mockRollbackInsert.mockResolvedValue({ error: { message: "rollback error" } })
+
+    const { deleteKbFileAction } = await import("./actions")
+    const result = await deleteKbFileAction("file-uuid")
+    expect(result).toMatchObject({ error: expect.stringContaining("Rollback failed: rollback error") })
+  })
+
+  it("happy path: removes storage, deletes embeddings, deletes kb_files, returns success", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSingle.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", storage_path: "user-1/123-file.csv" },
+      error: null,
+    })
+    mockRemove.mockResolvedValue({ error: null })
+    mockDeleteEmbeddings.mockResolvedValue({ error: null })
+    mockDeleteKbFile.mockResolvedValue({ data: [{ id: "file-uuid" }], error: null })
+    mockRollbackInsert.mockResolvedValue({ error: null })
+
+    const { deleteKbFileAction } = await import("./actions")
+    const result = await deleteKbFileAction("file-uuid")
+    expect(result).toEqual({ success: true })
+    expect(mockRemove).toHaveBeenCalledWith(["user-1/123-file.csv"])
+    expect(mockDeleteEmbeddings).toHaveBeenCalled()
+    expect(mockDeleteKbFile).toHaveBeenCalled()
+  })
+
+  it("embeddings delete fails but still deletes kb_files and returns success", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSingle.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", storage_path: "user-1/123-file.csv" },
+      error: null,
+    })
+    mockRemove.mockResolvedValue({ error: null })
+    mockDeleteEmbeddings.mockResolvedValue({ error: { message: "embeddings error" } })
+    mockDeleteKbFile.mockResolvedValue({ data: [{ id: "file-uuid" }], error: null })
+    mockRollbackInsert.mockResolvedValue({ error: null })
+
+    const { deleteKbFileAction } = await import("./actions")
+    const result = await deleteKbFileAction("file-uuid")
+    expect(result).toEqual({ success: true })
+    expect(mockDeleteKbFile).toHaveBeenCalled()
+  })
+
+  it("returns error when kb_files delete matches 0 rows", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockSingle.mockResolvedValue({
+      data: { id: "file-uuid", user_id: "user-1", storage_path: "user-1/123-file.csv" },
+      error: null,
+    })
+    mockRemove.mockResolvedValue({ error: null })
+    mockDeleteEmbeddings.mockResolvedValue({ error: null })
+    mockDeleteKbFile.mockResolvedValue({ data: [], error: null })
+    mockRollbackInsert.mockResolvedValue({ error: null })
+
+    const { deleteKbFileAction } = await import("./actions")
+    const result = await deleteKbFileAction("file-uuid")
+    expect(result).toMatchObject({ error: expect.any(String) })
+    expect(mockRemove).not.toHaveBeenCalled()
+    expect(mockDeleteEmbeddings).not.toHaveBeenCalled()
+  })
+})
