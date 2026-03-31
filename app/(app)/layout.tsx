@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 const NAV_LINKS = [
+  { href: "/inbox", label: "Inbox" },
   { href: "/knowledge-base", label: "Knowledge Base" },
   { href: "/settings", label: "Settings" },
 ]
