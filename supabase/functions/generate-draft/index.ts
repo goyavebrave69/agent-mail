@@ -41,6 +41,19 @@ const FALLBACK_DRAFT_CONTENT =
   'Thank you for your email. We will review and respond shortly.'
 const FALLBACK_CONFIDENCE_SCORE = 20
 
+function buildEmbeddingQueryText(args: {
+  emailContent?: string | null
+  subject?: string | null
+  fromEmail?: string | null
+}): string {
+  const maxContentChars = 4000
+  const clippedContent = args.emailContent?.trim().slice(0, maxContentChars) ?? ''
+
+  return [clippedContent, args.subject?.trim() ?? '', args.fromEmail?.trim() ?? '']
+    .filter(Boolean)
+    .join(' ')
+}
+
 async function upsertDraftPending(emailId: string, userId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('drafts')
@@ -83,16 +96,24 @@ async function updateDraftStatus(
 
   if (update.retry_count_increment) {
     // Increment retry_count via raw SQL expression not available here; use RPC-style or fetch current
-    const { data } = await supabase
+    const { data, error: retryError } = await supabase
       .from('drafts')
       .select('retry_count')
       .eq('id', draftId)
       .single()
+
+    if (retryError) {
+      throw new Error(`Failed to load retry_count for draft ${draftId}: ${retryError.message}`)
+    }
+
     const currentRetry = (data as { retry_count: number } | null)?.retry_count ?? 0
     payload.retry_count = currentRetry + 1
   }
 
-  await supabase.from('drafts').update(payload).eq('id', draftId)
+  const { error: updateError } = await supabase.from('drafts').update(payload).eq('id', draftId)
+  if (updateError) {
+    throw new Error(`Failed to update draft ${draftId}: ${updateError.message}`)
+  }
 }
 
 deno.serve(async (req: Request): Promise<Response> => {
@@ -100,16 +121,23 @@ deno.serve(async (req: Request): Promise<Response> => {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
   }
 
+  const authorization = req.headers.get('authorization')
+  if (authorization !== `Bearer ${serviceRoleKey}`) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+  }
+
   let emailId: string
   let userId: string
+  let emailContent: string | null = null
 
   try {
-    const body = (await req.json()) as { emailId?: string; userId?: string }
+    const body = (await req.json()) as { emailId?: string; userId?: string; emailContent?: string | null }
     if (!body.emailId || !body.userId) {
       throw new Error('Missing emailId or userId in request body')
     }
     emailId = body.emailId
     userId = body.userId
+    emailContent = typeof body.emailContent === 'string' ? body.emailContent : null
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), { status: 400 })
   }
@@ -117,15 +145,21 @@ deno.serve(async (req: Request): Promise<Response> => {
   // 1. Fetch email metadata
   const { data: email, error: emailError } = await supabase
     .from('emails')
-    .select('id, subject, from_email')
+    .select('id, user_id, subject, from_email')
     .eq('id', emailId)
+    .eq('user_id', userId)
     .single()
 
   if (emailError || !email) {
     return new Response(JSON.stringify({ error: 'Email not found' }), { status: 404 })
   }
 
-  const emailData = email as { id: string; subject: string | null; from_email: string | null }
+  const emailData = email as {
+    id: string
+    user_id: string
+    subject: string | null
+    from_email: string | null
+  }
 
   // 2. Upsert draft with pending status
   const draftId = await upsertDraftPending(emailId, userId)
@@ -150,8 +184,12 @@ deno.serve(async (req: Request): Promise<Response> => {
   await updateDraftStatus(draftId, { status: 'generating' })
 
   try {
-    // 5. Generate embedding for email subject/sender
-    const queryText = [emailData.subject, emailData.from_email].filter(Boolean).join(' ')
+    // 5. Generate embedding from ephemeral email content + metadata
+    const queryText = buildEmbeddingQueryText({
+      emailContent,
+      subject: emailData.subject,
+      fromEmail: emailData.from_email,
+    })
     const queryEmbedding = queryText
       ? await generateEmbedding(queryText, openAiApiKey)
       : []
@@ -169,7 +207,6 @@ deno.serve(async (req: Request): Promise<Response> => {
         content: FALLBACK_DRAFT_CONTENT,
         confidence_score: FALLBACK_CONFIDENCE_SCORE,
       })
-      await incrementUserLlmUsage(userId, supabase)
       return new Response(
         JSON.stringify({ success: true, draftId, fallback: true }),
         { status: 200 }

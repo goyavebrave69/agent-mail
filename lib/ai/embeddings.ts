@@ -31,8 +31,7 @@ export async function findRelevantKbChunks(
   })
 
   if (error) {
-    console.error('findRelevantKbChunks: RPC error', error.message)
-    return []
+    throw new Error(`findRelevantKbChunks RPC failed: ${error.message}`)
   }
 
   return data ?? []

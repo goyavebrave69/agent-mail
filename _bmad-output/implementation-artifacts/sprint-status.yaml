@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-27
-last_updated: 2026-04-01T10:00:00Z
+last_updated: 2026-04-01T10:12:00Z
 project: mail-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -73,7 +73,7 @@ development_status:
   epic-4-retrospective: optional
 
   epic-5: in-progress
-  5-1-asynchronous-draft-generation-pipeline: in-progress
+  5-1-asynchronous-draft-generation-pipeline: done
   5-2-draft-view-with-confidence-score: ready-for-dev
   5-3-validate-and-send-draft: ready-for-dev
   5-4-edit-draft-before-sending: ready-for-dev

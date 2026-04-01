@@ -1,6 +1,6 @@
 # Story 5.1: Asynchronous Draft Generation Pipeline
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -432,6 +432,16 @@ claude-sonnet-4-6
 - Created `supabase/functions/generate-draft/index.ts`: full status lifecycle (pending→generating→ready|error), LLM quota check, fallback draft when no KB chunks, Realtime broadcast on success
 - Updated `sync-emails/index.ts` storeEmails to fire-and-forget invoke `generate-draft` after upsert
 - All 104 tests pass (16 test files); typecheck and lint: clean
+
+### Review Findings
+
+- [x] [Review][Decision] AC mismatch on embedded input scope — resolved with option B (secure path): fetch ephemeral provider content preview during sync and pass it to `generate-draft` for embedding input, without persisting email body data.
+- [x] [Review][Patch] Missing tenant ownership guard when loading email for draft generation [supabase/functions/generate-draft/index.ts:148]
+- [x] [Review][Patch] Draft status updates ignore database errors, allowing silent state-transition failures [supabase/functions/generate-draft/index.ts:113]
+- [x] [Review][Patch] KB similarity RPC errors are swallowed and converted to fallback-ready drafts [lib/ai/embeddings.ts:34]
+- [x] [Review][Patch] LLM quota usage increments on fallback path even when no LLM call is made [supabase/functions/generate-draft/index.ts:204]
+- [x] [Review][Patch] `user_llm_usage` table has no RLS/policies, enabling potential direct quota tampering [supabase/migrations/014_user_llm_usage.sql:11]
+- [x] [Review][Patch] Security-definer RPC `match_embeddings` lacks explicit `search_path` hardening [supabase/migrations/015_match_embeddings_rpc.sql:16]
 
 ### File List
 
