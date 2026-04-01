@@ -1,6 +1,6 @@
 # Story 5.2: Draft View with Confidence Score
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -404,13 +404,49 @@ const channel = supabase
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-sonnet-4-6
 
 ### Debug Log References
 
+- Zustand not installed → installed as new dependency (specified in story)
+- `@testing-library/user-event` not installed → used `fireEvent` from `@testing-library/react` instead
+- Magic UI components not available → implemented confidence badge count-up animation with `setInterval` + CSS Tailwind (animate-pulse for low scores)
+- `types/draft.ts` uses snake_case (DB convention) — adapted component props accordingly
+
 ### Completion Notes List
 
+- Implemented Zustand draft store (`stores/draft-store.ts`) with full UI state management (editing, generating, error)
+- Created `ConfidenceBadge` with count-up animation and 4 color tiers (green/blue/amber/rose)
+- `DraftEditor` handles all 4 states: ready, generating (skeleton), error (with retry), editing (textarea + char count)
+- `DraftActions` renders 4 buttons with disabled state during `generating`
+- `DraftRealtime` subscribes to `drafts:{userId}` Supabase Realtime channel with 30s polling fallback
+- `DraftSection` orchestrates all components, manages local draft state, stubs callbacks for stories 5-3 to 5-6
+- `app/(app)/inbox/[emailId]/page.tsx` RSC fetches email + draft in parallel, renders `DraftSection`
+- Added `Link` navigation to `components/inbox/inbox-list.tsx` so users can click emails to reach the detail page (implicit requirement for "opening an email")
+- 37 new tests added (6 store + 11 badge + 7 actions + 13 editor); all 141 tests pass
+
 ### File List
+
+- `stores/draft-store.ts` — new
+- `stores/draft-store.test.ts` — new
+- `components/draft/confidence-badge.tsx` — new
+- `components/draft/confidence-badge.test.tsx` — new
+- `components/draft/draft-actions.tsx` — new
+- `components/draft/draft-actions.test.tsx` — new
+- `components/draft/draft-editor.tsx` — new
+- `components/draft/draft-editor.test.tsx` — new
+- `components/draft/draft-realtime.tsx` — new
+- `components/draft/draft-section.tsx` — new
+- `app/(app)/inbox/[emailId]/actions.ts` — new
+- `app/(app)/inbox/[emailId]/page.tsx` — new
+- `components/inbox/inbox-list.tsx` — modified (added Link navigation to email detail)
+- `package.json` / `package-lock.json` — modified (added zustand)
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-04-01 | Initial implementation — Draft view with confidence score, Zustand store, Realtime subscription, email detail page, inbox navigation links |
 
 ---
 
