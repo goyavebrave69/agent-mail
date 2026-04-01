@@ -89,4 +89,27 @@ describe('useDraftStore', () => {
     expect(state.isGenerating).toBe(false)
     expect(state.generationError).toBeNull()
   })
+
+  it('opens and closes regenerate modal', () => {
+    useDraftStore.getState().openRegenerateModal()
+    expect(useDraftStore.getState().showRegenerateModal).toBe(true)
+
+    useDraftStore.getState().closeRegenerateModal()
+    expect(useDraftStore.getState().showRegenerateModal).toBe(false)
+  })
+
+  it('tracks regeneration optimistic and failure states', () => {
+    useDraftStore.getState().setActiveDraft('draft-1', 'Content', 'ready')
+    useDraftStore.getState().optimisticRegenerate()
+    let state = useDraftStore.getState()
+    expect(state.isRegenerating).toBe(true)
+    expect(state.showRegenerateModal).toBe(false)
+    expect(state.status).toBe('generating')
+    expect(state.draftContent).toBe('')
+
+    useDraftStore.getState().failRegenerate('Regeneration failed')
+    state = useDraftStore.getState()
+    expect(state.isRegenerating).toBe(false)
+    expect(state.regenerateError).toBe('Regeneration failed')
+  })
 })

@@ -12,6 +12,8 @@ const defaultProps = {
   onSave: vi.fn(),
   onCancel: vi.fn(),
   onRegenerate: vi.fn(),
+  onOpenRegenerateModal: vi.fn(),
+  onCloseRegenerateModal: vi.fn(),
   onReject: vi.fn(),
 }
 
@@ -51,10 +53,10 @@ describe('DraftActions', () => {
   })
 
   it('calls onRegenerate when Regenerate is clicked', () => {
-    const onRegenerate = vi.fn()
-    render(<DraftActions {...defaultProps} onRegenerate={onRegenerate} />)
+    const onOpenRegenerateModal = vi.fn()
+    render(<DraftActions {...defaultProps} onOpenRegenerateModal={onOpenRegenerateModal} />)
     fireEvent.click(screen.getByRole('button', { name: /regenerate draft/i }))
-    expect(onRegenerate).toHaveBeenCalledOnce()
+    expect(onOpenRegenerateModal).toHaveBeenCalledOnce()
   })
 
   it('calls onReject when Reject is clicked', () => {
@@ -77,5 +79,19 @@ describe('DraftActions', () => {
     expect(screen.getByRole('button', { name: /cancel editing draft/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /save draft edits/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /send edited draft/i })).toBeInTheDocument()
+  })
+
+  it('renders regeneration modal and confirms without instruction', () => {
+    const onRegenerate = vi.fn()
+    render(
+      <DraftActions
+        {...defaultProps}
+        showRegenerateModal
+        onRegenerate={onRegenerate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /regenerate without instructions/i }))
+    expect(onRegenerate).toHaveBeenCalledWith(null)
   })
 })

@@ -370,3 +370,132 @@ describe('updateDraftContent', () => {
     })
   })
 })
+
+describe('regenerateDraft', () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockDraftSingle: ReturnType<typeof vi.fn>
+  let mockFunctionsInvoke: ReturnType<typeof vi.fn>
+  let mockUpdateIn: ReturnType<typeof vi.fn>
+  let mockUpdateEq: ReturnType<typeof vi.fn>
+  let fromMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+
+    mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockDraftSingle = vi.fn()
+    mockFunctionsInvoke = vi.fn()
+    mockUpdateIn = vi.fn().mockResolvedValue({ error: null })
+    mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
+
+    fromMock = vi.fn((table: string) => {
+      if (table !== 'drafts') throw new Error(`Unexpected table: ${table}`)
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: mockDraftSingle,
+            }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: mockUpdateIn,
+              eq: mockUpdateEq,
+            }),
+          }),
+        }),
+      }
+    })
+
+    mockCreateClient.mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: fromMock,
+      functions: {
+        invoke: mockFunctionsInvoke,
+      },
+    })
+  })
+
+  it('updates draft to generating and invokes edge function with instruction', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
+      error: null,
+    })
+    mockFunctionsInvoke.mockResolvedValue({ error: null })
+
+    const { regenerateDraft } = await import('./actions')
+    const result = await regenerateDraft('draft-1', '  offer a 24h delay  ')
+
+    expect(result).toEqual({ success: true })
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith('generate-draft', {
+      body: {
+        emailId: 'email-1',
+        userId: 'user-1',
+        instruction: 'offer a 24h delay',
+        isRegeneration: true,
+      },
+    })
+    expect(mockUpdateIn).toHaveBeenCalled()
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
+  })
+
+  it('handles null instruction', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
+      error: null,
+    })
+    mockFunctionsInvoke.mockResolvedValue({ error: null })
+
+    const { regenerateDraft } = await import('./actions')
+    await regenerateDraft('draft-1', null)
+
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith('generate-draft', {
+      body: {
+        emailId: 'email-1',
+        userId: 'user-1',
+        instruction: null,
+        isRegeneration: true,
+      },
+    })
+  })
+
+  it('returns error when draft not found', async () => {
+    mockDraftSingle.mockResolvedValue({ data: null, error: { message: 'not found' } })
+
+    const { regenerateDraft } = await import('./actions')
+    const result = await regenerateDraft('missing-draft', null)
+
+    expect(result).toEqual({ success: false, error: 'Draft not found.' })
+  })
+
+  it('returns error when generation limit reached', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 5 },
+      error: null,
+    })
+
+    const { regenerateDraft } = await import('./actions')
+    const result = await regenerateDraft('draft-1', null)
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Maximum regeneration limit reached for this draft.',
+    })
+  })
+
+  it('returns error when edge function invocation fails', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
+      error: null,
+    })
+    mockFunctionsInvoke.mockResolvedValue({ error: { message: 'invoke failed' } })
+
+    const { regenerateDraft } = await import('./actions')
+    const result = await regenerateDraft('draft-1', 'retry')
+
+    expect(result).toEqual({ success: false, error: 'invoke failed' })
+  })
+})

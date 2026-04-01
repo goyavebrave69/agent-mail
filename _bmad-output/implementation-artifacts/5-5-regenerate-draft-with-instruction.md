@@ -1,6 +1,6 @@
 # Story 5.5: Regenerate Draft with Instruction
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -424,13 +424,45 @@ await supabase
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Codex (GPT-5)
 
 ### Debug Log References
 
+- `npm test`
+- `npm run lint`
+- `npm run typecheck`
+
 ### Completion Notes List
 
+- Implemented regeneration instruction modal with optional guidance input, focus management, escape/overlay close behavior, and loading-safe actions.
+- Extended draft state management with regeneration flags and modal state (`isRegenerating`, `regenerateError`, `showRegenerateModal`) plus optimistic/confirm/fail regeneration transitions.
+- Added `regenerateDraft` Server Action that validates ownership/status, enforces a regeneration limit, increments regeneration metadata, switches draft state to `generating`, and invokes `generate-draft` asynchronously.
+- Updated draft UI flow so regenerate runs through modal confirmation and realtime completion, with visible regeneration error feedback when the invocation fails.
+- Updated `generate-draft` Edge Function to accept and sanitize optional user instruction and pass it into draft prompt generation.
+- Added schema migration for `regeneration_count` and `generation_instruction`, and expanded automated coverage for modal behavior, store regeneration transitions, and regeneration action paths.
+
 ### File List
+
+- _bmad-output/implementation-artifacts/5-5-regenerate-draft-with-instruction.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- app/(app)/inbox/[emailId]/actions.ts
+- app/(app)/inbox/[emailId]/actions.test.ts
+- components/draft/draft-actions.tsx
+- components/draft/draft-actions.test.tsx
+- components/draft/draft-editor.tsx
+- components/draft/draft-editor.test.tsx
+- components/draft/draft-section.tsx
+- components/draft/regenerate-modal.tsx
+- components/draft/regenerate-modal.test.tsx
+- stores/draft-store.ts
+- stores/draft-store.test.ts
+- supabase/functions/generate-draft/index.ts
+- supabase/migrations/017_drafts_regeneration.sql
+- types/draft.ts
+
+### Change Log
+
+- 2026-04-01: Implemented story 5.5 regeneration flow with optional instruction modal, server action updates, edge-function instruction handling, migration, and tests.
 
 ---
 

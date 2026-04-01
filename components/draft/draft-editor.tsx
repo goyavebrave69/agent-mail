@@ -14,7 +14,7 @@ export interface DraftEditorProps {
   errorMessage: string | null
   onValidateAndSend: (content?: string) => void
   onSaveEdit: (content: string) => Promise<void>
-  onRegenerate: () => void
+  onRegenerate: (instruction: string | null) => Promise<void>
   onReject: () => void
 }
 
@@ -51,7 +51,10 @@ export function DraftEditor({
     draftContent,
     isEditing,
     isSending,
+    isRegenerating,
     sendError,
+    regenerateError,
+    showRegenerateModal,
     hasUnsavedChanges,
     editedContent,
     setActiveDraft,
@@ -59,6 +62,8 @@ export function DraftEditor({
     updateEditedContent,
     saveEdit,
     cancelEditing,
+    openRegenerateModal,
+    closeRegenerateModal,
   } = useDraftStore()
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -127,7 +132,7 @@ export function DraftEditor({
           Draft generation failed. Click retry to regenerate.
         </p>
         <button
-          onClick={onRegenerate}
+          onClick={() => void onRegenerate(null)}
           className="inline-flex items-center gap-2 rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
         >
           Retry generation
@@ -160,7 +165,11 @@ export function DraftEditor({
           onEdit={startEditing}
           onSave={handleSave}
           onCancel={cancelEditing}
+          isRegenerating={isRegenerating}
+          showRegenerateModal={showRegenerateModal}
           onRegenerate={onRegenerate}
+          onOpenRegenerateModal={openRegenerateModal}
+          onCloseRegenerateModal={closeRegenerateModal}
           onReject={onReject}
         />
       </div>
@@ -188,16 +197,29 @@ export function DraftEditor({
           <p className="mt-1 text-sm text-muted-foreground">{sendError}</p>
         </div>
       )}
+      {regenerateError && (
+        <div
+          className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
+          role="alert"
+        >
+          <p className="text-sm font-medium text-destructive">Regeneration failed</p>
+          <p className="mt-1 text-sm text-muted-foreground">{regenerateError}</p>
+        </div>
+      )}
       <DraftActions
         draftId={draftId}
         status={status}
         draftContent={draftContent}
         isSending={isSending}
+        isRegenerating={isRegenerating}
+        showRegenerateModal={showRegenerateModal}
         onValidateAndSend={onValidateAndSend}
         onEdit={startEditing}
         onSave={handleSave}
         onCancel={cancelEditing}
         onRegenerate={onRegenerate}
+        onOpenRegenerateModal={openRegenerateModal}
+        onCloseRegenerateModal={closeRegenerateModal}
         onReject={onReject}
       />
     </div>

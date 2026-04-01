@@ -10,6 +10,8 @@ export interface Draft {
   error_message: string | null
   retry_count: number
   sent_at?: string | null
+  regeneration_count?: number
+  generation_instruction?: string | null
   created_at: string
   updated_at: string
 }

@@ -4,7 +4,11 @@ import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DraftEditor } from './draft-editor'
 import { DraftRealtime } from './draft-realtime'
-import { updateDraftContent, validateAndSendDraft } from '@/app/(app)/inbox/[emailId]/actions'
+import {
+  regenerateDraft,
+  updateDraftContent,
+  validateAndSendDraft,
+} from '@/app/(app)/inbox/[emailId]/actions'
 import { useDraftStore } from '@/stores/draft-store'
 import type { Draft } from '@/types/draft'
 
@@ -17,11 +21,22 @@ interface DraftSectionProps {
 export function DraftSection({ draft: initialDraft, userId }: DraftSectionProps) {
   const [draft, setDraft] = useState<Draft | null>(initialDraft)
   const router = useRouter()
-  const { optimisticSend, confirmSend, failSend } = useDraftStore()
+  const {
+    isRegenerating,
+    optimisticSend,
+    confirmSend,
+    failSend,
+    optimisticRegenerate,
+    confirmRegenerate,
+    failRegenerate,
+  } = useDraftStore()
 
   const handleDraftUpdate = useCallback((updated: Draft) => {
+    if (isRegenerating && (updated.status === 'ready' || updated.status === 'error')) {
+      confirmRegenerate()
+    }
     setDraft(updated)
-  }, [])
+  }, [confirmRegenerate, isRegenerating])
 
   const handleValidateAndSend = useCallback(async (content?: string) => {
     if (!draft) return
@@ -56,10 +71,31 @@ export function DraftSection({ draft: initialDraft, userId }: DraftSectionProps)
     router.refresh()
   }, [draft, router])
 
-  const handleRegenerate = useCallback(() => {
-    // Story 5-5 will implement regeneration
+  const handleRegenerate = useCallback(async (instruction: string | null) => {
+    if (!draft) return
+
+    optimisticRegenerate()
+    setDraft((current) => current ? {
+      ...current,
+      status: 'generating',
+      content: '',
+      confidence_score: null,
+      error_message: null,
+    } : current)
+
+    const result = await regenerateDraft(draft.id, instruction)
+    if (!result.success) {
+      failRegenerate(result.error ?? 'Regeneration failed')
+      setDraft((current) => current ? {
+        ...current,
+        status: 'error',
+        error_message: result.error ?? 'Regeneration failed',
+      } : current)
+      return
+    }
+
     router.refresh()
-  }, [router])
+  }, [draft, failRegenerate, optimisticRegenerate, router])
 
   const handleReject = useCallback(() => {
     // Story 5-6 will implement rejection

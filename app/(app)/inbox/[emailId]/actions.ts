@@ -69,8 +69,19 @@ interface SendDraftResult {
   errorCode?: SendEmailErrorCode
 }
 
+export interface RegenerateDraftResult {
+  success: boolean
+  error?: string
+}
+
 function stripHtml(input: string): string {
   return input.replace(/<[^>]*>/g, '').trim()
+}
+
+function normalizeInstruction(instruction: string | null): string | null {
+  if (!instruction) return null
+  const cleaned = stripHtml(instruction).slice(0, 200)
+  return cleaned.length > 0 ? cleaned : null
 }
 
 function buildReplySubject(subject: string | null): string {
@@ -126,6 +137,88 @@ export async function updateDraftContent(
 
   if (error || !updatedDraft) {
     return { success: false, error: 'Unable to save draft edits.' }
+  }
+
+  revalidatePath('/inbox')
+  return { success: true }
+}
+
+export async function regenerateDraft(
+  draftId: string,
+  instruction: string | null
+): Promise<RegenerateDraftResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, error: 'Unauthorized' }
+  }
+
+  const normalizedInstruction = normalizeInstruction(instruction)
+
+  const { data: draft, error: draftError } = await supabase
+    .from('drafts')
+    .select('id, email_id, status, regeneration_count')
+    .eq('id', draftId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (draftError || !draft) {
+    return { success: false, error: 'Draft not found.' }
+  }
+
+  if (draft.status !== 'ready' && draft.status !== 'error') {
+    return { success: false, error: 'Draft cannot be regenerated from its current status.' }
+  }
+
+  const currentCount = draft.regeneration_count ?? 0
+  if (currentCount >= 5) {
+    return { success: false, error: 'Maximum regeneration limit reached for this draft.' }
+  }
+
+  const now = new Date().toISOString()
+  const { error: updateError } = await supabase
+    .from('drafts')
+    .update({
+      status: 'generating',
+      content: null,
+      confidence_score: null,
+      error_message: null,
+      regeneration_count: currentCount + 1,
+      generation_instruction: normalizedInstruction,
+      updated_at: now,
+    })
+    .eq('id', draft.id)
+    .eq('user_id', user.id)
+    .in('status', ['ready', 'error'])
+
+  if (updateError) {
+    return { success: false, error: 'Failed to prepare draft regeneration.' }
+  }
+
+  const { error: invokeError } = await supabase.functions.invoke('generate-draft', {
+    body: {
+      emailId: draft.email_id,
+      userId: user.id,
+      instruction: normalizedInstruction,
+      isRegeneration: true,
+    },
+  })
+
+  if (invokeError) {
+    await supabase
+      .from('drafts')
+      .update({
+        status: 'error',
+        error_message: `Failed to start regeneration: ${invokeError.message}`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', draft.id)
+      .eq('user_id', user.id)
+
+    return { success: false, error: invokeError.message }
   }
 
   revalidatePath('/inbox')

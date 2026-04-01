@@ -12,7 +12,7 @@ const defaultProps = {
   errorMessage: null,
   onValidateAndSend: vi.fn(),
   onSaveEdit: vi.fn().mockResolvedValue(undefined),
-  onRegenerate: vi.fn(),
+  onRegenerate: vi.fn().mockResolvedValue(undefined),
   onReject: vi.fn(),
 }
 

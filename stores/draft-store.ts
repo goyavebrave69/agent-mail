@@ -15,6 +15,9 @@ interface DraftStore {
   generationError: string | null
   isSending: boolean
   sendError: string | null
+  isRegenerating: boolean
+  regenerateError: string | null
+  showRegenerateModal: boolean
 
   // Actions
   setActiveDraft: (draftId: string | null, content: string, status: DraftStatus) => void
@@ -27,6 +30,11 @@ interface DraftStore {
   optimisticSend: () => void
   confirmSend: () => void
   failSend: (error: string) => void
+  openRegenerateModal: () => void
+  closeRegenerateModal: () => void
+  optimisticRegenerate: () => void
+  confirmRegenerate: () => void
+  failRegenerate: (error: string) => void
   reset: () => void
 }
 
@@ -41,6 +49,9 @@ const initialState = {
   generationError: null,
   isSending: false,
   sendError: null,
+  isRegenerating: false,
+  regenerateError: null,
+  showRegenerateModal: false,
 }
 
 export const useDraftStore = create<DraftStore>((set, get) => ({
@@ -90,6 +101,30 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   failSend: (error) =>
     set({ isSending: false, sendError: error }),
+
+  openRegenerateModal: () =>
+    set({ showRegenerateModal: true, regenerateError: null }),
+
+  closeRegenerateModal: () =>
+    set({ showRegenerateModal: false }),
+
+  optimisticRegenerate: () =>
+    set({
+      isRegenerating: true,
+      regenerateError: null,
+      showRegenerateModal: false,
+      status: 'generating',
+      draftContent: '',
+      isEditing: false,
+      editedContent: null,
+      hasUnsavedChanges: false,
+    }),
+
+  confirmRegenerate: () =>
+    set({ isRegenerating: false, regenerateError: null }),
+
+  failRegenerate: (error) =>
+    set({ isRegenerating: false, regenerateError: error }),
 
   reset: () =>
     set(initialState),
