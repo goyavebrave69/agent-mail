@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DraftEditor } from './draft-editor'
 import { useDraftStore } from '@/stores/draft-store'
@@ -11,6 +11,7 @@ const defaultProps = {
   confidenceScore: 85,
   errorMessage: null,
   onValidateAndSend: vi.fn(),
+  onSaveEdit: vi.fn().mockResolvedValue(undefined),
   onRegenerate: vi.fn(),
   onReject: vi.fn(),
 }
@@ -105,10 +106,44 @@ describe('DraftEditor — editing state', () => {
     expect(screen.getByText(/characters/i)).toBeInTheDocument()
   })
 
+  it('saves edited content through the save callback', async () => {
+    const onSaveEdit = vi.fn().mockResolvedValue(undefined)
+    render(<DraftEditor {...defaultProps} onSaveEdit={onSaveEdit} />)
+    fireEvent.click(screen.getByRole('button', { name: /edit draft/i }))
+    const textarea = screen.getByRole('textbox', { name: /edit draft content/i })
+    fireEvent.change(textarea, { target: { value: 'Updated content' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save draft edits/i }))
+    })
+
+    expect(onSaveEdit).toHaveBeenCalledWith('Updated content')
+  })
+
   it('exits editing mode on Cancel', () => {
     render(<DraftEditor {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /edit draft/i }))
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
     expect(screen.queryByRole('textbox', { name: /edit draft content/i })).not.toBeInTheDocument()
+  })
+
+  it('sends edited content from edit mode', () => {
+    const onValidateAndSend = vi.fn()
+    render(<DraftEditor {...defaultProps} onValidateAndSend={onValidateAndSend} />)
+    fireEvent.click(screen.getByRole('button', { name: /edit draft/i }))
+    const textarea = screen.getByRole('textbox', { name: /edit draft content/i })
+    fireEvent.change(textarea, { target: { value: 'Updated content' } })
+    fireEvent.click(screen.getByRole('button', { name: /send edited draft/i }))
+
+    expect(onValidateAndSend).toHaveBeenCalledWith('Updated content')
+  })
+
+  it('prevents editing sent drafts', () => {
+    render(<DraftEditor {...defaultProps} status="sent" />)
+    expect(screen.getByRole('button', { name: /edit draft/i })).toBeDisabled()
+  })
+
+  it('prevents editing rejected drafts', () => {
+    render(<DraftEditor {...defaultProps} status="rejected" />)
+    expect(screen.getByRole('button', { name: /edit draft/i })).toBeDisabled()
   })
 })

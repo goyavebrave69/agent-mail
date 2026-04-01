@@ -1,11 +1,14 @@
+import type { DraftStatus } from '@/types/draft'
 import { create } from 'zustand'
 
 interface DraftStore {
   // Current draft being viewed/edited
   activeDraftId: string | null
   draftContent: string
+  status: DraftStatus
   isEditing: boolean
   editedContent: string | null
+  hasUnsavedChanges: boolean
 
   // UI state
   isGenerating: boolean
@@ -14,9 +17,10 @@ interface DraftStore {
   sendError: string | null
 
   // Actions
-  setActiveDraft: (draftId: string | null, content: string) => void
+  setActiveDraft: (draftId: string | null, content: string, status: DraftStatus) => void
   startEditing: () => void
   updateEditedContent: (content: string) => void
+  saveEdit: () => void
   cancelEditing: () => void
   setGenerating: (isGenerating: boolean) => void
   setError: (error: string | null) => void
@@ -29,8 +33,10 @@ interface DraftStore {
 const initialState = {
   activeDraftId: null,
   draftContent: '',
+  status: 'pending' as DraftStatus,
   isEditing: false,
   editedContent: null,
+  hasUnsavedChanges: false,
   isGenerating: false,
   generationError: null,
   isSending: false,
@@ -40,17 +46,35 @@ const initialState = {
 export const useDraftStore = create<DraftStore>((set, get) => ({
   ...initialState,
 
-  setActiveDraft: (draftId, content) =>
-    set({ activeDraftId: draftId, draftContent: content, isEditing: false, editedContent: null }),
+  setActiveDraft: (draftId, content, status) =>
+    set({
+      activeDraftId: draftId,
+      draftContent: content,
+      status,
+      isEditing: false,
+      editedContent: null,
+      hasUnsavedChanges: false,
+    }),
 
   startEditing: () =>
-    set({ isEditing: true, editedContent: get().draftContent }),
+    set({ isEditing: true, editedContent: get().draftContent, hasUnsavedChanges: false }),
 
   updateEditedContent: (content) =>
-    set({ editedContent: content }),
+    set({ editedContent: content, hasUnsavedChanges: content !== get().draftContent }),
+
+  saveEdit: () =>
+    set((state) => ({
+      draftContent: state.editedContent ?? state.draftContent,
+      isEditing: false,
+      hasUnsavedChanges: false,
+    })),
 
   cancelEditing: () =>
-    set({ isEditing: false, editedContent: null }),
+    set((state) => ({
+      isEditing: false,
+      editedContent: state.draftContent,
+      hasUnsavedChanges: false,
+    })),
 
   setGenerating: (isGenerating) =>
     set({ isGenerating }),

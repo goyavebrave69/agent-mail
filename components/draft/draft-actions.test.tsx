@@ -6,8 +6,11 @@ import { DraftActions } from './draft-actions'
 const defaultProps = {
   draftId: 'draft-1',
   status: 'ready' as const,
+  draftContent: 'Original content',
   onValidateAndSend: vi.fn(),
   onEdit: vi.fn(),
+  onSave: vi.fn(),
+  onCancel: vi.fn(),
   onRegenerate: vi.fn(),
   onReject: vi.fn(),
 }
@@ -37,7 +40,7 @@ describe('DraftActions', () => {
     const onValidateAndSend = vi.fn()
     render(<DraftActions {...defaultProps} onValidateAndSend={onValidateAndSend} />)
     fireEvent.click(screen.getByRole('button', { name: /validate and send/i }))
-    expect(onValidateAndSend).toHaveBeenCalledOnce()
+    expect(onValidateAndSend).toHaveBeenCalledWith()
   })
 
   it('calls onEdit when Edit is clicked', () => {
@@ -59,5 +62,20 @@ describe('DraftActions', () => {
     render(<DraftActions {...defaultProps} onReject={onReject} />)
     fireEvent.click(screen.getByRole('button', { name: /reject draft/i }))
     expect(onReject).toHaveBeenCalledOnce()
+  })
+
+  it('renders edit-mode controls when editing', () => {
+    render(
+      <DraftActions
+        {...defaultProps}
+        isEditing
+        editedContent="Changed content"
+        hasUnsavedChanges
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /cancel editing draft/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save draft edits/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send edited draft/i })).toBeInTheDocument()
   })
 })

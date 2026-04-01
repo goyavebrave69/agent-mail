@@ -97,6 +97,43 @@ describe('validateAndSendDraft', () => {
     })
   })
 
+  it('sends edited content when provided', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: {
+        id: 'draft-1',
+        status: 'ready',
+        content: 'Stored content',
+        emails: {
+          id: 'email-1',
+          provider: 'gmail',
+          provider_email_id: '<msg@example.com>',
+          subject: 'Question',
+          from_email: 'sender@example.com',
+        },
+      },
+      error: null,
+    })
+    mockConnectionSingle.mockResolvedValue({
+      data: { provider: 'gmail', email: 'me@example.com', vault_secret_id: 'vault-1' },
+      error: null,
+    })
+    mockRpc.mockResolvedValue({
+      data: JSON.stringify({ access_token: 'token', refresh_token: 'refresh' }),
+      error: null,
+    })
+    mockSendEmailViaProvider.mockResolvedValue({ success: true, messageId: 'sent-1' })
+    mockUpdatedDraftSingle.mockResolvedValue({ data: { id: 'draft-1' }, error: null })
+
+    const { validateAndSendDraft } = await import('./actions')
+    await validateAndSendDraft('draft-1', 'Edited content')
+
+    expect(mockSendEmailViaProvider).toHaveBeenCalledWith(
+      'gmail',
+      { access_token: 'token', refresh_token: 'refresh' },
+      expect.objectContaining({ body: 'Edited content' })
+    )
+  })
+
   it('sends a ready draft, marks it sent, archives the email, and revalidates paths', async () => {
     mockDraftSingle.mockResolvedValue({
       data: {
@@ -274,6 +311,62 @@ describe('validateAndSendDraft', () => {
       success: false,
       error: 'Draft was already processed. Please refresh the page.',
       errorCode: 'UNKNOWN',
+    })
+  })
+})
+
+describe('updateDraftContent', () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockUpdatedDraftSingle: ReturnType<typeof vi.fn>
+  let fromMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+
+    mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockUpdatedDraftSingle = vi.fn()
+
+    fromMock = vi.fn((table: string) => {
+      if (table !== 'drafts') throw new Error(`Unexpected table: ${table}`)
+      return {
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: mockUpdatedDraftSingle,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }
+    })
+
+    mockCreateClient.mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: fromMock,
+    })
+  })
+
+  it('updates ready draft content successfully', async () => {
+    mockUpdatedDraftSingle.mockResolvedValue({ data: { id: 'draft-1' }, error: null })
+
+    const { updateDraftContent } = await import('./actions')
+    const result = await updateDraftContent('draft-1', 'Edited content')
+
+    expect(result).toEqual({ success: true })
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
+  })
+
+  it('rejects empty edited content', async () => {
+    const { updateDraftContent } = await import('./actions')
+    const result = await updateDraftContent('draft-1', '   ')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Draft content cannot be empty.',
     })
   })
 })

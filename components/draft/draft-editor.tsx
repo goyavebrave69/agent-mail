@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
-import { ConfidenceBadge } from './confidence-badge'
+import { useEffect, useRef } from 'react'
 import { DraftActions } from './draft-actions'
+import { ConfidenceBadge } from './confidence-badge'
 import { useDraftStore } from '@/stores/draft-store'
 import type { DraftStatus } from '@/types/draft'
 
@@ -12,7 +12,8 @@ export interface DraftEditorProps {
   status: DraftStatus
   confidenceScore: number | null
   errorMessage: string | null
-  onValidateAndSend: () => void
+  onValidateAndSend: (content?: string) => void
+  onSaveEdit: (content: string) => Promise<void>
   onRegenerate: () => void
   onReject: () => void
 }
@@ -42,23 +43,68 @@ export function DraftEditor({
   confidenceScore,
   errorMessage,
   onValidateAndSend,
+  onSaveEdit,
   onRegenerate,
   onReject,
 }: DraftEditorProps) {
   const {
+    draftContent,
     isEditing,
     isSending,
     sendError,
+    hasUnsavedChanges,
     editedContent,
     setActiveDraft,
     startEditing,
     updateEditedContent,
+    saveEdit,
     cancelEditing,
   } = useDraftStore()
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(() => {
-    setActiveDraft(draftId, initialContent)
-  }, [draftId, initialContent, setActiveDraft])
+    setActiveDraft(draftId, initialContent, status)
+  }, [draftId, initialContent, setActiveDraft, status])
+
+  useEffect(() => {
+    if (isEditing) {
+      textareaRef.current?.focus()
+    }
+  }, [isEditing])
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
+
+  const handleTextareaKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Tab') return
+
+    event.preventDefault()
+    const target = event.currentTarget
+    const start = target.selectionStart
+    const end = target.selectionEnd
+    const currentValue = editedContent ?? draftContent
+    const nextValue = `${currentValue.slice(0, start)}  ${currentValue.slice(end)}`
+    updateEditedContent(nextValue)
+
+    requestAnimationFrame(() => {
+      target.selectionStart = start + 2
+      target.selectionEnd = start + 2
+    })
+  }
+
+  const handleSave = async () => {
+    const content = editedContent ?? draftContent
+    await onSaveEdit(content)
+    saveEdit()
+  }
 
   if (status === 'generating') {
     return (
@@ -91,35 +137,32 @@ export function DraftEditor({
   }
 
   if (isEditing) {
-    const charCount = (editedContent ?? initialContent).length
-
     return (
       <div className="space-y-3">
         <textarea
-          value={editedContent ?? initialContent}
+          ref={textareaRef}
+          value={editedContent ?? draftContent}
           onChange={(e) => updateEditedContent(e.target.value)}
+          onKeyDown={handleTextareaKeyDown}
           className="w-full resize-none rounded-lg border p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           rows={10}
           aria-label="Edit draft content"
         />
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{charCount} characters</span>
-          <div className="flex gap-2">
-            <button
-              onClick={cancelEditing}
-              className="rounded-md border border-input px-3 py-1.5 text-sm font-medium hover:bg-accent"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onValidateAndSend}
-              disabled={isSending}
-              className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-            >
-              {isSending ? 'Sending...' : 'Send'}
-            </button>
-          </div>
-        </div>
+        <DraftActions
+          draftId={draftId}
+          status={status}
+          isEditing
+          isSending={isSending}
+          draftContent={draftContent}
+          editedContent={editedContent}
+          hasUnsavedChanges={hasUnsavedChanges}
+          onValidateAndSend={onValidateAndSend}
+          onEdit={startEditing}
+          onSave={handleSave}
+          onCancel={cancelEditing}
+          onRegenerate={onRegenerate}
+          onReject={onReject}
+        />
       </div>
     )
   }
@@ -141,16 +184,19 @@ export function DraftEditor({
           className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
           role="alert"
         >
-          <p className="text-sm font-medium text-destructive">Failed to send</p>
+          <p className="text-sm font-medium text-destructive">Action failed</p>
           <p className="mt-1 text-sm text-muted-foreground">{sendError}</p>
         </div>
       )}
       <DraftActions
         draftId={draftId}
         status={status}
+        draftContent={draftContent}
         isSending={isSending}
         onValidateAndSend={onValidateAndSend}
         onEdit={startEditing}
+        onSave={handleSave}
+        onCancel={cancelEditing}
         onRegenerate={onRegenerate}
         onReject={onReject}
       />

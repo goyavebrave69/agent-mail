@@ -69,6 +69,10 @@ interface SendDraftResult {
   errorCode?: SendEmailErrorCode
 }
 
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, '').trim()
+}
+
 function buildReplySubject(subject: string | null): string {
   if (!subject) return 'Re:'
   return /^re:/i.test(subject) ? subject : `Re: ${subject}`
@@ -87,7 +91,51 @@ function getUserMessageForCode(errorCode: SendEmailErrorCode | undefined): strin
   }
 }
 
-export async function validateAndSendDraft(draftId: string): Promise<SendDraftResult> {
+export async function updateDraftContent(
+  draftId: string,
+  newContent: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, error: 'Unauthorized' }
+  }
+
+  const sanitizedContent = stripHtml(newContent)
+  if (sanitizedContent.length < 1) {
+    return { success: false, error: 'Draft content cannot be empty.' }
+  }
+  if (sanitizedContent.length > 10000) {
+    return { success: false, error: 'Draft content cannot exceed 10000 characters.' }
+  }
+
+  const { data: updatedDraft, error } = await supabase
+    .from('drafts')
+    .update({
+      content: sanitizedContent,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', draftId)
+    .eq('user_id', user.id)
+    .eq('status', 'ready')
+    .select('id')
+    .single()
+
+  if (error || !updatedDraft) {
+    return { success: false, error: 'Unable to save draft edits.' }
+  }
+
+  revalidatePath('/inbox')
+  return { success: true }
+}
+
+export async function validateAndSendDraft(
+  draftId: string,
+  editedContent?: string
+): Promise<SendDraftResult> {
   const supabase = await createClient()
   const adminClient = createAdminClient()
   const {
@@ -154,12 +202,17 @@ export async function validateAndSendDraft(draftId: string): Promise<SendDraftRe
     }
   }
 
+  const contentToSend = editedContent ? stripHtml(editedContent) : draft.content
+  if (!contentToSend) {
+    return { success: false, error: 'Draft content cannot be empty.', errorCode: 'UNKNOWN' }
+  }
+
   const credentials = JSON.parse(rawSecret as string) as ProviderCredentials
   const result = await sendEmailViaProvider(email.provider, credentials, {
     to: email.from_email ?? connection.email,
     from: connection.email,
     subject: buildReplySubject(email.subject),
-    body: draft.content,
+    body: contentToSend,
     replyToMessageId: email.provider_email_id,
   })
 
@@ -175,6 +228,7 @@ export async function validateAndSendDraft(draftId: string): Promise<SendDraftRe
   const { data: updatedDraft, error: updateDraftError } = await supabase
     .from('drafts')
     .update({
+      content: contentToSend,
       status: 'sent',
       sent_at: now,
       updated_at: now,

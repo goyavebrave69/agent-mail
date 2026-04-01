@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DraftEditor } from './draft-editor'
 import { DraftRealtime } from './draft-realtime'
-import { validateAndSendDraft } from '@/app/(app)/inbox/[emailId]/actions'
+import { updateDraftContent, validateAndSendDraft } from '@/app/(app)/inbox/[emailId]/actions'
 import { useDraftStore } from '@/stores/draft-store'
 import type { Draft } from '@/types/draft'
 
@@ -23,15 +23,19 @@ export function DraftSection({ draft: initialDraft, userId }: DraftSectionProps)
     setDraft(updated)
   }, [])
 
-  const handleValidateAndSend = useCallback(async () => {
+  const handleValidateAndSend = useCallback(async (content?: string) => {
     if (!draft) return
 
     optimisticSend()
-    const result = await validateAndSendDraft(draft.id)
+    const result = await validateAndSendDraft(draft.id, content)
 
     if (result.success) {
       confirmSend()
-      setDraft((current) => current ? { ...current, status: 'sent' } : current)
+      setDraft((current) => current ? {
+        ...current,
+        content: content ?? current.content,
+        status: 'sent',
+      } : current)
       router.push('/inbox')
       router.refresh()
       return
@@ -39,6 +43,18 @@ export function DraftSection({ draft: initialDraft, userId }: DraftSectionProps)
 
     failSend(result.error ?? 'Failed to send email. Please try again.')
   }, [confirmSend, draft, failSend, optimisticSend, router])
+
+  const handleSaveEdit = useCallback(async (content: string) => {
+    if (!draft) return
+
+    const result = await updateDraftContent(draft.id, content)
+    if (!result.success) {
+      throw new Error(result.error ?? 'Unable to save draft edits.')
+    }
+
+    setDraft((current) => current ? { ...current, content } : current)
+    router.refresh()
+  }, [draft, router])
 
   const handleRegenerate = useCallback(() => {
     // Story 5-5 will implement regeneration
@@ -70,6 +86,7 @@ export function DraftSection({ draft: initialDraft, userId }: DraftSectionProps)
         confidenceScore={draft.confidence_score}
         errorMessage={draft.error_message}
         onValidateAndSend={handleValidateAndSend}
+        onSaveEdit={handleSaveEdit}
         onRegenerate={handleRegenerate}
         onReject={handleReject}
       />
