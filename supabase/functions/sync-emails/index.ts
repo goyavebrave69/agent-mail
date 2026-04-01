@@ -94,9 +94,27 @@ async function storeEmails(userId: string, provider: string, emails: EmailMessag
     priority_rank: e.priorityRank,
   }))
 
-  await supabase
+  const { data: upserted } = await supabase
     .from('emails')
     .upsert(rows, { onConflict: 'user_id,provider,provider_email_id', ignoreDuplicates: true })
+    .select('id, user_id')
+
+  // Fire-and-forget draft generation for each newly stored email
+  if (upserted && Array.isArray(upserted)) {
+    for (const email of upserted as Array<{ id: string; user_id: string }>) {
+      fetch(`${deno.env.get('SUPABASE_URL')}/functions/v1/generate-draft`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ emailId: email.id, userId: email.user_id }),
+      }).catch(err => {
+        console.error('Failed to invoke generate-draft:', err)
+        // Don't block sync on draft generation failure
+      })
+    }
+  }
 }
 
 async function markJobSuccess(jobId: string): Promise<void> {

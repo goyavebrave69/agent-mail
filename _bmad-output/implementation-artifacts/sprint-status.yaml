@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-27
-last_updated: 2026-03-31T10:26:00Z
+last_updated: 2026-04-01T10:00:00Z
 project: mail-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -72,13 +72,13 @@ development_status:
   4-4-manual-email-actions-spam-read-archive: backlog
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-asynchronous-draft-generation-pipeline: backlog
-  5-2-draft-view-with-confidence-score: backlog
-  5-3-validate-and-send-draft: backlog
-  5-4-edit-draft-before-sending: backlog
-  5-5-regenerate-draft-with-instruction: backlog
-  5-6-reject-draft-and-compose-own-reply: backlog
+  epic-5: in-progress
+  5-1-asynchronous-draft-generation-pipeline: in-progress
+  5-2-draft-view-with-confidence-score: ready-for-dev
+  5-3-validate-and-send-draft: ready-for-dev
+  5-4-edit-draft-before-sending: ready-for-dev
+  5-5-regenerate-draft-with-instruction: ready-for-dev
+  5-6-reject-draft-and-compose-own-reply: ready-for-dev
   epic-5-retrospective: optional
 
   epic-6: backlog
