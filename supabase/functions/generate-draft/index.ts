@@ -5,9 +5,9 @@
 // Status transitions: pending → generating → ready | error
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { generateEmbedding, findRelevantKbChunks } from 'npm:~/lib/ai/embeddings.ts'
-import { generateDraft } from 'npm:~/lib/ai/draft.ts'
-import { checkUserLlmQuota, incrementUserLlmUsage } from 'npm:~/lib/ai/throttle.ts'
+import { generateEmbedding, findRelevantKbChunks } from '../../../lib/ai/embeddings.ts'
+import { generateDraft } from '../../../lib/ai/draft.ts'
+import { checkUserLlmQuota, incrementUserLlmUsage } from '../../../lib/ai/throttle.ts'
 
 type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
 type DenoLike = {
@@ -142,10 +142,10 @@ deno.serve(async (req: Request): Promise<Response> => {
     return new Response(JSON.stringify({ error: String(err) }), { status: 400 })
   }
 
-  // 1. Fetch email metadata
+  // 1. Fetch email metadata + body_text from DB
   const { data: email, error: emailError } = await supabase
     .from('emails')
-    .select('id, user_id, subject, from_email')
+    .select('id, user_id, subject, from_email, body_text')
     .eq('id', emailId)
     .eq('user_id', userId)
     .single()
@@ -159,7 +159,11 @@ deno.serve(async (req: Request): Promise<Response> => {
     user_id: string
     subject: string | null
     from_email: string | null
+    body_text: string | null
   }
+
+  // Use body_text from DB; fall back to emailContent passed in request (legacy / IMAP path)
+  emailContent = emailData.body_text ?? emailContent
 
   // 2. Upsert draft with pending status
   const draftId = await upsertDraftPending(emailId, userId)

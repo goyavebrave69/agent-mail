@@ -53,7 +53,7 @@ async function EmailDetailContent({ emailId }: { emailId: string }) {
 
   return (
     <>
-      <div className="mb-8 space-y-2">
+      <div className="mb-6 space-y-2">
         <h1 className="text-xl font-bold">{email.subject ?? '(no subject)'}</h1>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Mail className="h-4 w-4" aria-hidden="true" />
@@ -62,6 +62,19 @@ async function EmailDetailContent({ emailId }: { emailId: string }) {
           <time dateTime={email.received_at}>{formatDate(email.received_at)}</time>
         </div>
       </div>
+
+      {email.body_text ? (
+        <div className="mb-8 rounded-lg border p-4">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Email
+          </h2>
+          <pre className="whitespace-pre-wrap text-sm leading-relaxed">{email.body_text}</pre>
+        </div>
+      ) : (
+        <div className="mb-8 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+          Body not yet available — will appear after the next sync.
+        </div>
+      )}
 
       <DraftSection draft={draft} emailId={emailId} userId={user.id} />
     </>
