@@ -50,6 +50,7 @@ interface EmailMessage {
   subject: string | null
   fromEmail: string | null
   fromName: string | null
+  bodyPreview: string | null
   receivedAt: Date
   category: EmailCategory
   priorityRank: number
@@ -94,9 +95,32 @@ async function storeEmails(userId: string, provider: string, emails: EmailMessag
     priority_rank: e.priorityRank,
   }))
 
-  await supabase
+  const { data: upserted } = await supabase
     .from('emails')
     .upsert(rows, { onConflict: 'user_id,provider,provider_email_id', ignoreDuplicates: true })
+    .select('id, user_id, provider_email_id')
+
+  // Fire-and-forget draft generation for each newly stored email
+  if (upserted && Array.isArray(upserted)) {
+    for (const email of upserted as Array<{ id: string; user_id: string; provider_email_id: string }>) {
+      const sourceEmail = emails.find(candidate => candidate.providerEmailId === email.provider_email_id)
+      fetch(`${deno.env.get('SUPABASE_URL')}/functions/v1/generate-draft`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          emailId: email.id,
+          userId: email.user_id,
+          emailContent: sourceEmail?.bodyPreview ?? null,
+        }),
+      }).catch(err => {
+        console.error('Failed to invoke generate-draft:', err)
+        // Don't block sync on draft generation failure
+      })
+    }
+  }
 }
 
 async function markJobSuccess(jobId: string): Promise<void> {
@@ -181,6 +205,7 @@ async function syncGmail(
 
     const msg = (await metaRes.json()) as {
       id: string
+      snippet?: string
       payload?: { headers?: Array<{ name: string; value: string }> }
       internalDate?: string
     }
@@ -198,7 +223,16 @@ async function syncGmail(
       category: 'other' as EmailCategory,
       priorityRank: 20,
     }))
-    emails.push({ providerEmailId: msg.id, subject, fromEmail, fromName, receivedAt, category: triage.category, priorityRank: triage.priorityRank })
+    emails.push({
+      providerEmailId: msg.id,
+      subject,
+      fromEmail,
+      fromName,
+      bodyPreview: msg.snippet ?? null,
+      receivedAt,
+      category: triage.category,
+      priorityRank: triage.priorityRank,
+    })
   }
 
   await storeEmails(job.user_id, 'gmail', emails)
@@ -213,7 +247,7 @@ async function syncOutlook(
   const access_token = credentials.access_token as string
   const refresh_token = credentials.refresh_token as string
 
-  const select = '$select=id,subject,from,receivedDateTime'
+  const select = '$select=id,subject,from,receivedDateTime,bodyPreview'
   const filter = lastSyncedAt ? `&$filter=receivedDateTime gt ${lastSyncedAt.toISOString()}` : ''
   const url = `https://graph.microsoft.com/v1.0/me/messages?${select}${filter}&$top=50`
 
@@ -251,6 +285,7 @@ async function syncOutlook(
     subject?: string
     from?: { emailAddress?: { name?: string; address?: string } }
     receivedDateTime?: string
+    bodyPreview?: string
   }
 
   const data = (await res.json()) as { value?: GraphMsg[]; error?: unknown }
@@ -270,6 +305,7 @@ async function syncOutlook(
         subject,
         fromEmail,
         fromName: m.from?.emailAddress?.name ?? null,
+        bodyPreview: typeof m.bodyPreview === 'string' ? m.bodyPreview : null,
         receivedAt: m.receivedDateTime ? new Date(m.receivedDateTime) : new Date(),
         category: triage.category,
         priorityRank: triage.priorityRank,
