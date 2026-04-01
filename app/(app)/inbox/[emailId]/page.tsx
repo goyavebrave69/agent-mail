@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Mail } from 'lucide-react'
@@ -19,9 +20,23 @@ function formatDate(iso: string): string {
   })
 }
 
-export default async function EmailDetailPage({ params }: Props) {
-  const { emailId } = await params
+function EmailDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="h-7 w-3/4 animate-pulse rounded bg-muted" />
+        <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+      </div>
+      <div className="space-y-3 rounded-lg border p-4">
+        <div className="h-4 w-full animate-pulse rounded bg-muted" />
+        <div className="h-4 w-5/6 animate-pulse rounded bg-muted" />
+        <div className="h-4 w-4/6 animate-pulse rounded bg-muted" />
+      </div>
+    </div>
+  )
+}
 
+async function EmailDetailContent({ emailId }: { emailId: string }) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -37,15 +52,7 @@ export default async function EmailDetailPage({ params }: Props) {
   if (!email) notFound()
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12">
-      <Link
-        href="/inbox"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to inbox
-      </Link>
-
+    <>
       <div className="mb-8 space-y-2">
         <h1 className="text-xl font-bold">{email.subject ?? '(no subject)'}</h1>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -56,16 +63,27 @@ export default async function EmailDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {email.body_text && (
-        <div className="mb-8 rounded-lg border p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Email
-          </h2>
-          <pre className="whitespace-pre-wrap text-sm leading-relaxed">{email.body_text}</pre>
-        </div>
-      )}
-
       <DraftSection draft={draft} emailId={emailId} userId={user.id} />
+    </>
+  )
+}
+
+export default async function EmailDetailPage({ params }: Props) {
+  const { emailId } = await params
+
+  return (
+    <main className="mx-auto max-w-2xl px-4 py-12">
+      <Link
+        href="/inbox"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to inbox
+      </Link>
+
+      <Suspense fallback={<EmailDetailSkeleton />}>
+        <EmailDetailContent emailId={emailId} />
+      </Suspense>
     </main>
   )
 }

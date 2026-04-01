@@ -8,7 +8,6 @@ export interface EmailDetail {
   from_name: string | null
   received_at: string
   is_read: boolean
-  body_text: string | null
 }
 
 export async function fetchEmail(emailId: string): Promise<EmailDetail | null> {
@@ -21,7 +20,7 @@ export async function fetchEmail(emailId: string): Promise<EmailDetail | null> {
 
   const { data, error } = await supabase
     .from('emails')
-    .select('id, subject, from_email, from_name, received_at, is_read, body_text')
+    .select('id, subject, from_email, from_name, received_at, is_read')
     .eq('id', emailId)
     .eq('user_id', user.id)
     .single()
