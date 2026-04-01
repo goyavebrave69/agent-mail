@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DraftEditor } from './draft-editor'
 import { DraftRealtime } from './draft-realtime'
+import { validateAndSendDraft } from '@/app/(app)/inbox/[emailId]/actions'
+import { useDraftStore } from '@/stores/draft-store'
 import type { Draft } from '@/types/draft'
 
 interface DraftSectionProps {
@@ -15,15 +17,28 @@ interface DraftSectionProps {
 export function DraftSection({ draft: initialDraft, userId }: DraftSectionProps) {
   const [draft, setDraft] = useState<Draft | null>(initialDraft)
   const router = useRouter()
+  const { optimisticSend, confirmSend, failSend } = useDraftStore()
 
   const handleDraftUpdate = useCallback((updated: Draft) => {
     setDraft(updated)
   }, [])
 
-  const handleValidateAndSend = useCallback(() => {
-    // Story 5-3 will implement the actual send action
-    router.refresh()
-  }, [router])
+  const handleValidateAndSend = useCallback(async () => {
+    if (!draft) return
+
+    optimisticSend()
+    const result = await validateAndSendDraft(draft.id)
+
+    if (result.success) {
+      confirmSend()
+      setDraft((current) => current ? { ...current, status: 'sent' } : current)
+      router.push('/inbox')
+      router.refresh()
+      return
+    }
+
+    failSend(result.error ?? 'Failed to send email. Please try again.')
+  }, [confirmSend, draft, failSend, optimisticSend, router])
 
   const handleRegenerate = useCallback(() => {
     // Story 5-5 will implement regeneration

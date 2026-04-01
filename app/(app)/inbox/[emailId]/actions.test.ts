@@ -1,0 +1,279 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mockRevalidatePath = vi.fn()
+const mockCreateClient = vi.fn()
+const mockCreateAdminClient = vi.fn()
+const mockSendEmailViaProvider = vi.fn()
+
+vi.mock('next/cache', () => ({
+  revalidatePath: mockRevalidatePath,
+}))
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: mockCreateClient,
+}))
+
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: mockCreateAdminClient,
+}))
+
+vi.mock('@/lib/email/send', () => ({
+  sendEmailViaProvider: mockSendEmailViaProvider,
+}))
+
+describe('validateAndSendDraft', () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockDraftSingle: ReturnType<typeof vi.fn>
+  let mockConnectionSingle: ReturnType<typeof vi.fn>
+  let mockUpdatedDraftSingle: ReturnType<typeof vi.fn>
+  let mockEmailUpdateEq: ReturnType<typeof vi.fn>
+  let fromMock: ReturnType<typeof vi.fn>
+  let mockRpc: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+
+    mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockDraftSingle = vi.fn()
+    mockConnectionSingle = vi.fn()
+    mockUpdatedDraftSingle = vi.fn()
+    mockEmailUpdateEq = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    mockRpc = vi.fn()
+
+    const draftQuery = {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: mockDraftSingle,
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: mockUpdatedDraftSingle,
+              }),
+            }),
+          }),
+        }),
+      }),
+    }
+
+    const connectionQuery = {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: mockConnectionSingle,
+          }),
+        }),
+      }),
+    }
+
+    const emailsQuery = {
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: mockEmailUpdateEq,
+        }),
+      }),
+    }
+
+    fromMock = vi.fn((table: string) => {
+      if (table === 'drafts') return draftQuery
+      if (table === 'email_connections') return connectionQuery
+      if (table === 'emails') return emailsQuery
+      throw new Error(`Unexpected table: ${table}`)
+    })
+
+    mockCreateClient.mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: fromMock,
+    })
+
+    mockCreateAdminClient.mockReturnValue({
+      rpc: mockRpc,
+    })
+  })
+
+  it('sends a ready draft, marks it sent, archives the email, and revalidates paths', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: {
+        id: 'draft-1',
+        status: 'ready',
+        content: 'Thanks for your email.',
+        emails: {
+          id: 'email-1',
+          provider: 'gmail',
+          provider_email_id: '<msg@example.com>',
+          subject: 'Question',
+          from_email: 'sender@example.com',
+        },
+      },
+      error: null,
+    })
+    mockConnectionSingle.mockResolvedValue({
+      data: { provider: 'gmail', email: 'me@example.com', vault_secret_id: 'vault-1' },
+      error: null,
+    })
+    mockRpc.mockResolvedValue({
+      data: JSON.stringify({ access_token: 'token', refresh_token: 'refresh' }),
+      error: null,
+    })
+    mockSendEmailViaProvider.mockResolvedValue({ success: true, messageId: 'sent-1' })
+    mockUpdatedDraftSingle.mockResolvedValue({ data: { id: 'draft-1' }, error: null })
+
+    const { validateAndSendDraft } = await import('./actions')
+    const result = await validateAndSendDraft('draft-1')
+
+    expect(mockSendEmailViaProvider).toHaveBeenCalledWith(
+      'gmail',
+      { access_token: 'token', refresh_token: 'refresh' },
+      expect.objectContaining({
+        to: 'sender@example.com',
+        from: 'me@example.com',
+        subject: 'Re: Question',
+        body: 'Thanks for your email.',
+        replyToMessageId: '<msg@example.com>',
+      })
+    )
+    expect(result).toEqual({ success: true })
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox/email-1')
+  })
+
+  it('returns an error when draft is not ready', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: {
+        id: 'draft-1',
+        status: 'sent',
+        content: 'Thanks',
+        emails: {
+          id: 'email-1',
+          provider: 'gmail',
+          provider_email_id: '<msg@example.com>',
+          subject: 'Question',
+          from_email: 'sender@example.com',
+        },
+      },
+      error: null,
+    })
+
+    const { validateAndSendDraft } = await import('./actions')
+    const result = await validateAndSendDraft('draft-1')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Draft is not ready to send.',
+      errorCode: 'UNKNOWN',
+    })
+    expect(mockSendEmailViaProvider).not.toHaveBeenCalled()
+  })
+
+  it('returns a no-connection error when mailbox connection is missing', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: {
+        id: 'draft-1',
+        status: 'ready',
+        content: 'Thanks',
+        emails: {
+          id: 'email-1',
+          provider: 'gmail',
+          provider_email_id: '<msg@example.com>',
+          subject: 'Question',
+          from_email: 'sender@example.com',
+        },
+      },
+      error: null,
+    })
+    mockConnectionSingle.mockResolvedValue({ data: null, error: null })
+
+    const { validateAndSendDraft } = await import('./actions')
+    const result = await validateAndSendDraft('draft-1')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'No email connection found. Please reconnect your mailbox.',
+      errorCode: 'NO_CONNECTION',
+    })
+  })
+
+  it('returns provider errors without updating the draft', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: {
+        id: 'draft-1',
+        status: 'ready',
+        content: 'Thanks',
+        emails: {
+          id: 'email-1',
+          provider: 'gmail',
+          provider_email_id: '<msg@example.com>',
+          subject: 'Question',
+          from_email: 'sender@example.com',
+        },
+      },
+      error: null,
+    })
+    mockConnectionSingle.mockResolvedValue({
+      data: { provider: 'gmail', email: 'me@example.com', vault_secret_id: 'vault-1' },
+      error: null,
+    })
+    mockRpc.mockResolvedValue({
+      data: JSON.stringify({ access_token: 'token', refresh_token: 'refresh' }),
+      error: null,
+    })
+    mockSendEmailViaProvider.mockResolvedValue({
+      success: false,
+      error: 'Email provider error. Please try again.',
+      errorCode: 'PROVIDER_ERROR',
+    })
+
+    const { validateAndSendDraft } = await import('./actions')
+    const result = await validateAndSendDraft('draft-1')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Email provider error. Please try again.',
+      errorCode: 'PROVIDER_ERROR',
+    })
+    expect(mockUpdatedDraftSingle).not.toHaveBeenCalled()
+  })
+
+  it('prevents duplicate sends when the ready-status update no longer matches', async () => {
+    mockDraftSingle.mockResolvedValue({
+      data: {
+        id: 'draft-1',
+        status: 'ready',
+        content: 'Thanks',
+        emails: {
+          id: 'email-1',
+          provider: 'gmail',
+          provider_email_id: '<msg@example.com>',
+          subject: 'Question',
+          from_email: 'sender@example.com',
+        },
+      },
+      error: null,
+    })
+    mockConnectionSingle.mockResolvedValue({
+      data: { provider: 'gmail', email: 'me@example.com', vault_secret_id: 'vault-1' },
+      error: null,
+    })
+    mockRpc.mockResolvedValue({
+      data: JSON.stringify({ access_token: 'token', refresh_token: 'refresh' }),
+      error: null,
+    })
+    mockSendEmailViaProvider.mockResolvedValue({ success: true, messageId: 'sent-1' })
+    mockUpdatedDraftSingle.mockResolvedValue({ data: null, error: { message: 'stale row' } })
+
+    const { validateAndSendDraft } = await import('./actions')
+    const result = await validateAndSendDraft('draft-1')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Draft was already processed. Please refresh the page.',
+      errorCode: 'UNKNOWN',
+    })
+  })
+})

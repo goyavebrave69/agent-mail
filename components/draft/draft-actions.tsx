@@ -6,6 +6,7 @@ import type { DraftStatus } from '@/types/draft'
 export interface DraftActionsProps {
   draftId: string
   status: DraftStatus
+  isSending?: boolean
   onValidateAndSend: () => void
   onEdit: () => void
   onRegenerate: () => void
@@ -14,12 +15,13 @@ export interface DraftActionsProps {
 
 export function DraftActions({
   status,
+  isSending = false,
   onValidateAndSend,
   onEdit,
   onRegenerate,
   onReject,
 }: DraftActionsProps) {
-  const isDisabled = status === 'generating'
+  const isDisabled = status === 'generating' || isSending
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -30,7 +32,7 @@ export function DraftActions({
         className="inline-flex items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Send className="h-4 w-4" aria-hidden="true" />
-        Validate &amp; Send
+        {isSending ? 'Sending...' : 'Validate & Send'}
       </button>
 
       <button

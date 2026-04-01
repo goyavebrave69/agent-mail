@@ -10,6 +10,8 @@ interface DraftStore {
   // UI state
   isGenerating: boolean
   generationError: string | null
+  isSending: boolean
+  sendError: string | null
 
   // Actions
   setActiveDraft: (draftId: string | null, content: string) => void
@@ -18,6 +20,9 @@ interface DraftStore {
   cancelEditing: () => void
   setGenerating: (isGenerating: boolean) => void
   setError: (error: string | null) => void
+  optimisticSend: () => void
+  confirmSend: () => void
+  failSend: (error: string) => void
   reset: () => void
 }
 
@@ -28,6 +33,8 @@ const initialState = {
   editedContent: null,
   isGenerating: false,
   generationError: null,
+  isSending: false,
+  sendError: null,
 }
 
 export const useDraftStore = create<DraftStore>((set, get) => ({
@@ -50,6 +57,15 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   setError: (error) =>
     set({ generationError: error }),
+
+  optimisticSend: () =>
+    set({ isSending: true, sendError: null }),
+
+  confirmSend: () =>
+    set({ ...initialState }),
+
+  failSend: (error) =>
+    set({ isSending: false, sendError: error }),
 
   reset: () =>
     set(initialState),

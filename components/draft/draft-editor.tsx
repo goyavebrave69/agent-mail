@@ -47,6 +47,8 @@ export function DraftEditor({
 }: DraftEditorProps) {
   const {
     isEditing,
+    isSending,
+    sendError,
     editedContent,
     setActiveDraft,
     startEditing,
@@ -111,9 +113,10 @@ export function DraftEditor({
             </button>
             <button
               onClick={onValidateAndSend}
+              disabled={isSending}
               className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
             >
-              Send
+              {isSending ? 'Sending...' : 'Send'}
             </button>
           </div>
         </div>
@@ -133,9 +136,19 @@ export function DraftEditor({
       <div className="rounded-lg border p-4">
         <pre className="whitespace-pre-wrap text-sm leading-relaxed">{initialContent}</pre>
       </div>
+      {sendError && (
+        <div
+          className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
+          role="alert"
+        >
+          <p className="text-sm font-medium text-destructive">Failed to send</p>
+          <p className="mt-1 text-sm text-muted-foreground">{sendError}</p>
+        </div>
+      )}
       <DraftActions
         draftId={draftId}
         status={status}
+        isSending={isSending}
         onValidateAndSend={onValidateAndSend}
         onEdit={startEditing}
         onRegenerate={onRegenerate}

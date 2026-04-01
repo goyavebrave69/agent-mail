@@ -1,6 +1,7 @@
+import type { SendEmailParams, SendEmailResult } from './send'
 import type { EmailMessage } from './types'
 
-interface OutlookCredentials {
+export interface OutlookCredentials {
   access_token: string
   refresh_token: string
   email?: string
@@ -38,6 +39,72 @@ async function refreshOutlookToken(refreshToken: string): Promise<RefreshResult>
     throw new Error(`Outlook token refresh failed: ${res.status}`)
   }
   return res.json() as Promise<RefreshResult>
+}
+
+export async function sendViaOutlook(
+  credentials: OutlookCredentials,
+  params: SendEmailParams
+): Promise<SendEmailResult> {
+  const message = {
+    subject: params.subject,
+    body: {
+      contentType: 'Text',
+      content: params.body,
+    },
+    toRecipients: [
+      {
+        emailAddress: {
+          address: params.to,
+        },
+      },
+    ],
+    internetMessageHeaders: params.replyToMessageId
+      ? [
+          { name: 'In-Reply-To', value: params.replyToMessageId },
+          { name: 'References', value: params.replyToMessageId },
+        ]
+      : undefined,
+  }
+
+  const sendWithToken = async (accessToken: string): Promise<Response> =>
+    fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message }),
+    })
+
+  let accessToken = credentials.access_token
+  let response = await sendWithToken(accessToken)
+
+  if (response.status === 401 || response.status === 403) {
+    const refreshed = await refreshOutlookToken(credentials.refresh_token)
+    accessToken = refreshed.access_token
+    response = await sendWithToken(accessToken)
+  }
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      return {
+        success: false,
+        error: 'Rate limit exceeded. Please wait a moment before retrying.',
+        errorCode: 'RATE_LIMIT',
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Email provider error. Please try again.',
+      errorCode: 'PROVIDER_ERROR',
+    }
+  }
+
+  return {
+    success: true,
+    messageId: crypto.randomUUID(),
+  }
 }
 
 async function listMessages(accessToken: string, lastSyncedAt: Date | null): Promise<GraphMessage[]> {

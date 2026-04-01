@@ -1,6 +1,7 @@
+import type { SendEmailParams, SendEmailResult } from './send'
 import type { EmailMessage } from './types'
 
-interface GmailCredentials {
+export interface GmailCredentials {
   access_token: string
   refresh_token: string
   email?: string
@@ -8,6 +9,32 @@ interface GmailCredentials {
 
 interface RefreshResult {
   access_token: string
+}
+
+function encodeBase64Url(input: string): string {
+  return Buffer.from(input, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '')
+}
+
+function buildRfc2822Message(credentials: GmailCredentials, params: SendEmailParams): string {
+  const lines = [
+    `To: ${params.to}`,
+    `From: ${params.from ?? credentials.email ?? 'me'}`,
+    `Subject: ${params.subject}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'MIME-Version: 1.0',
+  ]
+
+  if (params.replyToMessageId) {
+    lines.push(`In-Reply-To: ${params.replyToMessageId}`)
+    lines.push(`References: ${params.replyToMessageId}`)
+  }
+
+  lines.push('', params.body)
+  return lines.join('\r\n')
 }
 
 /**
@@ -41,6 +68,51 @@ async function refreshGmailToken(refreshToken: string): Promise<RefreshResult> {
     throw new Error(`Gmail token refresh failed: ${res.status}`)
   }
   return res.json() as Promise<RefreshResult>
+}
+
+export async function sendViaGmail(
+  credentials: GmailCredentials,
+  params: SendEmailParams
+): Promise<SendEmailResult> {
+  const raw = encodeBase64Url(buildRfc2822Message(credentials, params))
+
+  const sendWithToken = async (accessToken: string): Promise<Response> =>
+    fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ raw }),
+    })
+
+  let accessToken = credentials.access_token
+  let response = await sendWithToken(accessToken)
+
+  if (response.status === 401 || response.status === 403) {
+    const refreshed = await refreshGmailToken(credentials.refresh_token)
+    accessToken = refreshed.access_token
+    response = await sendWithToken(accessToken)
+  }
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      return {
+        success: false,
+        error: 'Rate limit exceeded. Please wait a moment before retrying.',
+        errorCode: 'RATE_LIMIT',
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Email provider error. Please try again.',
+      errorCode: 'PROVIDER_ERROR',
+    }
+  }
+
+  const data = await response.json() as { id?: string }
+  return { success: true, messageId: data.id }
 }
 
 async function listMessageIds(accessToken: string, after: number): Promise<string[]> {
