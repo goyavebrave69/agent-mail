@@ -1,4 +1,7 @@
+"use client"
+
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 const NAV_LINKS = [
   { href: "/inbox", label: "Inbox" },
@@ -11,6 +14,13 @@ export default function AppLayout({
 }: {
   children: React.ReactNode
 }) {
+  const pathname = usePathname()
+  const isInboxRoute = pathname === "/inbox" || pathname.startsWith("/inbox/")
+
+  if (isInboxRoute) {
+    return <>{children}</>
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <nav className="border-b bg-background">

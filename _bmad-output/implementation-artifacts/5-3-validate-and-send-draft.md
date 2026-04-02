@@ -1,6 +1,6 @@
 # Story 5.3: Validate & Send Draft
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -406,13 +406,40 @@ failSend: (error) => set({ isSending: false, sendError: error })
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Codex (GPT-5)
 
 ### Debug Log References
 
+- `npm test`
+- `npm run lint`
+- `npm run typecheck`
+
 ### Completion Notes List
 
+- Implemented `validateAndSendDraft` server action with authenticated draft lookup, Vault credential retrieval, provider-based send dispatch, duplicate-send protection via `status = 'ready'` guard, and inbox revalidation.
+- Added unified provider send module plus Gmail, Outlook, and SMTP-backed IMAP send implementations with provider-specific error mapping and reply-thread header support.
+- Updated draft UI/store for optimistic send state, loading feedback, inline error display, and redirect back to `/inbox` after successful send.
+- Added migration `016_drafts_sent_at.sql` and expanded automated coverage for send routing, server action behavior, and updated draft UI state handling.
+
 ### File List
+
+- app/(app)/inbox/[emailId]/actions.ts
+- app/(app)/inbox/[emailId]/actions.test.ts
+- components/draft/draft-actions.tsx
+- components/draft/draft-editor.tsx
+- components/draft/draft-section.tsx
+- lib/email/gmail.ts
+- lib/email/imap.ts
+- lib/email/outlook.ts
+- lib/email/send.ts
+- lib/email/send.test.ts
+- stores/draft-store.ts
+- supabase/migrations/016_drafts_sent_at.sql
+- types/draft.ts
+
+### Change Log
+
+- 2026-04-01: Implemented validate-and-send flow across server action, provider transports, optimistic draft UI, migration, and automated tests.
 
 ---
 

@@ -1,7 +1,9 @@
+import tls from 'node:tls'
 import { ImapFlow } from 'imapflow'
+import type { SendEmailParams, SendEmailResult } from './send'
 import type { EmailMessage } from './types'
 
-interface ImapCredentials {
+export interface ImapCredentials {
   host: string
   port: number
   username: string
@@ -15,6 +17,97 @@ interface FetchedEnvelope {
     subject?: string
     from?: Array<{ name?: string; address?: string }>
     date?: Date
+  }
+}
+
+function smtpCommand(socket: tls.TLSSocket, command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buffer = ''
+
+    const onData = (chunk: Buffer) => {
+      buffer += chunk.toString('utf8')
+      if (/\r\n$/.test(buffer)) {
+        socket.off('data', onData)
+        resolve(buffer)
+      }
+    }
+
+    socket.on('data', onData)
+    socket.write(command)
+    socket.once('error', reject)
+  })
+}
+
+function createSmtpMessage(credentials: ImapCredentials, params: SendEmailParams): string {
+  const headers = [
+    `From: ${params.from ?? credentials.username}`,
+    `To: ${params.to}`,
+    `Subject: ${params.subject}`,
+    `Message-ID: <${crypto.randomUUID()}@${credentials.host}>`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+  ]
+
+  if (params.replyToMessageId) {
+    headers.push(`In-Reply-To: ${params.replyToMessageId}`)
+    headers.push(`References: ${params.replyToMessageId}`)
+  }
+
+  return `${headers.join('\r\n')}\r\n\r\n${params.body}\r\n.`
+}
+
+export async function sendViaSmtp(
+  credentials: ImapCredentials,
+  params: SendEmailParams
+): Promise<SendEmailResult> {
+  const host = credentials.host
+  const socket = await new Promise<tls.TLSSocket>((resolve, reject) => {
+    const client = tls.connect(
+      {
+        host,
+        port: 465,
+        servername: host,
+      },
+      () => resolve(client)
+    )
+    client.once('error', reject)
+  })
+
+  try {
+    await smtpCommand(socket, '')
+    await smtpCommand(socket, `EHLO ${host}\r\n`)
+    await smtpCommand(socket, 'AUTH LOGIN\r\n')
+    await smtpCommand(socket, `${Buffer.from(credentials.username).toString('base64')}\r\n`)
+    await smtpCommand(socket, `${Buffer.from(credentials.password).toString('base64')}\r\n`)
+    await smtpCommand(socket, `MAIL FROM:<${credentials.username}>\r\n`)
+    await smtpCommand(socket, `RCPT TO:<${params.to}>\r\n`)
+    await smtpCommand(socket, 'DATA\r\n')
+    const message = createSmtpMessage(credentials, params)
+    const response = await smtpCommand(socket, `${message}\r\n`)
+
+    if (!response.startsWith('250')) {
+      return {
+        success: false,
+        error: 'Email provider error. Please try again.',
+        errorCode: 'PROVIDER_ERROR',
+      }
+    }
+
+    await smtpCommand(socket, 'QUIT\r\n')
+
+    const messageIdMatch = message.match(/Message-ID:\s*(.+)/i)
+    return {
+      success: true,
+      messageId: messageIdMatch?.[1]?.trim(),
+    }
+  } catch {
+    return {
+      success: false,
+      error: 'Email provider error. Please try again.',
+      errorCode: 'PROVIDER_ERROR',
+    }
+  } finally {
+    socket.end()
   }
 }
 

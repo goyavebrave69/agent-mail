@@ -1,6 +1,6 @@
 # Story 5.4: Edit Draft Before Sending
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -392,13 +392,39 @@ export async function validateAndSendDraft(
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Codex (GPT-5)
 
 ### Debug Log References
 
+- `npm test`
+- `npm run lint`
+- `npm run typecheck`
+
 ### Completion Notes List
 
+- Extended the draft store to track immutable draft content, editable content, draft status, and unsaved changes while keeping typing fully local in Zustand.
+- Added explicit draft edit persistence through `updateDraftContent`, plus edit-aware send handling so the latest edited text is what gets sent and stored when a draft is validated.
+- Updated the draft editor/actions flow with edit mode controls, character counting, tab insertion in the textarea, focus handling, and a browser `beforeunload` warning for unsaved changes.
+- Expanded automated coverage for draft editing state transitions, edit-mode component behavior, and the new save/send server action paths.
+
 ### File List
+
+- _bmad-output/implementation-artifacts/5-4-edit-draft-before-sending.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- app/(app)/inbox/[emailId]/actions.ts
+- app/(app)/inbox/[emailId]/actions.test.ts
+- components/draft/character-counter.tsx
+- components/draft/draft-actions.tsx
+- components/draft/draft-actions.test.tsx
+- components/draft/draft-editor.tsx
+- components/draft/draft-editor.test.tsx
+- components/draft/draft-section.tsx
+- stores/draft-store.ts
+- stores/draft-store.test.ts
+
+### Change Log
+
+- 2026-04-01: Implemented draft editing workflow, save action, edit-aware sending, and related tests.
 
 ---
 

@@ -9,6 +9,9 @@ export interface Draft {
   confidence_score: number | null
   error_message: string | null
   retry_count: number
+  sent_at?: string | null
+  regeneration_count?: number
+  generation_instruction?: string | null
   created_at: string
   updated_at: string
 }
