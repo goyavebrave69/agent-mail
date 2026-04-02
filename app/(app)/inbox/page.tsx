@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
-import { InboxList } from "@/components/inbox/inbox-list"
-import { InboxFilters } from "@/components/inbox/inbox-filters"
+import { InboxShell } from "@/components/inbox/inbox-shell"
+import type { InboxCategory } from "@/components/inbox/inbox-list"
 
 export interface InboxEmail {
   id: string
@@ -13,9 +13,8 @@ export interface InboxEmail {
   is_archived: boolean
   category: "quote" | "inquiry" | "invoice" | "follow_up" | "spam" | "other"
   priority_rank: number
+  body_text: string | null
 }
-
-type InboxCategory = InboxEmail["category"]
 
 interface InboxPageProps {
   searchParams: Promise<{ category?: string }>
@@ -43,25 +42,22 @@ async function InboxContent({ category }: { category: InboxCategory | null }) {
 
   if (!user) return null
 
-  let query = supabase
+  const { data: allEmails } = await supabase
     .from("emails")
     .select(
-      "id, subject, from_email, from_name, received_at, is_read, is_archived, category, priority_rank"
+      "id, subject, from_email, from_name, received_at, is_read, is_archived, category, priority_rank, body_text"
     )
     .eq("user_id", user.id)
     .eq("is_archived", false)
-
-  if (category) {
-    query = query.eq("category", category)
-  }
-
-  const { data: emails } = await query
     .order("priority_rank", { ascending: false })
     .order("received_at", { ascending: false })
 
+  const emails = ((allEmails as InboxEmail[]) ?? [])
+  const visibleEmails = category ? emails.filter((email) => email.category === category) : emails
+
   return (
-    <InboxList
-      emails={(emails as InboxEmail[]) ?? []}
+    <InboxShell
+      emails={visibleEmails}
       userId={user.id}
       activeCategory={category}
     />
@@ -83,15 +79,8 @@ export default async function InboxPage({ searchParams }: InboxPageProps) {
   const category = normalizeCategory(resolvedParams.category)
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="mb-2 text-2xl font-bold">Inbox</h1>
-      <p className="mb-8 text-sm text-muted-foreground">
-        Emails sorted by priority. Most urgent first.
-      </p>
-      <InboxFilters activeCategory={category} />
-      <Suspense fallback={<InboxSkeleton />}>
-        <InboxContent category={category} />
-      </Suspense>
-    </main>
+    <Suspense fallback={<InboxSkeleton />}>
+      <InboxContent category={category} />
+    </Suspense>
   )
 }

@@ -21,6 +21,8 @@ export const CATEGORY_BADGE: Record<InboxEmail["category"], { label: string; cla
   other: { label: "Other", className: "bg-gray-100 text-gray-700" },
 }
 
+export type InboxCategory = InboxEmail["category"]
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     month: "short",
