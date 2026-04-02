@@ -246,17 +246,26 @@ export async function regenerateDraft(
     .eq('user_id', user.id)
     .in('status', ['ready', 'error'])
 
-  const { error: invokeError } = await createAdminClient().functions.invoke('generate-draft', {
-    body: {
-      emailId: draft.email_id,
-      userId: user.id,
-      instruction: trimmedInstruction,
-      isRegeneration: true,
-    },
-  })
+  const fnRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-draft`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`,
+      },
+      body: JSON.stringify({
+        emailId: draft.email_id,
+        userId: user.id,
+        instruction: trimmedInstruction,
+        isRegeneration: true,
+      }),
+    }
+  )
 
-  if (invokeError) {
-    return { success: false, error: invokeError.message }
+  if (!fnRes.ok) {
+    const err = await fnRes.json().catch(() => ({ error: `HTTP ${fnRes.status}` }))
+    return { success: false, error: err.error ?? `HTTP ${fnRes.status}` }
   }
 
   revalidatePath('/inbox')
@@ -349,21 +358,31 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
     })
   }
 
-  const { error: invokeError } = await createAdminClient().functions.invoke('generate-draft', {
-    body: { emailId, userId: user.id },
-  })
+  const fnRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-draft`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`,
+      },
+      body: JSON.stringify({ emailId, userId: user.id }),
+    }
+  )
 
-  if (invokeError) {
+  if (!fnRes.ok) {
+    const err = await fnRes.json().catch(() => ({ error: `HTTP ${fnRes.status}` }))
+    const message = err.error ?? `HTTP ${fnRes.status}`
     await supabase
       .from('drafts')
       .update({
         status: 'error',
-        error_message: invokeError.message,
+        error_message: message,
         updated_at: new Date().toISOString(),
       })
       .eq('email_id', emailId)
       .eq('user_id', user.id)
-    return { success: false, error: invokeError.message }
+    return { success: false, error: message }
   }
 
   revalidatePath('/inbox')

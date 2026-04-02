@@ -4,6 +4,9 @@ const mockRevalidatePath = vi.fn()
 const mockCreateClient = vi.fn()
 const mockCreateAdminClient = vi.fn()
 const mockSendEmailViaProvider = vi.fn()
+const mockFetch = vi.fn()
+
+vi.stubGlobal('fetch', mockFetch)
 
 vi.mock('next/cache', () => ({
   revalidatePath: mockRevalidatePath,
@@ -374,7 +377,6 @@ describe('updateDraftContent', () => {
 describe('regenerateDraft', () => {
   let mockGetUser: ReturnType<typeof vi.fn>
   let mockDraftSingle: ReturnType<typeof vi.fn>
-  let mockFunctionsInvoke: ReturnType<typeof vi.fn>
   let mockUpdateIn: ReturnType<typeof vi.fn>
   let mockUpdateEq: ReturnType<typeof vi.fn>
   let fromMock: ReturnType<typeof vi.fn>
@@ -385,7 +387,6 @@ describe('regenerateDraft', () => {
 
     mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
     mockDraftSingle = vi.fn()
-    mockFunctionsInvoke = vi.fn()
     mockUpdateIn = vi.fn().mockResolvedValue({ error: null })
     mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
 
@@ -415,9 +416,8 @@ describe('regenerateDraft', () => {
       from: fromMock,
     })
 
-    mockCreateAdminClient.mockReturnValue({
-      functions: { invoke: mockFunctionsInvoke },
-    })
+    // Default: fetch succeeds
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) })
   })
 
   it('updates draft to generating and invokes edge function with instruction', async () => {
@@ -425,20 +425,22 @@ describe('regenerateDraft', () => {
       data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
       error: null,
     })
-    mockFunctionsInvoke.mockResolvedValue({ error: null })
-
     const { regenerateDraft } = await import('./actions')
     const result = await regenerateDraft('draft-1', '  offer a 24h delay  ')
 
     expect(result).toEqual({ success: true })
-    expect(mockFunctionsInvoke).toHaveBeenCalledWith('generate-draft', {
-      body: {
-        emailId: 'email-1',
-        userId: 'user-1',
-        instruction: 'offer a 24h delay',
-        isRegeneration: true,
-      },
-    })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/generate-draft'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          emailId: 'email-1',
+          userId: 'user-1',
+          instruction: 'offer a 24h delay',
+          isRegeneration: true,
+        }),
+      })
+    )
     expect(mockUpdateIn).toHaveBeenCalled()
     expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
   })
@@ -448,19 +450,21 @@ describe('regenerateDraft', () => {
       data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
       error: null,
     })
-    mockFunctionsInvoke.mockResolvedValue({ error: null })
 
     const { regenerateDraft } = await import('./actions')
     await regenerateDraft('draft-1', null)
 
-    expect(mockFunctionsInvoke).toHaveBeenCalledWith('generate-draft', {
-      body: {
-        emailId: 'email-1',
-        userId: 'user-1',
-        instruction: null,
-        isRegeneration: true,
-      },
-    })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/generate-draft'),
+      expect.objectContaining({
+        body: JSON.stringify({
+          emailId: 'email-1',
+          userId: 'user-1',
+          instruction: null,
+          isRegeneration: true,
+        }),
+      })
+    )
   })
 
   it('returns error when draft not found', async () => {
@@ -492,7 +496,11 @@ describe('regenerateDraft', () => {
       data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
       error: null,
     })
-    mockFunctionsInvoke.mockResolvedValue({ error: { message: 'invoke failed' } })
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'invoke failed' }),
+    })
 
     const { regenerateDraft } = await import('./actions')
     const result = await regenerateDraft('draft-1', 'retry')
@@ -503,7 +511,6 @@ describe('regenerateDraft', () => {
 
 describe('createDraftOnDemand', () => {
   let mockGetUser: ReturnType<typeof vi.fn>
-  let mockFunctionsInvoke: ReturnType<typeof vi.fn>
   let draftQuerySequence: object[]
   let draftCallIndex: number
 
@@ -514,7 +521,6 @@ describe('createDraftOnDemand', () => {
     draftCallIndex = 0
 
     mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
-    mockFunctionsInvoke = vi.fn().mockResolvedValue({ error: null })
 
     mockCreateClient.mockResolvedValue({
       auth: { getUser: mockGetUser },
@@ -537,9 +543,8 @@ describe('createDraftOnDemand', () => {
       }),
     })
 
-    mockCreateAdminClient.mockReturnValue({
-      functions: { invoke: mockFunctionsInvoke },
-    })
+    // Default: fetch succeeds
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) })
   })
 
   it('creates a new generating draft and invokes edge function', async () => {
@@ -560,9 +565,13 @@ describe('createDraftOnDemand', () => {
     const result = await createDraftOnDemand('email-1')
 
     expect(result).toEqual({ success: true })
-    expect(mockFunctionsInvoke).toHaveBeenCalledWith('generate-draft', {
-      body: { emailId: 'email-1', userId: 'user-1' },
-    })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/generate-draft'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ emailId: 'email-1', userId: 'user-1' }),
+      })
+    )
     expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox/email-1')
   })
@@ -592,7 +601,7 @@ describe('createDraftOnDemand', () => {
     const result = await createDraftOnDemand('email-1')
 
     expect(result).toEqual({ success: true })
-    expect(mockFunctionsInvoke).toHaveBeenCalled()
+    expect(mockFetch).toHaveBeenCalled()
   })
 
   it('prevents duplicate generation when draft is already generating', async () => {
@@ -616,7 +625,7 @@ describe('createDraftOnDemand', () => {
       success: false,
       error: 'A draft is already being generated for this email.',
     })
-    expect(mockFunctionsInvoke).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('prevents duplicate generation when draft is already ready', async () => {
@@ -640,7 +649,7 @@ describe('createDraftOnDemand', () => {
       success: false,
       error: 'A draft is already being generated for this email.',
     })
-    expect(mockFunctionsInvoke).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('returns error and writes draft error state when edge function invocation fails', async () => {
@@ -664,7 +673,11 @@ describe('createDraftOnDemand', () => {
         }),
       }),
     })
-    mockFunctionsInvoke.mockResolvedValue({ error: { message: 'function unavailable' } })
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'function unavailable' }),
+    })
 
     const { createDraftOnDemand } = await import('./actions')
     const result = await createDraftOnDemand('email-1')
