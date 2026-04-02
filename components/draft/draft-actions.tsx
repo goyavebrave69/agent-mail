@@ -20,6 +20,7 @@ export function DraftActions({
   onReject,
 }: DraftActionsProps) {
   const isDisabled = status === 'generating'
+  const isRejectDisabled = isDisabled || status === 'sent' || status === 'rejected'
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -55,7 +56,7 @@ export function DraftActions({
 
       <button
         onClick={onReject}
-        disabled={isDisabled}
+        disabled={isRejectDisabled}
         aria-label="Reject draft"
         className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
       >

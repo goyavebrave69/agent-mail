@@ -11,6 +11,13 @@ interface DraftStore {
   isGenerating: boolean
   generationError: string | null
 
+  // Rejection / manual compose state
+  isRejected: boolean
+  isComposing: boolean
+  manualContent: string
+  isSendingManual: boolean
+  sendManualError: string | null
+
   // Actions
   setActiveDraft: (draftId: string | null, content: string) => void
   startEditing: () => void
@@ -18,6 +25,14 @@ interface DraftStore {
   cancelEditing: () => void
   setGenerating: (isGenerating: boolean) => void
   setError: (error: string | null) => void
+  optimisticReject: () => void
+  confirmReject: () => void
+  startComposing: () => void
+  updateManualContent: (content: string) => void
+  cancelComposing: () => void
+  optimisticSendManual: () => void
+  confirmSendManual: () => void
+  failSendManual: (error: string) => void
   reset: () => void
 }
 
@@ -28,13 +43,26 @@ const initialState = {
   editedContent: null,
   isGenerating: false,
   generationError: null,
+  isRejected: false,
+  isComposing: false,
+  manualContent: '',
+  isSendingManual: false,
+  sendManualError: null,
 }
 
 export const useDraftStore = create<DraftStore>((set, get) => ({
   ...initialState,
 
   setActiveDraft: (draftId, content) =>
-    set({ activeDraftId: draftId, draftContent: content, isEditing: false, editedContent: null }),
+    set({
+      activeDraftId: draftId,
+      draftContent: content,
+      isEditing: false,
+      editedContent: null,
+      isRejected: false,
+      isComposing: false,
+      manualContent: '',
+    }),
 
   startEditing: () =>
     set({ isEditing: true, editedContent: get().draftContent }),
@@ -50,6 +78,36 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   setError: (error) =>
     set({ generationError: error }),
+
+  optimisticReject: () =>
+    set({
+      isRejected: true,
+      isComposing: false,
+      manualContent: '',
+      isEditing: false,
+      editedContent: null,
+    }),
+
+  confirmReject: () =>
+    set({ isRejected: true }),
+
+  startComposing: () =>
+    set({ isComposing: true, manualContent: '' }),
+
+  updateManualContent: (content) =>
+    set({ manualContent: content }),
+
+  cancelComposing: () =>
+    set({ isComposing: false, manualContent: '' }),
+
+  optimisticSendManual: () =>
+    set({ isSendingManual: true, sendManualError: null }),
+
+  confirmSendManual: () =>
+    set({ ...initialState }),
+
+  failSendManual: (error) =>
+    set({ isSendingManual: false, sendManualError: error }),
 
   reset: () =>
     set(initialState),

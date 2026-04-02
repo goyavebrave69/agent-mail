@@ -60,4 +60,14 @@ describe('DraftActions', () => {
     fireEvent.click(screen.getByRole('button', { name: /reject draft/i }))
     expect(onReject).toHaveBeenCalledOnce()
   })
+
+  it('Reject button is disabled when status is sent', () => {
+    render(<DraftActions {...defaultProps} status="sent" />)
+    expect(screen.getByRole('button', { name: /reject draft/i })).toBeDisabled()
+  })
+
+  it('Reject button is disabled when status is rejected', () => {
+    render(<DraftActions {...defaultProps} status="rejected" />)
+    expect(screen.getByRole('button', { name: /reject draft/i })).toBeDisabled()
+  })
 })
