@@ -413,9 +413,10 @@ describe('regenerateDraft', () => {
     mockCreateClient.mockResolvedValue({
       auth: { getUser: mockGetUser },
       from: fromMock,
-      functions: {
-        invoke: mockFunctionsInvoke,
-      },
+    })
+
+    mockCreateAdminClient.mockReturnValue({
+      functions: { invoke: mockFunctionsInvoke },
     })
   })
 
@@ -534,6 +535,9 @@ describe('createDraftOnDemand', () => {
         }
         throw new Error(`Unexpected table: ${table}`)
       }),
+    })
+
+    mockCreateAdminClient.mockReturnValue({
       functions: { invoke: mockFunctionsInvoke },
     })
   })

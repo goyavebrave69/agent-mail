@@ -246,7 +246,7 @@ export async function regenerateDraft(
     .eq('user_id', user.id)
     .in('status', ['ready', 'error'])
 
-  const { error: invokeError } = await supabase.functions.invoke('generate-draft', {
+  const { error: invokeError } = await createAdminClient().functions.invoke('generate-draft', {
     body: {
       emailId: draft.email_id,
       userId: user.id,
@@ -349,7 +349,7 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
     })
   }
 
-  const { error: invokeError } = await supabase.functions.invoke('generate-draft', {
+  const { error: invokeError } = await createAdminClient().functions.invoke('generate-draft', {
     body: { emailId, userId: user.id },
   })
 
