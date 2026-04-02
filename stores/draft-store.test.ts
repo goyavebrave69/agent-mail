@@ -58,6 +58,38 @@ describe('useDraftStore', () => {
     expect(useDraftStore.getState().generationError).toBeNull()
   })
 
+  it('optimisticReject sets isRejected to true and clears compose state', () => {
+    useDraftStore.getState().optimisticReject()
+    const state = useDraftStore.getState()
+    expect(state.isRejected).toBe(true)
+    expect(state.isComposing).toBe(false)
+    expect(state.manualContent).toBe('')
+  })
+
+  it('startComposing sets isComposing to true', () => {
+    useDraftStore.getState().optimisticReject()
+    useDraftStore.getState().startComposing()
+    expect(useDraftStore.getState().isComposing).toBe(true)
+    expect(useDraftStore.getState().manualContent).toBe('')
+  })
+
+  it('updateManualContent updates manualContent', () => {
+    useDraftStore.getState().startComposing()
+    useDraftStore.getState().updateManualContent('My reply')
+    expect(useDraftStore.getState().manualContent).toBe('My reply')
+  })
+
+  it('cancelComposing returns to rejected state without composing', () => {
+    useDraftStore.getState().optimisticReject()
+    useDraftStore.getState().startComposing()
+    useDraftStore.getState().updateManualContent('draft text')
+    useDraftStore.getState().cancelComposing()
+    const state = useDraftStore.getState()
+    expect(state.isComposing).toBe(false)
+    expect(state.isRejected).toBe(true)
+    expect(state.manualContent).toBe('')
+  })
+
   it('reset clears all state to initial values', () => {
     useDraftStore.getState().setActiveDraft('draft-1', 'Content')
     useDraftStore.getState().startEditing()
@@ -71,5 +103,8 @@ describe('useDraftStore', () => {
     expect(state.editedContent).toBeNull()
     expect(state.isGenerating).toBe(false)
     expect(state.generationError).toBeNull()
+    expect(state.isRejected).toBe(false)
+    expect(state.isComposing).toBe(false)
+    expect(state.manualContent).toBe('')
   })
 })

@@ -78,7 +78,7 @@ development_status:
   5-3-validate-and-send-draft: review
   5-4-edit-draft-before-sending: review
   5-5-regenerate-draft-with-instruction: review
-  5-6-reject-draft-and-compose-own-reply: ready-for-dev
+  5-6-reject-draft-and-compose-own-reply: in-progress
   5-7-create-draft-on-demand: ready-for-dev
   5-8-functional-inbox-search: ready-for-dev
   5-9-collapsible-mail-navigation-sidebar: ready-for-dev
