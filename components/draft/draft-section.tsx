@@ -10,6 +10,7 @@ import {
   rejectDraft,
   sendManualReply,
   createDraftOnDemand,
+  regenerateDraft,
 } from '@/app/(app)/inbox/[emailId]/actions'
 import type { Draft } from '@/types/draft'
 
@@ -101,6 +102,11 @@ export function DraftSection({ draft: initialDraft, emailId, userId }: DraftSect
     },
     [emailId, optimisticSendManual, confirmSendManual, failSendManual]
   )
+
+  const handleRegenerate = useCallback(async () => {
+    if (!draft) return
+    await regenerateDraft(draft.id, null)
+  }, [draft])
 
   const handleCreateDraft = useCallback(async () => {
     startCreating()
@@ -203,7 +209,7 @@ export function DraftSection({ draft: initialDraft, emailId, userId }: DraftSect
         confidenceScore={draft.confidence_score}
         errorMessage={draft.error_message}
         onValidateAndSend={handleValidateAndSend}
-        onRegenerate={() => {}}
+        onRegenerate={handleRegenerate}
         onReject={handleReject}
       />
       <DraftRealtime
