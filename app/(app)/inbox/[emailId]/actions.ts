@@ -22,6 +22,11 @@ export interface RejectDraftResult {
   error?: string
 }
 
+export interface CreateDraftResult {
+  success: boolean
+  error?: string
+}
+
 // ─── Read helpers (called from Server Components) ────────────────────────────
 
 export async function fetchEmail(emailId: string): Promise<EmailDetail | null> {
@@ -293,6 +298,76 @@ export async function rejectDraft(draftId: string): Promise<RejectDraftResult> {
   }
 
   revalidatePath('/inbox')
+  return { success: true }
+}
+
+// ─── Create draft on demand ───────────────────────────────────────────────────
+
+export async function createDraftOnDemand(emailId: string): Promise<CreateDraftResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { data: email } = await supabase
+    .from('emails')
+    .select('id')
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!email) return { success: false, error: 'Email not found.' }
+
+  const { data: existingDraft } = await supabase
+    .from('drafts')
+    .select('id, status')
+    .eq('email_id', emailId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (existingDraft) {
+    if (existingDraft.status === 'generating' || existingDraft.status === 'ready') {
+      return { success: false, error: 'A draft is already being generated for this email.' }
+    }
+    await supabase
+      .from('drafts')
+      .update({
+        status: 'generating',
+        content: null,
+        confidence_score: null,
+        error_message: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingDraft.id)
+      .eq('user_id', user.id)
+  } else {
+    await supabase.from('drafts').insert({
+      user_id: user.id,
+      email_id: emailId,
+      status: 'generating',
+    })
+  }
+
+  const { error: invokeError } = await supabase.functions.invoke('generate-draft', {
+    body: { emailId, userId: user.id },
+  })
+
+  if (invokeError) {
+    await supabase
+      .from('drafts')
+      .update({
+        status: 'error',
+        error_message: invokeError.message,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('email_id', emailId)
+      .eq('user_id', user.id)
+    return { success: false, error: invokeError.message }
+  }
+
+  revalidatePath('/inbox')
+  revalidatePath(`/inbox/${emailId}`)
   return { success: true }
 }
 

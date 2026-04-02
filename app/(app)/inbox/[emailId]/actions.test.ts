@@ -499,3 +499,173 @@ describe('regenerateDraft', () => {
     expect(result).toEqual({ success: false, error: 'invoke failed' })
   })
 })
+
+describe('createDraftOnDemand', () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockFunctionsInvoke: ReturnType<typeof vi.fn>
+  let draftQuerySequence: object[]
+  let draftCallIndex: number
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    draftQuerySequence = []
+    draftCallIndex = 0
+
+    mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockFunctionsInvoke = vi.fn().mockResolvedValue({ error: null })
+
+    mockCreateClient.mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: vi.fn((table: string) => {
+        if (table === 'emails') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: { id: 'email-1' }, error: null }),
+                }),
+              }),
+            }),
+          }
+        }
+        if (table === 'drafts') {
+          return draftQuerySequence[draftCallIndex++]
+        }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+      functions: { invoke: mockFunctionsInvoke },
+    })
+  })
+
+  it('creates a new generating draft and invokes edge function', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }),
+    })
+    draftQuerySequence.push({
+      insert: vi.fn().mockResolvedValue({ error: null }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({ success: true })
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith('generate-draft', {
+      body: { emailId: 'email-1', userId: 'user-1' },
+    })
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox/email-1')
+  })
+
+  it('resets an existing rejected draft to generating and invokes edge function', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'draft-1', status: 'rejected' },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    })
+    draftQuerySequence.push({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+      }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({ success: true })
+    expect(mockFunctionsInvoke).toHaveBeenCalled()
+  })
+
+  it('prevents duplicate generation when draft is already generating', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'draft-1', status: 'generating' },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'A draft is already being generated for this email.',
+    })
+    expect(mockFunctionsInvoke).not.toHaveBeenCalled()
+  })
+
+  it('prevents duplicate generation when draft is already ready', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'draft-1', status: 'ready' },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'A draft is already being generated for this email.',
+    })
+    expect(mockFunctionsInvoke).not.toHaveBeenCalled()
+  })
+
+  it('returns error and writes draft error state when edge function invocation fails', async () => {
+    const mockErrorUpdate = vi.fn().mockResolvedValue({ error: null })
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }),
+    })
+    draftQuerySequence.push({
+      insert: vi.fn().mockResolvedValue({ error: null }),
+    })
+    draftQuerySequence.push({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: mockErrorUpdate,
+        }),
+      }),
+    })
+    mockFunctionsInvoke.mockResolvedValue({ error: { message: 'function unavailable' } })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({ success: false, error: 'function unavailable' })
+    expect(mockErrorUpdate).toHaveBeenCalled()
+  })
+})

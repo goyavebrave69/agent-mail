@@ -90,11 +90,36 @@ describe('useDraftStore', () => {
     expect(state.manualContent).toBe('')
   })
 
+  it('startCreating sets isCreating to true and clears createError', () => {
+    useDraftStore.getState().failCreating('oops')
+    useDraftStore.getState().startCreating()
+    const state = useDraftStore.getState()
+    expect(state.isCreating).toBe(true)
+    expect(state.createError).toBeNull()
+  })
+
+  it('failCreating sets isCreating to false and stores the error', () => {
+    useDraftStore.getState().startCreating()
+    useDraftStore.getState().failCreating('invoke error')
+    const state = useDraftStore.getState()
+    expect(state.isCreating).toBe(false)
+    expect(state.createError).toBe('invoke error')
+  })
+
+  it('clearCreating resets isCreating and createError', () => {
+    useDraftStore.getState().startCreating()
+    useDraftStore.getState().clearCreating()
+    const state = useDraftStore.getState()
+    expect(state.isCreating).toBe(false)
+    expect(state.createError).toBeNull()
+  })
+
   it('reset clears all state to initial values', () => {
     useDraftStore.getState().setActiveDraft('draft-1', 'Content')
     useDraftStore.getState().startEditing()
     useDraftStore.getState().setGenerating(true)
     useDraftStore.getState().setError('error')
+    useDraftStore.getState().startCreating()
     useDraftStore.getState().reset()
     const state = useDraftStore.getState()
     expect(state.activeDraftId).toBeNull()
@@ -106,5 +131,7 @@ describe('useDraftStore', () => {
     expect(state.isRejected).toBe(false)
     expect(state.isComposing).toBe(false)
     expect(state.manualContent).toBe('')
+    expect(state.isCreating).toBe(false)
+    expect(state.createError).toBeNull()
   })
 })
