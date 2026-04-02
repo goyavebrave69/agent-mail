@@ -22,7 +22,7 @@ story/* -> dev -> qa -> main
 CI enforces this routing — PRs that skip a stage are blocked automatically.
 
 **Convention (from CONTRIBUTING.md):**
-- Branch: `story/X-Y-short-description` from **`dev`**
+- Branch: `story/X-Y-short-description` from **`origin/dev`** (remote source of truth)
 - Commits: Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`)
 - PR target: **`dev`** (never `qa` or `main` directly — CI will block it)
 - Merge strategy: squash merge only
@@ -43,16 +43,14 @@ Resolve `story_key` (e.g. `2-1-gmail-mailbox-connection-via-oauth`) and `story_t
 
 ## Branch Operation (`--branch`)
 
-Goal: ensure the working branch is `story/{story_key_short}` created from an up-to-date **`dev`**.
+Goal: ensure the working branch is `story/{story_key_short}` created from **`origin/dev`** (not local `dev`).
 
 - Derive `story_key_short`: take the first 3–4 meaningful words of the story key slug (e.g. `2-1-gmail-oauth` from `2-1-gmail-mailbox-connection-via-oauth`)
 - Check current branch — if already on a `story/` branch matching this story, skip creation
 - Otherwise:
   ```bash
   git fetch origin
-  git checkout dev
-  git pull origin dev
-  git checkout -b story/{story_key_short}
+  git checkout -b story/{story_key_short} origin/dev
   ```
 - If there are uncommitted changes on the wrong branch, stash → switch → pop
 - Report the active branch name
@@ -129,7 +127,7 @@ Blocked by CI:
 
 ## Error Handling
 
-- If `dev` is not up to date with `origin/dev` and pull fails (conflicts): HALT and report — do not force.
+- If `origin/dev` cannot be fetched or does not exist: HALT and report — do not fallback to local `dev`.
 - If CI checks fail locally: fix before committing — do not bypass with `--no-verify`.
 - If `gh` is not authenticated: HALT with message "Run `gh auth login` to authenticate GitHub CLI."
 - If CI fails after PR creation: report the failure URL but do not close the PR — leave for user review.

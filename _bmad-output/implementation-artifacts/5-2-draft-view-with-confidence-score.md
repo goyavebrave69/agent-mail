@@ -425,6 +425,28 @@ claude-sonnet-4-6
 - Added `Link` navigation to `components/inbox/inbox-list.tsx` so users can click emails to reach the detail page (implicit requirement for "opening an email")
 - 37 new tests added (6 store + 11 badge + 7 actions + 13 editor); all 141 tests pass
 
+### Post-Story UI Additions (Inbox & Navigation — 2026-04-01/02)
+
+These changes were made outside the original story scope to support proper inbox navigation and body text display:
+
+**`body_text` infrastructure:**
+- Added migration `016_emails_body_text.sql`: `ALTER TABLE emails ADD COLUMN IF NOT EXISTS body_text TEXT`
+- Rewrote `supabase/functions/sync-emails/index.ts`: Gmail uses `format=full` with MIME traversal and base64url decoding to extract `text/plain` parts; Outlook adds `body` to `$select` and strips HTML; `storeEmails` uses `ignoreDuplicates: false` to backfill existing records without re-triggering draft generation
+- Added migration `017_setup_pg_net_and_cron.sql`: installs `pg_net` extension and registers `sync-emails-every-5min` cron job (pg_net was not installed so the earlier migration 007 cron call had silently failed)
+- Added `body_text: string | null` to `InboxEmail` type and select query in `app/(app)/inbox/page.tsx`
+
+**Inbox shell — complete rewrite (`components/inbox/inbox-shell.tsx`):**
+- Root cause of layout breakage: the shadcn nested-Sidebar pattern uses `*:data-[sidebar=sidebar]:flex-row` which generates a CSS direct-child selector (`> [data-sidebar="sidebar"]`), but `data-sidebar="sidebar"` is 2 levels deep inside the fixed container — so the icon rail was never laid out in a row and floated to the center of the viewport
+- Replaced with a plain 3-column flex layout: `h-svh overflow-hidden` root, `w-[49px]` icon rail, `w-[460px]` email list panel, `flex-1` content area — no shadcn `<Sidebar>` component needed
+- **Icon rail (49px):** category filter buttons with `Tooltip` (side="right"), active state highlight, `sr-only` labels
+- **Email list panel (460px, `hidden md:flex`):** "Inbox" header + Unreads toggle + search input; emails grouped by category with sticky blurred section headers (`backdrop-blur`) and per-category count; each email row shows sender name (bold), subject, 2-line `body_text` preview; active row highlighted via `selectedEmailId` state; auto-selects first email when filter changes
+- **Content area (flex-1):** breadcrumb header (`All Inboxes > Inbox`); when no email selected shows animated skeleton placeholder tiles; when email selected shows a card with: action toolbar (Reply/ReplyAll/Forward/Archive/Snooze/More — placeholders), subject heading, sender avatar with initials (`getSenderInitials`), full datetime (`formatDateTime`), scrollable body text; inline reply composer with "Mute this thread" toggle and Send button (placeholder)
+- Added helpers: `formatDateTime` (weekday + date + time locale string), `getSenderInitials` (1–2 char initials from sender name)
+- `CATEGORY_ORDER` constant controls section display order in the grouped list
+
+**App layout (`app/(app)/layout.tsx`):**
+- Inbox routes now render children directly without the `min-h-screen flex flex-col` nav wrapper (the inbox shell owns its own layout via `h-svh`)
+
 ### File List
 
 - `stores/draft-store.ts` — new
@@ -441,12 +463,20 @@ claude-sonnet-4-6
 - `app/(app)/inbox/[emailId]/page.tsx` — new
 - `components/inbox/inbox-list.tsx` — modified (added Link navigation to email detail)
 - `package.json` / `package-lock.json` — modified (added zustand)
+- `supabase/migrations/016_emails_body_text.sql` — new (body_text column)
+- `supabase/migrations/017_setup_pg_net_and_cron.sql` — new (pg_net + cron job)
+- `supabase/functions/sync-emails/index.ts` — modified (body extraction for Gmail/Outlook, backfill support)
+- `components/inbox/inbox-shell.tsx` — heavily modified (3-column flex layout, grouped email list, in-place reading, inline reply)
+- `app/(app)/inbox/page.tsx` — modified (body_text in type + query, removed main wrapper)
+- `app/(app)/layout.tsx` — modified (inbox routes bypass nav wrapper)
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
 | 2026-04-01 | Initial implementation — Draft view with confidence score, Zustand store, Realtime subscription, email detail page, inbox navigation links |
+| 2026-04-01 | Added `body_text` column to emails table (migration 016); rewrote sync-emails Edge Function for full body capture (Gmail MIME parsing, Outlook HTML stripping); added pg_net + cron job (migration 017) |
+| 2026-04-01/02 | Inbox UI complete rewrite: replaced broken nested shadcn Sidebar pattern with 3-column plain flex layout (icon rail + email list + content); email list groups by category with sticky headers; click-to-read in content panel with sender avatar, body text, action toolbar, inline reply composer |
 
 ---
 
