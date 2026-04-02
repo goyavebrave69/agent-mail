@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import type { InboxEmail } from "@/app/(app)/inbox/page"
@@ -101,32 +102,35 @@ export function InboxList({ emails, userId, activeCategory }: InboxListProps) {
           return (
             <li
               key={email.id}
-              className={`flex items-start gap-3 border-b px-4 py-3 last:border-0 ${
-                email.is_read ? "opacity-60" : ""
-              }`}
+              className={`border-b last:border-0 ${email.is_read ? "opacity-60" : ""}`}
             >
-              {!email.is_read && (
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
-              )}
-              {email.is_read && <span className="mt-1.5 h-2 w-2 shrink-0" />}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium">
-                    {email.from_name ?? email.from_email ?? "Unknown sender"}
-                  </span>
-                  <span
-                    className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
-                  >
-                    {badge.label}
-                  </span>
+              <Link
+                href={`/inbox/${email.id}`}
+                className="flex items-start gap-3 px-4 py-3 hover:bg-accent"
+              >
+                {!email.is_read && (
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                )}
+                {email.is_read && <span className="mt-1.5 h-2 w-2 shrink-0" />}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium">
+                      {email.from_name ?? email.from_email ?? "Unknown sender"}
+                    </span>
+                    <span
+                      className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {email.subject ?? "(no subject)"}
+                  </p>
                 </div>
-                <p className="truncate text-sm text-muted-foreground">
-                  {email.subject ?? "(no subject)"}
-                </p>
-              </div>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {formatDate(email.received_at)}
-              </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {formatDate(email.received_at)}
+                </span>
+              </Link>
             </li>
           )
         })}

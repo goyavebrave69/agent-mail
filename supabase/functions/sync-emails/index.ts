@@ -1,8 +1,7 @@
 // deno-lint-ignore-file no-import-prefix
 // Supabase Edge Function: sync-emails
 // Triggered every 5 minutes by pg_cron (migration 007).
-// Fetches new emails for all active sync jobs and stores metadata only.
-// NO email content is persisted (NFR8, FR33).
+// Fetches new emails for all active sync jobs and stores metadata + body text.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { triageEmail, type EmailCategory } from './triage.ts'
@@ -50,7 +49,7 @@ interface EmailMessage {
   subject: string | null
   fromEmail: string | null
   fromName: string | null
-  bodyPreview: string | null
+  bodyText: string | null
   receivedAt: Date
   category: EmailCategory
   priorityRank: number
@@ -58,9 +57,58 @@ interface EmailMessage {
 
 const MAX_RETRIES = 3
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function decodeBase64Url(data: string): string {
+  const base64 = data.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+  const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
+}
+
+interface GmailPart {
+  mimeType?: string
+  body?: { data?: string; size?: number }
+  parts?: GmailPart[]
+}
+
+function extractGmailBodyText(part: GmailPart | undefined): string | null {
+  if (!part) return null
+  if (part.mimeType === 'text/plain' && part.body?.data) {
+    try {
+      return decodeBase64Url(part.body.data).slice(0, 20_000)
+    } catch {
+      return null
+    }
+  }
+  if (part.parts) {
+    for (const child of part.parts) {
+      const text = extractGmailBodyText(child)
+      if (text) return text
+    }
+  }
+  return null
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 20_000)
+}
+
+// ── Vault ─────────────────────────────────────────────────────────────────────
+
 async function getVaultSecret(vaultSecretId: string): Promise<Record<string, unknown> | null> {
   const { data, error } = await supabase.rpc('read_vault_secret', { secret_id: vaultSecretId })
-
   if (error || !data) return null
   try {
     return JSON.parse(data as string) as Record<string, unknown>
@@ -74,16 +122,28 @@ async function upsertVaultSecret(name: string, secret: Record<string, unknown>):
     secret: JSON.stringify(secret),
     name,
   })
-
-  if (error) {
-    throw new Error(`Vault secret update failed: ${error.message}`)
-  }
+  if (error) throw new Error(`Vault secret update failed: ${error.message}`)
 }
+
+// ── Store ─────────────────────────────────────────────────────────────────────
 
 async function storeEmails(userId: string, provider: string, emails: EmailMessage[]): Promise<void> {
   if (emails.length === 0) return
 
-  const rows = emails.map(e => ({
+  // Determine which emails are already in the DB to avoid re-triggering draft generation
+  const providerIds = emails.map((e) => e.providerEmailId)
+  const { data: existing } = await supabase
+    .from('emails')
+    .select('provider_email_id')
+    .eq('user_id', userId)
+    .eq('provider', provider)
+    .in('provider_email_id', providerIds)
+
+  const existingIds = new Set(
+    (existing ?? []).map((e: { provider_email_id: string }) => e.provider_email_id)
+  )
+
+  const rows = emails.map((e) => ({
     user_id: userId,
     provider,
     provider_email_id: e.providerEmailId,
@@ -93,17 +153,20 @@ async function storeEmails(userId: string, provider: string, emails: EmailMessag
     received_at: e.receivedAt.toISOString(),
     category: e.category,
     priority_rank: e.priorityRank,
+    body_text: e.bodyText,
   }))
 
+  // ignoreDuplicates: false → update body_text on existing rows (backfill)
   const { data: upserted } = await supabase
     .from('emails')
-    .upsert(rows, { onConflict: 'user_id,provider,provider_email_id', ignoreDuplicates: true })
+    .upsert(rows, { onConflict: 'user_id,provider,provider_email_id', ignoreDuplicates: false })
     .select('id, user_id, provider_email_id')
 
-  // Fire-and-forget draft generation for each newly stored email
+  // Fire-and-forget draft generation only for NEW emails
   if (upserted && Array.isArray(upserted)) {
     for (const email of upserted as Array<{ id: string; user_id: string; provider_email_id: string }>) {
-      const sourceEmail = emails.find(candidate => candidate.providerEmailId === email.provider_email_id)
+      if (existingIds.has(email.provider_email_id)) continue
+
       fetch(`${deno.env.get('SUPABASE_URL')}/functions/v1/generate-draft`, {
         method: 'POST',
         headers: {
@@ -113,11 +176,9 @@ async function storeEmails(userId: string, provider: string, emails: EmailMessag
         body: JSON.stringify({
           emailId: email.id,
           userId: email.user_id,
-          emailContent: sourceEmail?.bodyPreview ?? null,
         }),
-      }).catch(err => {
+      }).catch((err) => {
         console.error('Failed to invoke generate-draft:', err)
-        // Don't block sync on draft generation failure
       })
     }
   }
@@ -149,13 +210,13 @@ async function markJobError(jobId: string, error: string, currentRetryCount: num
     .eq('id', jobId)
 }
 
+// ── Gmail ─────────────────────────────────────────────────────────────────────
+
 async function syncGmail(
   job: SyncJob,
   credentials: Record<string, unknown>,
   lastSyncedAt: Date | null
 ): Promise<void> {
-  // Dynamic import — Edge Functions use Deno, adapters are co-located via npm: imports
-  // We inline the Gmail fetch logic here to avoid Node.js-only imports in the adapter
   const access_token = credentials.access_token as string
   const refresh_token = credentials.refresh_token as string
   const after = lastSyncedAt ? Math.floor(lastSyncedAt.getTime() / 1000) : 0
@@ -171,7 +232,6 @@ async function syncGmail(
   let currentToken = access_token
 
   if (listRes.status === 401) {
-    // Refresh token
     const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -185,7 +245,6 @@ async function syncGmail(
     if (!refreshRes.ok) throw new Error('Gmail token refresh failed')
     const refreshed = (await refreshRes.json()) as { access_token: string }
     currentToken = refreshed.access_token
-    // Update Vault with new token
     await upsertVaultSecret(`gmail:${job.user_id}`, { ...credentials, access_token: currentToken })
     listRes = await doFetch(currentToken)
   }
@@ -193,42 +252,52 @@ async function syncGmail(
   if (!listRes.ok) throw new Error(`Gmail list failed: ${listRes.status}`)
 
   const listData = (await listRes.json()) as { messages?: Array<{ id: string }> }
-  const messageIds = listData.messages?.map(m => m.id) ?? []
+  const messageIds = listData.messages?.map((m) => m.id) ?? []
 
   const emails: EmailMessage[] = []
   for (const id of messageIds) {
-    const metaRes = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
+    // format=full to get the complete MIME payload including body parts
+    const msgRes = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`,
       { headers: { Authorization: `Bearer ${currentToken}` } }
     )
-    if (!metaRes.ok) continue
+    if (!msgRes.ok) continue
 
-    const msg = (await metaRes.json()) as {
+    const msg = (await msgRes.json()) as {
       id: string
       snippet?: string
-      payload?: { headers?: Array<{ name: string; value: string }> }
+      payload?: GmailPart & { headers?: Array<{ name: string; value: string }> }
       internalDate?: string
     }
+
     const headers = msg.payload?.headers ?? []
-    const subject = headers.find(h => h.name === 'Subject')?.value ?? null
-    const fromRaw = headers.find(h => h.name === 'From')?.value ?? ''
-    const dateStr = headers.find(h => h.name === 'Date')?.value
+    const subject = headers.find((h) => h.name === 'Subject')?.value ?? null
+    const fromRaw = headers.find((h) => h.name === 'From')?.value ?? ''
+    const dateStr = headers.find((h) => h.name === 'Date')?.value
 
     const fromMatch = fromRaw.match(/^(.*?)\s*<([^>]+)>$/)
     const fromEmail = fromMatch ? fromMatch[2].trim() : fromRaw.trim() || null
     const fromName = fromMatch ? fromMatch[1].trim() || null : null
-    const receivedAt = dateStr ? new Date(dateStr) : msg.internalDate ? new Date(Number(msg.internalDate)) : new Date()
+    const receivedAt = dateStr
+      ? new Date(dateStr)
+      : msg.internalDate
+        ? new Date(Number(msg.internalDate))
+        : new Date()
+
+    // Extract plain-text body, fall back to snippet
+    const bodyText = extractGmailBodyText(msg.payload) ?? msg.snippet ?? null
 
     const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
       category: 'other' as EmailCategory,
       priorityRank: 20,
     }))
+
     emails.push({
       providerEmailId: msg.id,
       subject,
       fromEmail,
       fromName,
-      bodyPreview: msg.snippet ?? null,
+      bodyText,
       receivedAt,
       category: triage.category,
       priorityRank: triage.priorityRank,
@@ -239,6 +308,8 @@ async function syncGmail(
   await markJobSuccess(job.id)
 }
 
+// ── Outlook ───────────────────────────────────────────────────────────────────
+
 async function syncOutlook(
   job: SyncJob,
   credentials: Record<string, unknown>,
@@ -247,7 +318,7 @@ async function syncOutlook(
   const access_token = credentials.access_token as string
   const refresh_token = credentials.refresh_token as string
 
-  const select = '$select=id,subject,from,receivedDateTime,bodyPreview'
+  const select = '$select=id,subject,from,receivedDateTime,bodyPreview,body'
   const filter = lastSyncedAt ? `&$filter=receivedDateTime gt ${lastSyncedAt.toISOString()}` : ''
   const url = `https://graph.microsoft.com/v1.0/me/messages?${select}${filter}&$top=50`
 
@@ -286,6 +357,7 @@ async function syncOutlook(
     from?: { emailAddress?: { name?: string; address?: string } }
     receivedDateTime?: string
     bodyPreview?: string
+    body?: { contentType?: string; content?: string }
   }
 
   const data = (await res.json()) as { value?: GraphMsg[]; error?: unknown }
@@ -293,19 +365,32 @@ async function syncOutlook(
   const messages = data.value ?? []
 
   const emails: EmailMessage[] = await Promise.all(
-    messages.map(async m => {
+    messages.map(async (m) => {
       const subject = m.subject ?? null
       const fromEmail = m.from?.emailAddress?.address ?? null
+
+      // Extract body text: prefer plain text, fall back to stripped HTML, then bodyPreview
+      let bodyText: string | null = null
+      if (m.body?.content) {
+        if (m.body.contentType === 'text') {
+          bodyText = m.body.content.slice(0, 20_000)
+        } else {
+          bodyText = stripHtml(m.body.content)
+        }
+      }
+      bodyText ??= typeof m.bodyPreview === 'string' ? m.bodyPreview : null
+
       const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
         category: 'other' as EmailCategory,
         priorityRank: 20,
       }))
+
       return {
         providerEmailId: m.id,
         subject,
         fromEmail,
         fromName: m.from?.emailAddress?.name ?? null,
-        bodyPreview: typeof m.bodyPreview === 'string' ? m.bodyPreview : null,
+        bodyText,
         receivedAt: m.receivedDateTime ? new Date(m.receivedDateTime) : new Date(),
         category: triage.category,
         priorityRank: triage.priorityRank,
@@ -317,24 +402,22 @@ async function syncOutlook(
   await markJobSuccess(job.id)
 }
 
+// ── IMAP ──────────────────────────────────────────────────────────────────────
+
 async function syncImap(
   job: SyncJob,
   _credentials: Record<string, unknown>,
   _lastSyncedAt: Date | null
 ): Promise<void> {
-  // imapflow is not available as a Deno-compatible ESM package.
-  // IMAP sync for Edge Functions requires a separate approach.
-  // For now, mark the job as error to avoid reporting a false-success state.
-  // IMAP sync will be handled via a dedicated Node.js-compatible runtime.
-  // TODO(imap-edge): implement IMAP sync via a Node.js-compatible runtime
   const reason = 'IMAP sync not supported in Edge Function runtime (todo: imap-edge)'
   console.log(`IMAP sync skipped in Edge Function for user ${job.user_id}: ${reason}`)
   await markJobError(job.id, reason, job.retry_count)
 }
 
+// ── Handler ───────────────────────────────────────────────────────────────────
+
 deno.serve(async (_req: Request) => {
   try {
-    // Fetch all active sync jobs (service role bypasses RLS)
     const { data: jobs, error: jobsError } = await supabase
       .from('email_sync_jobs')
       .select('id, user_id, provider, last_synced_at, retry_count')
@@ -350,7 +433,6 @@ deno.serve(async (_req: Request) => {
 
     const results = await Promise.allSettled(
       (jobs as SyncJob[]).map(async (job) => {
-        // Get the email connection to retrieve vault_secret_id
         const { data: connection } = await supabase
           .from('email_connections')
           .select('vault_secret_id')
@@ -385,7 +467,7 @@ deno.serve(async (_req: Request) => {
       })
     )
 
-    const failed = results.filter(r => r.status === 'rejected').length
+    const failed = results.filter((r) => r.status === 'rejected').length
     return new Response(
       JSON.stringify({ synced: jobs.length - failed, failed }),
       { status: 200 }
