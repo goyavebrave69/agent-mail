@@ -14,12 +14,15 @@ import {
   Receipt,
   Reply,
   ReplyAll,
-  SendHorizontal,
   ShieldAlert,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import type { InboxEmail } from "@/app/(app)/inbox/page"
 import { CATEGORY_BADGE, type InboxCategory } from "@/components/inbox/inbox-list"
+import { DraftSection } from "@/components/draft/draft-section"
+import { fetchDraftForEmail } from "@/app/(app)/inbox/[emailId]/actions"
+import { useDraftStore } from "@/stores/draft-store"
+import type { Draft } from "@/types/draft"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -105,8 +108,8 @@ export function InboxShell({
   const [search, setSearch] = useState("")
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null)
-  const [replyText, setReplyText] = useState("")
-  const [muteThread, setMuteThread] = useState(false)
+  const [currentDraft, setCurrentDraft] = useState<Draft | null>(null)
+  const resetDraftStore = useDraftStore((s) => s.reset)
 
   useEffect(() => {
     const supabase = createClient()
@@ -151,6 +154,15 @@ export function InboxShell({
       supabase.removeChannel(channel)
     }
   }, [router, userId])
+
+  useEffect(() => {
+    resetDraftStore()
+    setCurrentDraft(null)
+    if (!selectedEmailId) return
+    fetchDraftForEmail(selectedEmailId)
+      .then((draft) => setCurrentDraft(draft))
+      .catch(() => setCurrentDraft(null))
+  }, [selectedEmailId, resetDraftStore])
 
   const filteredEmails = useMemo(() => {
     const searchQuery = search.trim().toLowerCase()
@@ -401,30 +413,12 @@ export function InboxShell({
                 </div>
               </div>
 
-              <div className="mt-3 rounded-xl border border-[#e6e6e8] bg-white p-3">
-                <textarea
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  placeholder={`Reply ${selectedSenderName}...`}
-                  className="h-24 w-full resize-none rounded-lg border border-[#e8e8eb] bg-[#fafafb] px-4 py-3 text-sm text-[#2a2a32] outline-none placeholder:text-[#9a9aa4] focus:border-[#cfcfe6]"
+              <div className="mt-3 rounded-xl border border-[#e6e6e8] bg-white p-4">
+                <DraftSection
+                  draft={currentDraft}
+                  emailId={selectedEmailId!}
+                  userId={userId}
                 />
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <Label className="flex items-center gap-2 text-sm font-normal text-[#5f5f69]">
-                    <Switch
-                      checked={muteThread}
-                      onCheckedChange={setMuteThread}
-                      className="shadow-none"
-                    />
-                    <span>Mute this thread</span>
-                  </Label>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-md bg-[#202027] px-4 py-2 text-sm font-medium text-white hover:bg-[#15151b]"
-                  >
-                    <SendHorizontal className="h-4 w-4" />
-                    Send
-                  </button>
-                </div>
               </div>
             </div>
           )}

@@ -4,6 +4,9 @@ const mockRevalidatePath = vi.fn()
 const mockCreateClient = vi.fn()
 const mockCreateAdminClient = vi.fn()
 const mockSendEmailViaProvider = vi.fn()
+const mockFetch = vi.fn()
+
+vi.stubGlobal('fetch', mockFetch)
 
 vi.mock('next/cache', () => ({
   revalidatePath: mockRevalidatePath,
@@ -373,8 +376,9 @@ describe('updateDraftContent', () => {
 
 describe('regenerateDraft', () => {
   let mockGetUser: ReturnType<typeof vi.fn>
+  let mockGetSession: ReturnType<typeof vi.fn>
+  let mockRefreshSession: ReturnType<typeof vi.fn>
   let mockDraftSingle: ReturnType<typeof vi.fn>
-  let mockFunctionsInvoke: ReturnType<typeof vi.fn>
   let mockUpdateIn: ReturnType<typeof vi.fn>
   let mockUpdateEq: ReturnType<typeof vi.fn>
   let fromMock: ReturnType<typeof vi.fn>
@@ -384,8 +388,13 @@ describe('regenerateDraft', () => {
     vi.clearAllMocks()
 
     mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockGetSession = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'token-1' } },
+    })
+    mockRefreshSession = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'token-2' } },
+    })
     mockDraftSingle = vi.fn()
-    mockFunctionsInvoke = vi.fn()
     mockUpdateIn = vi.fn().mockResolvedValue({ error: null })
     mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
 
@@ -411,12 +420,14 @@ describe('regenerateDraft', () => {
     })
 
     mockCreateClient.mockResolvedValue({
-      auth: { getUser: mockGetUser },
-      from: fromMock,
-      functions: {
-        invoke: mockFunctionsInvoke,
+      auth: {
+        getUser: mockGetUser,
+        getSession: mockGetSession,
+        refreshSession: mockRefreshSession,
       },
+      from: fromMock,
     })
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) })
   })
 
   it('updates draft to generating and invokes edge function with instruction', async () => {
@@ -424,20 +435,22 @@ describe('regenerateDraft', () => {
       data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
       error: null,
     })
-    mockFunctionsInvoke.mockResolvedValue({ error: null })
-
     const { regenerateDraft } = await import('./actions')
     const result = await regenerateDraft('draft-1', '  offer a 24h delay  ')
 
     expect(result).toEqual({ success: true })
-    expect(mockFunctionsInvoke).toHaveBeenCalledWith('generate-draft', {
-      body: {
-        emailId: 'email-1',
-        userId: 'user-1',
-        instruction: 'offer a 24h delay',
-        isRegeneration: true,
-      },
-    })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/generate-draft'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          emailId: 'email-1',
+          userId: 'user-1',
+          instruction: 'offer a 24h delay',
+          isRegeneration: true,
+        }),
+      })
+    )
     expect(mockUpdateIn).toHaveBeenCalled()
     expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
   })
@@ -447,19 +460,21 @@ describe('regenerateDraft', () => {
       data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
       error: null,
     })
-    mockFunctionsInvoke.mockResolvedValue({ error: null })
 
     const { regenerateDraft } = await import('./actions')
     await regenerateDraft('draft-1', null)
 
-    expect(mockFunctionsInvoke).toHaveBeenCalledWith('generate-draft', {
-      body: {
-        emailId: 'email-1',
-        userId: 'user-1',
-        instruction: null,
-        isRegeneration: true,
-      },
-    })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/generate-draft'),
+      expect.objectContaining({
+        body: JSON.stringify({
+          emailId: 'email-1',
+          userId: 'user-1',
+          instruction: null,
+          isRegeneration: true,
+        }),
+      })
+    )
   })
 
   it('returns error when draft not found', async () => {
@@ -491,11 +506,205 @@ describe('regenerateDraft', () => {
       data: { id: 'draft-1', email_id: 'email-1', status: 'ready', regeneration_count: 0 },
       error: null,
     })
-    mockFunctionsInvoke.mockResolvedValue({ error: { message: 'invoke failed' } })
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      clone: () => ({ text: async () => JSON.stringify({ error: 'invoke failed' }) }),
+    })
 
     const { regenerateDraft } = await import('./actions')
     const result = await regenerateDraft('draft-1', 'retry')
 
     expect(result).toEqual({ success: false, error: 'invoke failed' })
+  })
+})
+
+describe('createDraftOnDemand', () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockGetSession: ReturnType<typeof vi.fn>
+  let mockRefreshSession: ReturnType<typeof vi.fn>
+  let draftQuerySequence: object[]
+  let draftCallIndex: number
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    draftQuerySequence = []
+    draftCallIndex = 0
+
+    mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockGetSession = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'token-1' } },
+    })
+    mockRefreshSession = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'token-2' } },
+    })
+
+    mockCreateClient.mockResolvedValue({
+      auth: {
+        getUser: mockGetUser,
+        getSession: mockGetSession,
+        refreshSession: mockRefreshSession,
+      },
+      from: vi.fn((table: string) => {
+        if (table === 'emails') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: { id: 'email-1' }, error: null }),
+                }),
+              }),
+            }),
+          }
+        }
+        if (table === 'drafts') {
+          return draftQuerySequence[draftCallIndex++]
+        }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+    })
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) })
+  })
+
+  it('creates a new generating draft and invokes edge function', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }),
+    })
+    draftQuerySequence.push({
+      insert: vi.fn().mockResolvedValue({ error: null }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({ success: true })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/generate-draft'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ emailId: 'email-1', userId: 'user-1' }),
+      })
+    )
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox/email-1')
+  })
+
+  it('resets an existing rejected draft to generating and invokes edge function', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'draft-1', status: 'rejected' },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    })
+    draftQuerySequence.push({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+      }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({ success: true })
+    expect(mockFetch).toHaveBeenCalled()
+  })
+
+  it('prevents duplicate generation when draft is already generating', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'draft-1', status: 'generating' },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'A draft is already being generated for this email.',
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('prevents duplicate generation when draft is already ready', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'draft-1', status: 'ready' },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'A draft is already being generated for this email.',
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('returns error and writes draft error state when edge function invocation fails', async () => {
+    const mockErrorUpdate = vi.fn().mockResolvedValue({ error: null })
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      }),
+    })
+    draftQuerySequence.push({
+      insert: vi.fn().mockResolvedValue({ error: null }),
+    })
+    draftQuerySequence.push({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: mockErrorUpdate,
+        }),
+      }),
+    })
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      clone: () => ({ text: async () => JSON.stringify({ error: 'function unavailable' }) }),
+    })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result).toEqual({ success: false, error: 'function unavailable' })
+    expect(mockErrorUpdate).toHaveBeenCalled()
   })
 })

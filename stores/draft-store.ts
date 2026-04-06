@@ -18,6 +18,10 @@ interface DraftStore {
   isSendingManual: boolean
   sendManualError: string | null
 
+  // Create on demand state
+  isCreating: boolean
+  createError: string | null
+
   // Actions
   setActiveDraft: (draftId: string | null, content: string) => void
   startEditing: () => void
@@ -33,6 +37,9 @@ interface DraftStore {
   optimisticSendManual: () => void
   confirmSendManual: () => void
   failSendManual: (error: string) => void
+  startCreating: () => void
+  failCreating: (error: string) => void
+  clearCreating: () => void
   reset: () => void
 }
 
@@ -48,6 +55,8 @@ const initialState = {
   manualContent: '',
   isSendingManual: false,
   sendManualError: null,
+  isCreating: false,
+  createError: null,
 }
 
 export const useDraftStore = create<DraftStore>((set, get) => ({
@@ -108,6 +117,15 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
 
   failSendManual: (error) =>
     set({ isSendingManual: false, sendManualError: error }),
+
+  startCreating: () =>
+    set({ isCreating: true, createError: null }),
+
+  failCreating: (error) =>
+    set({ isCreating: false, createError: error }),
+
+  clearCreating: () =>
+    set({ isCreating: false, createError: null }),
 
   reset: () =>
     set(initialState),

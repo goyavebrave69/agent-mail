@@ -17,38 +17,39 @@ This document provides the complete epic and story breakdown for MailAgent, deco
 
 FR1: A user can create an account with email and password
 FR2: A user can verify their email address to activate their account
-FR3: A user can log in and log out securely
+FR3: A user can log in and log out; sessions expire after a configurable inactivity period
 FR4: A user can delete their account and all associated data
 FR5: A user can connect a Gmail mailbox via OAuth
 FR6: A user can connect an Outlook mailbox via OAuth
 FR7: A user can connect any IMAP/SMTP mailbox with credentials
 FR8: A user can disconnect a connected mailbox
-FR9: The system syncs new emails from the connected mailbox automatically at regular intervals
+FR9: The system syncs new emails from the connected mailbox automatically every 5 minutes
 FR10: The system automatically categorizes each email into: quote request, inquiry, invoice, follow-up, spam, or other
 FR11: The system assigns a priority ranking to each email based on category and content
 FR12: A user can view their inbox sorted by priority
 FR13: A user can filter their inbox by email category
 FR14: A user can mark an email as spam manually
 FR15: A user can mark an email as read or archived
-FR16: The system generates a draft reply for each incoming email using the user's knowledge base as the sole source of factual data
-FR17: The system displays a confidence score for each generated draft
-FR18: A user can view the generated draft for any email
+FR16: A user can trigger AI draft generation on demand for any email; the system generates a contextual reply using the current email thread and the user's knowledge base as the sole source of factual data
+FR17: A user can view an in-place reply composer alongside the email they are reading
+FR18: A user can view the AI-generated draft in the reply composer
 FR19: A user can validate and send a draft as-is with a single action
 FR20: A user can edit a draft manually before sending
-FR21: A user can request a new draft with an optional instruction (e.g., "offer a delay of 24h")
-FR22: A user can reject a draft and compose their own reply
-FR23: The system generates drafts asynchronously at sync time, not on demand
-FR24: A user can upload one or more CSV or Excel files as their knowledge base
-FR25: A user can view the list of uploaded knowledge base files
-FR26: A user can delete a knowledge base file
-FR27: The system indexes uploaded files for use in AI draft generation
-FR28: The system re-indexes the knowledge base when a file is added or removed
-FR29: A new user is guided through a step-by-step onboarding flow (account creation → mailbox connection → knowledge base upload → configuration)
-FR30: A user can configure their preferred reply tone (formal / informal) and language during onboarding
-FR31: A user can access an onboarding help video at any time from the onboarding screen
-FR32: Each user's emails, knowledge base files, and drafts are fully isolated from other users
-FR33: The system never stores user email content — emails are read on-demand via provider APIs
-FR34: Knowledge base files are stored encrypted at rest
+FR21: A user can request a new draft with an optional instruction; the system limits AI generation to 3 attempts per email
+FR22: A user can reject a draft and compose their own reply from scratch
+FR23: A user can delete an email from their inbox
+FR24: When an incoming email is detected as a potential quote request, the system prompts the user for confirmation before generating a quote-oriented reply
+FR25: A user can upload one or more CSV or Excel files as their knowledge base
+FR26: A user can view the list of uploaded knowledge base files
+FR27: A user can delete a knowledge base file
+FR28: The system indexes uploaded files for use in AI draft generation
+FR29: The system re-indexes the knowledge base when a file is added or removed
+FR30: A new user is guided through a step-by-step onboarding flow (account creation → mailbox connection → knowledge base upload → configuration)
+FR31: A user can configure their preferred reply tone (formal / informal) and language during onboarding
+FR32: A user can access an onboarding help video at any time from the onboarding screen
+FR33: Each user's emails, knowledge base files, and generated replies are fully isolated from other users
+FR34: The system never stores user email content; emails are read on-demand from the connected mailbox provider
+FR35: Knowledge base files are stored encrypted at rest
 
 ### NonFunctional Requirements
 
@@ -112,38 +113,39 @@ FR5: Epic 2 — User can connect Gmail via OAuth
 FR6: Epic 2 — User can connect Outlook via OAuth
 FR7: Epic 2 — User can connect IMAP/SMTP mailbox
 FR8: Epic 2 — User can disconnect a connected mailbox
-FR9: Epic 2 — System syncs new emails automatically at regular intervals
+FR9: Epic 2 — System syncs new emails automatically every 5 minutes
 FR10: Epic 4 — System auto-categorizes each email (quote, inquiry, invoice, follow-up, spam, other)
 FR11: Epic 4 — System assigns priority ranking to each email
 FR12: Epic 4 — User views inbox sorted by priority
 FR13: Epic 4 — User filters inbox by email category
 FR14: Epic 4 — User marks email as spam manually
 FR15: Epic 4 — User marks email as read or archived
-FR16: Epic 5 — System generates draft reply grounded in user's knowledge base
-FR17: Epic 5 — System displays confidence score for each draft
-FR18: Epic 5 — User views generated draft for any email
-FR19: Epic 5 — User validates and sends draft with a single action
-FR20: Epic 5 — User edits draft manually before sending
-FR21: Epic 5 — User requests new draft with optional instruction
-FR22: Epic 5 — User rejects draft and composes own reply
-FR23: Epic 5 — System generates drafts asynchronously at sync time
-FR24: Epic 3 — User uploads CSV or Excel files as knowledge base
-FR25: Epic 3 — User views list of uploaded KB files
-FR26: Epic 3 — User deletes a KB file
-FR27: Epic 3 — System indexes uploaded files for AI draft generation
-FR28: Epic 3 — System re-indexes KB when file is added or removed
-FR29: Epic 6 — New user guided through step-by-step onboarding flow
-FR30: Epic 6 — User configures reply tone and language during onboarding
-FR31: Epic 6 — User accesses onboarding help video at any time
-FR32: Epic 1 — Each user's data is fully isolated from other users (RLS)
-FR33: Epic 1 — System never stores user email content
-FR34: Epic 1 — Knowledge base files stored encrypted at rest
+FR16: Epic 5 — User triggers AI draft generation on demand (Story 5.7)
+FR17: Epic 5 — User views in-place reply composer alongside the email they are reading (Story 5.12)
+FR18: Epic 5 — User views AI-generated draft in the reply composer (Story 5.2)
+FR19: Epic 5 — User validates and sends draft with a single action (Story 5.3)
+FR20: Epic 5 — User edits draft manually before sending (Story 5.4)
+FR21: Epic 5 — User requests new draft with optional instruction; max 3 attempts (Story 5.5)
+FR22: Epic 5 — User rejects draft and composes own reply (Story 5.6)
+FR23: Epic 5 — User deletes an email from their inbox (Story 5.11)
+FR24: Epic 5 — System prompts user for confirmation before generating quote-oriented reply (Story 5.13 — needed)
+FR25: Epic 3 — User uploads CSV or Excel files as knowledge base
+FR26: Epic 3 — User views list of uploaded KB files
+FR27: Epic 3 — User deletes a KB file
+FR28: Epic 3 — System indexes uploaded files for AI draft generation
+FR29: Epic 3 — System re-indexes KB when file is added or removed
+FR30: Epic 6 — New user guided through step-by-step onboarding flow
+FR31: Epic 6 — User configures reply tone and language during onboarding
+FR32: Epic 6 — User accesses onboarding help video at any time
+FR33: Epic 1 — Each user's data is fully isolated from other users
+FR34: Epic 1 — System never stores user email content
+FR35: Epic 1 — Knowledge base files stored encrypted at rest
 
 ## Epic List
 
 ### Epic 1: Foundation & User Authentication
 Users can create an account, verify their email, log in and out, and delete their account. The system is production-ready with full security baseline (RLS, encrypted storage, no email persistence) and CI/CD pipeline.
-**FRs covered:** FR1, FR2, FR3, FR4, FR32, FR33, FR34
+**FRs covered:** FR1, FR2, FR3, FR4, FR33, FR34, FR35
 **Architecture:** Project init (`create-next-app --example with-supabase`), DB schema + RLS migrations, Supabase Vault, GitHub Actions CI
 
 ### Epic 2: Email Mailbox Connection & Sync
@@ -153,7 +155,7 @@ Users can connect their Gmail, Outlook, or IMAP mailbox via a guided OAuth flow.
 
 ### Epic 3: Knowledge Base Management
 Users can upload their business files (CSV/Excel), view and manage them, and the system automatically indexes them as vector embeddings to ground AI draft generation.
-**FRs covered:** FR24, FR25, FR26, FR27, FR28
+**FRs covered:** FR25, FR26, FR27, FR28, FR29
 **Architecture:** Supabase Storage (encrypted), pgvector extension, Edge Function index-kb, /lib/ai/embeddings.ts
 
 ### Epic 4: Inbox Triage & Navigation
@@ -162,13 +164,13 @@ Users see their inbox automatically categorized and sorted by priority. They can
 **Architecture:** /lib/ai/triage.ts, Supabase Realtime (inbox:{user_id}), RSC inbox views, useInboxStore (Zustand)
 
 ### Epic 5: AI Draft Generation & Sending
-Users see AI-generated draft replies grounded exclusively in their knowledge base, with confidence scores. They can validate & send in one click, edit, regenerate with instructions, or reject and write their own reply.
-**FRs covered:** FR16, FR17, FR18, FR19, FR20, FR21, FR22, FR23
-**Architecture:** Edge Function generate-draft, RAG pipeline (/lib/ai/draft.ts + embeddings.ts), Supabase Realtime (drafts:{user_id}), useDraftStore (Zustand), Magic UI confidence-badge
+Users can trigger AI draft generation on demand for any email. Drafts are grounded exclusively in their knowledge base. They can validate & send in one click, edit, regenerate with instructions, reject and write their own reply, or delete emails. An in-place composer is always accessible alongside the reading pane.
+**FRs covered:** FR16, FR17, FR18, FR19, FR20, FR21, FR22, FR23, FR24 (Story 5.13 — needed)
+**Architecture:** Edge Function generate-draft, RAG pipeline (/lib/ai/draft.ts + embeddings.ts), Supabase Realtime (drafts:{user_id}), useDraftStore (Zustand)
 
 ### Epic 6: Guided Onboarding Experience
 New users are guided step-by-step through the full setup (account → mailbox → KB upload → configuration). They configure reply tone and language, and can access a help video at any time.
-**FRs covered:** FR29, FR30, FR31
+**FRs covered:** FR30, FR31, FR32
 **Architecture:** /app/(onboarding)/ route group, onboarding-stepper (Magic UI), /public/onboarding-video.mp4
 
 ---
@@ -555,23 +557,22 @@ So that I can keep my inbox clean and organized.
 
 ## Epic 5: AI Draft Generation & Sending
 
-Users see AI-generated draft replies grounded exclusively in their knowledge base, with confidence scores. They can validate & send in one click, edit, regenerate with instructions, or reject and write their own reply.
+Users can trigger AI draft generation on demand for any email. Drafts are grounded exclusively in their knowledge base. They can validate & send in one click, edit, regenerate with instructions, reject and write their own reply, or delete emails. An in-place composer is always accessible alongside the reading pane.
 
 ### Story 5.1: Asynchronous Draft Generation Pipeline
 
-As a user,
-I want draft replies to be generated automatically when my emails sync,
-So that drafts are ready and waiting for me when I open an email — no waiting.
+As a developer,
+I want a shared generate-draft Edge Function and async pipeline,
+So that both on-demand (Story 5.7) and any future background triggers share the same generation logic.
 
 **Acceptance Criteria:**
 
-**Given** a new email has been categorized and synced
-**When** the generate-draft Edge Function is triggered
+**Given** the generate-draft Edge Function is invoked with an emailId and userId
+**When** it runs
 **Then** the email content is embedded and a pgvector similarity search retrieves relevant KB chunks
 **And** the LLM generates a draft grounded exclusively in those KB chunks (no hallucinated data)
-**And** a confidence score (0–100) is calculated and stored alongside the draft
 **And** the draft record status transitions `pending → generating → ready` (or `error`) with `retry_count` tracked
-**And** the draft is available within 10 seconds of sync completion (NFR2)
+**And** the draft is available within 10 seconds of invocation (NFR2)
 
 **Given** the user's LLM quota is exceeded
 **When** a draft generation is attempted
@@ -583,18 +584,17 @@ So that drafts are ready and waiting for me when I open an email — no waiting.
 
 ---
 
-### Story 5.2: Draft View with Confidence Score
+### Story 5.2: Draft View in Reply Composer
 
 As a user,
-I want to see the AI-generated draft and its confidence score when I open an email,
-So that I can immediately assess whether the draft is ready to send.
+I want to see the AI-generated draft when I open an email,
+So that I can immediately review and act on the suggested reply.
 
 **Acceptance Criteria:**
 
 **Given** the user opens an email that has a draft with status `ready`
 **When** the email detail page loads (RSC)
-**Then** the draft text is displayed in the draft editor
-**And** the confidence score is shown as an animated badge (Magic UI confidence-badge)
+**Then** the draft text is displayed in the reply composer
 **And** the draft actions (validate, edit, regenerate, reject) are all visible
 
 **Given** the draft status is `generating`
@@ -686,6 +686,123 @@ So that I maintain full control when the AI cannot help.
 **When** the Server Action executes
 **Then** the manually written email is sent via the connected provider API
 **And** the email is marked as handled
+
+---
+
+### Story 5.7: Create Draft On Demand
+
+As a user,
+I want to manually create a draft when no draft exists yet,
+So that I can trigger the AI reply workflow without waiting for background sync timing.
+
+**Acceptance Criteria:**
+
+**Given** an email detail page has no draft yet
+**When** the user clicks `Create Draft`
+**Then** a server action creates a draft row with status `generating`
+**And** the `generate-draft` Edge Function is invoked asynchronously
+**And** the UI immediately shows a generating state (optimistic) and then updates via Realtime when ready
+
+**Given** the user clicks `Create Draft` multiple times quickly
+**When** the first request is already in progress
+**Then** duplicate generation is prevented
+**And** the user sees a safe message instead of triggering a duplicate draft job
+
+**Given** draft generation startup fails
+**When** the Edge Function invocation returns an error
+**Then** draft status is set to `error` with a helpful message
+**And** the UI shows retry affordance using existing draft error-state behavior
+
+---
+
+### Story 5.8: Functional Inbox Search
+
+As a user,
+I want the inbox search bar to work reliably across visible emails,
+So that I can quickly find messages by sender, subject, and content preview.
+
+**Acceptance Criteria:**
+
+**Given** the user types in the inbox search input
+**When** search text changes
+**Then** the email list updates in real time without page navigation
+**And** results are filtered by sender name, sender email, subject, and body preview text
+
+**Given** the search input is cleared
+**When** the user deletes all text
+**Then** the full unfiltered email list is restored
+
+---
+
+### Story 5.9: Collapsible Mail Navigation Sidebar
+
+As a user,
+I want the left mail navigation to be collapsible,
+So that I can focus on the email list and reading pane when needed.
+
+**Acceptance Criteria:**
+
+**Given** the inbox shell is displayed
+**When** the user toggles sidebar collapse
+**Then** the left navigation collapses/expands smoothly without layout break
+**And** the user's preference is preserved across page navigations within the session
+
+---
+
+### Story 5.10: Custom Category Management Modal
+
+As a user,
+I want a button that opens a modal to create custom email categories,
+So that I can define my own sorting taxonomy beyond default categories.
+
+**Acceptance Criteria:**
+
+**Given** the user is in inbox shell
+**When** they click `Manage Categories`
+**Then** a modal opens and allows creating a custom category name
+**And** the new category appears in the category filter list
+
+---
+
+### Story 5.11: Functional Mail Action Buttons
+
+As a user,
+I want Archive, Trash, Reply, and Forward action buttons to work on emails,
+So that I can manage my inbox efficiently from the reading pane.
+
+**Acceptance Criteria:**
+
+**Given** the user clicks the `Trash` (delete) button on an email
+**When** the Server Action executes
+**Then** the email is removed from the inbox view
+**And** the action is confirmed within 1 second (NFR4)
+
+**Given** the user clicks the `Archive` button on an email
+**When** the Server Action executes
+**Then** the email is marked as archived and removed from the active inbox view
+
+**Given** the user clicks `Reply` or `Forward`
+**When** the action executes
+**Then** the in-place composer opens pre-populated with the appropriate headers (To, Subject)
+
+---
+
+### Story 5.12: Manual Draft Button Next to Send
+
+As a user,
+I want a "Create Draft" button available in the composer at all times,
+So that I can trigger AI draft generation directly from the reply area.
+
+**Acceptance Criteria:**
+
+**Given** the user has the reply composer open
+**When** no draft has been generated yet
+**Then** a `Create Draft` button is visible next to the Send button
+
+**Given** the user clicks `Create Draft` from the composer
+**When** the action executes
+**Then** AI draft generation is triggered (same pipeline as Story 5.7)
+**And** the generated draft is loaded into the composer when ready
 
 ---
 

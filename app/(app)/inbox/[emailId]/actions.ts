@@ -22,6 +22,11 @@ export interface RejectDraftResult {
   error?: string
 }
 
+export interface CreateDraftResult {
+  success: boolean
+  error?: string
+}
+
 // ─── Read helpers (called from Server Components) ────────────────────────────
 
 export async function fetchEmail(emailId: string): Promise<EmailDetail | null> {
@@ -229,6 +234,23 @@ export async function regenerateDraft(
 
   const trimmedInstruction = instruction?.trim() || null
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const { data: refreshedSessionData } = await supabase.auth.refreshSession()
+  const accessToken =
+    refreshedSessionData.session?.access_token ?? session?.access_token
+  console.error('[generate-draft invoke][regenerate] preflight', {
+    userId: user.id,
+    hasSession: Boolean(session),
+    hasAccessToken: Boolean(session?.access_token),
+    hasRefreshedAccessToken: Boolean(refreshedSessionData.session?.access_token),
+    emailId: draft.email_id,
+  })
+  if (!accessToken) {
+    return { success: false, error: 'Missing access token for function invocation.' }
+  }
+
   await supabase
     .from('drafts')
     .update({
@@ -241,17 +263,39 @@ export async function regenerateDraft(
     .eq('user_id', user.id)
     .in('status', ['ready', 'error'])
 
-  const { error: invokeError } = await supabase.functions.invoke('generate-draft', {
-    body: {
-      emailId: draft.email_id,
-      userId: user.id,
-      instruction: trimmedInstruction,
-      isRegeneration: true,
-    },
-  })
+  const fnRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-draft`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        emailId: draft.email_id,
+        userId: user.id,
+        instruction: trimmedInstruction,
+        isRegeneration: true,
+      }),
+    }
+  )
 
-  if (invokeError) {
-    return { success: false, error: invokeError.message }
+  if (!fnRes.ok) {
+    const contextBody = await fnRes.clone().text().catch(() => null)
+    console.error('[generate-draft invoke][regenerate] error', {
+      status: fnRes.status,
+      statusText: fnRes.statusText,
+      contextBody,
+    })
+    let message = `HTTP ${fnRes.status}`
+    try {
+      const parsed = JSON.parse(contextBody ?? '{}') as { error?: string; message?: string }
+      message = parsed.error ?? parsed.message ?? message
+    } catch {
+      // keep default message
+    }
+    return { success: false, error: message }
   }
 
   revalidatePath('/inbox')
@@ -293,6 +337,115 @@ export async function rejectDraft(draftId: string): Promise<RejectDraftResult> {
   }
 
   revalidatePath('/inbox')
+  return { success: true }
+}
+
+// ─── Create draft on demand ───────────────────────────────────────────────────
+
+export async function createDraftOnDemand(emailId: string): Promise<CreateDraftResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { data: email } = await supabase
+    .from('emails')
+    .select('id')
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!email) return { success: false, error: 'Email not found.' }
+
+  const { data: existingDraft } = await supabase
+    .from('drafts')
+    .select('id, status')
+    .eq('email_id', emailId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (existingDraft) {
+    if (existingDraft.status === 'generating' || existingDraft.status === 'ready') {
+      return { success: false, error: 'A draft is already being generated for this email.' }
+    }
+    await supabase
+      .from('drafts')
+      .update({
+        status: 'generating',
+        content: null,
+        confidence_score: null,
+        error_message: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingDraft.id)
+      .eq('user_id', user.id)
+  } else {
+    await supabase.from('drafts').insert({
+      user_id: user.id,
+      email_id: emailId,
+      status: 'generating',
+    })
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const { data: refreshedSessionData } = await supabase.auth.refreshSession()
+  const accessToken =
+    refreshedSessionData.session?.access_token ?? session?.access_token
+  console.error('[generate-draft invoke][create-on-demand] preflight', {
+    userId: user.id,
+    hasSession: Boolean(session),
+    hasAccessToken: Boolean(session?.access_token),
+    hasRefreshedAccessToken: Boolean(refreshedSessionData.session?.access_token),
+    emailId,
+  })
+  if (!accessToken) {
+    return { success: false, error: 'Missing access token for function invocation.' }
+  }
+
+  const fnRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-draft`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ emailId, userId: user.id }),
+    }
+  )
+
+  if (!fnRes.ok) {
+    const contextBody = await fnRes.clone().text().catch(() => null)
+    console.error('[generate-draft invoke][create-on-demand] error', {
+      status: fnRes.status,
+      statusText: fnRes.statusText,
+      contextBody,
+    })
+    let message = `HTTP ${fnRes.status}`
+    try {
+      const parsed = JSON.parse(contextBody ?? '{}') as { error?: string; message?: string }
+      message = parsed.error ?? parsed.message ?? message
+    } catch {
+      // keep default message
+    }
+    await supabase
+      .from('drafts')
+      .update({
+        status: 'error',
+        error_message: message,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('email_id', emailId)
+      .eq('user_id', user.id)
+    return { success: false, error: message }
+  }
+
+  revalidatePath('/inbox')
+  revalidatePath(`/inbox/${emailId}`)
   return { success: true }
 }
 
