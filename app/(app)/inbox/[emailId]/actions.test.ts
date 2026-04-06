@@ -376,6 +376,8 @@ describe('updateDraftContent', () => {
 
 describe('regenerateDraft', () => {
   let mockGetUser: ReturnType<typeof vi.fn>
+  let mockGetSession: ReturnType<typeof vi.fn>
+  let mockRefreshSession: ReturnType<typeof vi.fn>
   let mockDraftSingle: ReturnType<typeof vi.fn>
   let mockUpdateIn: ReturnType<typeof vi.fn>
   let mockUpdateEq: ReturnType<typeof vi.fn>
@@ -386,6 +388,12 @@ describe('regenerateDraft', () => {
     vi.clearAllMocks()
 
     mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockGetSession = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'token-1' } },
+    })
+    mockRefreshSession = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'token-2' } },
+    })
     mockDraftSingle = vi.fn()
     mockUpdateIn = vi.fn().mockResolvedValue({ error: null })
     mockUpdateEq = vi.fn().mockResolvedValue({ error: null })
@@ -412,11 +420,13 @@ describe('regenerateDraft', () => {
     })
 
     mockCreateClient.mockResolvedValue({
-      auth: { getUser: mockGetUser },
+      auth: {
+        getUser: mockGetUser,
+        getSession: mockGetSession,
+        refreshSession: mockRefreshSession,
+      },
       from: fromMock,
     })
-
-    // Default: fetch succeeds
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) })
   })
 
@@ -499,7 +509,8 @@ describe('regenerateDraft', () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
-      json: async () => ({ error: 'invoke failed' }),
+      statusText: 'Internal Server Error',
+      clone: () => ({ text: async () => JSON.stringify({ error: 'invoke failed' }) }),
     })
 
     const { regenerateDraft } = await import('./actions')
@@ -511,6 +522,8 @@ describe('regenerateDraft', () => {
 
 describe('createDraftOnDemand', () => {
   let mockGetUser: ReturnType<typeof vi.fn>
+  let mockGetSession: ReturnType<typeof vi.fn>
+  let mockRefreshSession: ReturnType<typeof vi.fn>
   let draftQuerySequence: object[]
   let draftCallIndex: number
 
@@ -521,9 +534,19 @@ describe('createDraftOnDemand', () => {
     draftCallIndex = 0
 
     mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockGetSession = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'token-1' } },
+    })
+    mockRefreshSession = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'token-2' } },
+    })
 
     mockCreateClient.mockResolvedValue({
-      auth: { getUser: mockGetUser },
+      auth: {
+        getUser: mockGetUser,
+        getSession: mockGetSession,
+        refreshSession: mockRefreshSession,
+      },
       from: vi.fn((table: string) => {
         if (table === 'emails') {
           return {
@@ -542,8 +565,6 @@ describe('createDraftOnDemand', () => {
         throw new Error(`Unexpected table: ${table}`)
       }),
     })
-
-    // Default: fetch succeeds
     mockFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) })
   })
 
@@ -676,7 +697,8 @@ describe('createDraftOnDemand', () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
-      json: async () => ({ error: 'function unavailable' }),
+      statusText: 'Internal Server Error',
+      clone: () => ({ text: async () => JSON.stringify({ error: 'function unavailable' }) }),
     })
 
     const { createDraftOnDemand } = await import('./actions')

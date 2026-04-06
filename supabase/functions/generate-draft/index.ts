@@ -121,11 +121,6 @@ deno.serve(async (req: Request): Promise<Response> => {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
   }
 
-  const authorization = req.headers.get('authorization')
-  if (authorization !== `Bearer ${serviceRoleKey}`) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
-  }
-
   let emailId: string
   let userId: string
   let emailContent: string | null = null

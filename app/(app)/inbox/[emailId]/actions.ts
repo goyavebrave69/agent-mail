@@ -234,6 +234,23 @@ export async function regenerateDraft(
 
   const trimmedInstruction = instruction?.trim() || null
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const { data: refreshedSessionData } = await supabase.auth.refreshSession()
+  const accessToken =
+    refreshedSessionData.session?.access_token ?? session?.access_token
+  console.error('[generate-draft invoke][regenerate] preflight', {
+    userId: user.id,
+    hasSession: Boolean(session),
+    hasAccessToken: Boolean(session?.access_token),
+    hasRefreshedAccessToken: Boolean(refreshedSessionData.session?.access_token),
+    emailId: draft.email_id,
+  })
+  if (!accessToken) {
+    return { success: false, error: 'Missing access token for function invocation.' }
+  }
+
   await supabase
     .from('drafts')
     .update({
@@ -252,7 +269,8 @@ export async function regenerateDraft(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`,
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         emailId: draft.email_id,
@@ -264,8 +282,20 @@ export async function regenerateDraft(
   )
 
   if (!fnRes.ok) {
-    const err = await fnRes.json().catch(() => ({ error: `HTTP ${fnRes.status}` }))
-    return { success: false, error: err.error ?? `HTTP ${fnRes.status}` }
+    const contextBody = await fnRes.clone().text().catch(() => null)
+    console.error('[generate-draft invoke][regenerate] error', {
+      status: fnRes.status,
+      statusText: fnRes.statusText,
+      contextBody,
+    })
+    let message = `HTTP ${fnRes.status}`
+    try {
+      const parsed = JSON.parse(contextBody ?? '{}') as { error?: string; message?: string }
+      message = parsed.error ?? parsed.message ?? message
+    } catch {
+      // keep default message
+    }
+    return { success: false, error: message }
   }
 
   revalidatePath('/inbox')
@@ -358,21 +388,50 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
     })
   }
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const { data: refreshedSessionData } = await supabase.auth.refreshSession()
+  const accessToken =
+    refreshedSessionData.session?.access_token ?? session?.access_token
+  console.error('[generate-draft invoke][create-on-demand] preflight', {
+    userId: user.id,
+    hasSession: Boolean(session),
+    hasAccessToken: Boolean(session?.access_token),
+    hasRefreshedAccessToken: Boolean(refreshedSessionData.session?.access_token),
+    emailId,
+  })
+  if (!accessToken) {
+    return { success: false, error: 'Missing access token for function invocation.' }
+  }
+
   const fnRes = await fetch(
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-draft`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY}`,
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ emailId, userId: user.id }),
     }
   )
 
   if (!fnRes.ok) {
-    const err = await fnRes.json().catch(() => ({ error: `HTTP ${fnRes.status}` }))
-    const message = err.error ?? `HTTP ${fnRes.status}`
+    const contextBody = await fnRes.clone().text().catch(() => null)
+    console.error('[generate-draft invoke][create-on-demand] error', {
+      status: fnRes.status,
+      statusText: fnRes.statusText,
+      contextBody,
+    })
+    let message = `HTTP ${fnRes.status}`
+    try {
+      const parsed = JSON.parse(contextBody ?? '{}') as { error?: string; message?: string }
+      message = parsed.error ?? parsed.message ?? message
+    } catch {
+      // keep default message
+    }
     await supabase
       .from('drafts')
       .update({

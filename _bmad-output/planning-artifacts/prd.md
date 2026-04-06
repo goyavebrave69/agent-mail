@@ -1,5 +1,6 @@
 ---
-stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete']
+workflow: 'edit'
+stepsCompleted: ['step-e-01-discovery', 'step-e-02-review', 'step-e-03-edit']
 inputDocuments:
   - _bmad-output/planning-artifacts/product-brief.md
 workflowType: 'prd'
@@ -7,6 +8,12 @@ briefCount: 1
 researchCount: 0
 brainstormingCount: 0
 projectDocsCount: 0
+lastEdited: '2026-04-06'
+editHistory:
+  - date: '2026-04-05'
+    changes: 'Reframed MailAgent around a composer-first inbox experience with on-demand AI reply generation, quote confirmation, and no persistent draft list.'
+  - date: '2026-04-06'
+    changes: 'Resolved FR/scope contradictions (removed confidence score FR, replaced background-generation FR with on-demand trigger). Added 5 missing FRs for core composer UX (reply composer, delete, quote confirmation, 3-generation limit). Refactored NFRs: removed Integration subsection, rewrote Security without tech names, added measurement methods to Performance, quantified Scalability and Reliability NFRs. Added browser support matrix and WCAG 2.1 AA accessibility requirement.'
 classification:
   projectType: Web App SaaS
   domain: Productivity / AI-powered tools (B2B)
@@ -23,19 +30,21 @@ classification:
 
 ## Executive Summary
 
-MailAgent is an AI-powered email management web application built for B2B professionals overwhelmed by high-volume, mixed-intent inboxes. It eliminates the three core costs of unmanaged email — time loss, chronic stress, and response errors — by automatically triaging incoming messages, generating context-aware draft replies grounded in the user's own business knowledge, and surfacing only what requires human attention.
+MailAgent is an AI-powered email management web application for B2B professionals who need to move quickly through high-volume inboxes without losing accuracy or control. V1 focuses on a familiar, Outlook/Gmail-like inbox experience where the user reads an email, writes a reply in-place, and can trigger personalized AI assistance only when needed.
 
-The V1 target is any professional handling 40–60+ emails per day who needs business-specific accuracy in their responses (e.g., pricing, availability, policies). The long-term vision is a horizontal SaaS serving any B2B knowledge worker who wants to reclaim time from their inbox without sacrificing reply quality.
+The product's core value is not background automation or a persistent draft system. Instead, MailAgent helps users respond faster through a simple composer-first flow: a reply textarea, a clear AI generation button, and visible actions for send, archive, and delete. The AI uses the current email thread plus the user's business knowledge base to generate a contextual response on demand.
+
+If an incoming email looks like it requires a quote or attachment-based reply, MailAgent first asks for confirmation before generating that response type. The experience stays lightweight, predictable, and familiar — no training required.
 
 ### What Makes This Special
 
-Existing tools (SaneBox, Superhuman, Copilot for Outlook) are generic, rigid, or complex. MailAgent differentiates on three axes no competitor has combined:
+Existing tools (SaneBox, Superhuman, Copilot for Outlook) are either generic, rigid, or too complex for this workflow. MailAgent differentiates on three axes:
 
-1. **Adaptability** — The AI grounds every response in the user's uploaded business documents (CSV/Excel), not generic training data. No hallucinated prices, no generic replies.
-2. **Radical simplicity** — A single-screen interface designed to disappear; the only decision left for the user is review and send.
-3. **Customer-driven evolution** — The product roadmap is shaped by direct user feedback. MailAgent is tailored to each user's reality, not a one-size-fits-all solution.
+1. **Contextual replies** — The AI grounds every response in the user's uploaded business documents and the current customer email, not generic training data.
+2. **Radical familiarity** — The interface borrows the interaction patterns users already know from Outlook and Gmail, so nothing feels surprising.
+3. **Smart, on-demand assistance** — AI is triggered only when the user wants it, with a clear three-generation limit per email and no clutter from saved draft history.
 
-The core insight: the real enemy is not email volume — it is the compounding cost of time × stress × error risk that drains professionals daily. MailAgent addresses all three simultaneously.
+The core insight: the real enemy is not email volume alone, but the friction of reading, deciding, and composing accurate replies quickly. MailAgent reduces that friction without taking control away from the user.
 
 ---
 
@@ -52,10 +61,11 @@ The core insight: the real enemy is not email volume — it is the compounding c
 
 ### User Success
 
-- User processes their full daily inbox in under 30 minutes (vs. 1–2 hours without the tool)
-- Draft acceptance rate ≥ 70% — sent without major edits, indicating AI response quality meets business standards
-- Trust indicator: daily active usage sustained beyond the first week; the user integrates MailAgent into their routine and cannot operate without it
-- Draft modification rate tracked as a proxy for AI quality — high edits signal knowledge base gaps, not product failure
+- User processes their full daily inbox in under 30 minutes, versus 1–2 hours without the tool
+- User can generate a usable reply in one click and keep the response in the composer without leaving the inbox view
+- At least 70% of AI-assisted replies are sent after only light edits, showing the generated text is useful and personalized
+- The interface feels familiar enough that users do not need training to understand where to read, reply, archive, or delete
+- The three-generation limit per email is clear and rarely blocks legitimate use
 
 ### Business Success
 
@@ -67,7 +77,7 @@ The core insight: the real enemy is not email volume — it is the compounding c
 ### Technical Success
 
 - Email sync latency: new emails appear within 2 minutes of receipt
-- AI draft generation: draft available within 10 seconds of email sync completion
+- AI reply generation: personalized reply appears within 10 seconds of the user clicking the AI button
 - Knowledge base processing: uploaded files indexed within 60 seconds
 - System uptime: ≥ 99.5% during business hours
 - Zero data leakage between user accounts
@@ -78,7 +88,7 @@ The core insight: the real enemy is not email volume — it is the compounding c
 |---|---|
 | Daily Active Users (Month 1) | 5 pilot users |
 | Daily Active Users (Month 3) | 50 users |
-| Draft acceptance rate | ≥ 70% |
+| AI-assisted replies sent with light edits | ≥ 70% |
 | Time-to-process per email | < 30 seconds |
 | D30 retention | ≥ 80% |
 | Email sync latency | < 2 minutes |
@@ -87,54 +97,54 @@ The core insight: the real enemy is not email volume — it is the compounding c
 
 ## User Journeys
 
-### Journey 1 — Thomas, Commercial B2B (Primary User — Success Path)
+### Journey 1 — Thomas, B2B Sales Rep (Primary User — Success Path)
 
-Thomas est commercial chez un revendeur de matériaux bois. Chaque matin, il arrive au bureau avec 40 à 60 emails non lus : demandes de devis, vérifications de disponibilité, relances clients, factures. Il passe ses deux premières heures à tout lire, chercher les prix dans son catalogue Excel, et rédiger des réponses une par une. Résultat : il est déjà épuisé à 10h, et il a encore oublié une relance urgente.
+Thomas is a sales rep at a wood materials distributor. Every morning he opens MailAgent to a busy inbox full of quote requests, availability checks, follow-ups, and invoices. Instead of jumping between tools, he reads each message in the inbox shell and replies directly in the right-hand composer.
 
-**Découverte de MailAgent.** Thomas connecte son compte Gmail, uploade son catalogue produits et sa grille tarifaire en CSV. Une configuration guidée l'accompagne étape par étape. Dix minutes plus tard, MailAgent a ingéré ses données.
+**First reply.** Thomas opens an email asking for a quote. He sees the familiar split-pane layout, types a short reply if needed, then clicks the AI wand button. MailAgent generates a personalized response using the incoming email and his uploaded business documents. The reply appears as plain text in the composer. Thomas reviews it, clicks Send, and moves on.
 
-**Le premier matin.** Il ouvre MailAgent. Sa boîte est triée : 3 devis urgents en tête, 8 demandes de renseignements, 5 relances, 2 factures, 4 emails classés spam. Pour chaque email urgent, un draft est déjà prêt — le prix du chêne massif en 50mm, la disponibilité en stock, le délai de livraison. Tout vient de son propre catalogue. Il lit, clique "Valider & Envoyer". Trois devis traités en 8 minutes.
+**Daily rhythm.** For routine emails, Thomas sends or archives immediately. For messages that clearly need no AI help, he writes manually. For quote-related emails, the confirmation pop-in appears first, so he stays in control of when a quote-oriented reply should be generated.
 
-**La nouvelle réalité.** Après deux semaines, Thomas ne peut plus imaginer travailler sans MailAgent. Il traite sa boîte en 25 minutes chaque matin, ne rate plus aucune relance urgente, et ses clients reçoivent des réponses précises plus rapidement qu'avant.
+**Outcome.** After a few days, Thomas knows exactly where everything is: read on the left, reply in the composer, and use the same clear actions he already expects from Gmail or Outlook.
 
-### Journey 2 — Sophie, Gérante de PME (Primary User — Edge Case)
+### Journey 2 — Sophie, SME Owner (Edge Case)
 
-Sophie gère une petite entreprise de négoce. Ce matin, elle reçoit un email sur un produit absent de son catalogue — les prix n'ont pas encore été uploadés. MailAgent génère un draft avec un score de confiance faible (32%). Sophie voit immédiatement qu'il ne convient pas.
+Sophie receives a message about a product that is not in her current catalog. The email looks like a quote request, so when she clicks the AI button, MailAgent asks a simple confirmation question before generating the response: whether she wants a quote-oriented reply.
 
-Elle clique "Régénérer" et tape une instruction rapide : *"Ce produit n'est pas dans mon catalogue, propose un email pour demander un délai et promettre un devis sous 24h."* L'IA génère un nouveau draft. Sophie l'ajuste légèrement et l'envoie. Elle comprend que la qualité des drafts dépend de ce qu'elle a uploadé — elle enrichit son catalogue. Le lendemain, les drafts sur ce type de demande sont parfaits.
+She confirms, and MailAgent generates a cautious, personalized reply that acknowledges the request and proposes the next step. Sophie edits a few words, sends the message, and archives the thread. If she does not like the result, she can refine the reply manually or try AI again, up to the three-generation limit for that email.
 
 ### Journey 3 — Onboarding (First-Time Setup)
 
-1. **Création de compte** — email + mot de passe, vérification email
-2. **Connexion boîte mail** — choix Gmail / Outlook / IMAP, flow OAuth guidé
-3. **Upload knowledge base** — drag-and-drop CSV/Excel, confirmation d'indexation (60 secondes)
-4. **Configuration guidée** — catégories à surveiller, ton de réponse (formel/informel), langue
-5. **Premier sync** — MailAgent importe les 50 derniers emails et les classe
+1. **Create account** — email and password, then email verification
+2. **Connect mailbox** — choose Gmail, Outlook, or IMAP with a guided OAuth flow
+3. **Upload knowledge base** — drag and drop CSV/Excel files, then wait for indexing
+4. **Set preferences** — preferred tone, language, and basic inbox categories
+5. **First sync** — MailAgent loads recent email and renders the inbox shell
 
-Si la configuration guidée est trop complexe : une vidéo de démarrage rapide (< 3 minutes) est accessible depuis l'écran d'onboarding à tout moment.
+If the setup flow feels too dense, a short help video remains accessible from onboarding.
 
-### Journey 4 — Utilisateur en difficulté (Recovery)
+### Journey 4 — Recovery / Fallback
 
-Un utilisateur remarque des scores de confiance systématiquement bas (< 40%). Il identifie la cause : son CSV a été uploadé avec une mauvaise structure de colonnes. Il re-uploade un fichier corrigé et la qualité des drafts remonte immédiatement. En V1, le support se fait par email ou via la vidéo d'aide.
+A user is unhappy with one generated reply. Instead of digging through a draft history, they simply edit the text in the composer, click AI again if they want a better version, or finish the message manually. If the issue is caused by missing knowledge base data, they can update the files later and try again on a future email.
 
 ### Journey Requirements Summary
 
 | Journey | Capabilities Required |
 |---|---|
-| Thomas — success path | Email sync, categorization, priority ranking, draft generation, confidence score, one-click send |
-| Sophie — edge case | Draft regeneration with user instruction, confidence score display, reject/modify actions |
-| Onboarding | Account creation, OAuth connection, CSV/Excel upload + indexation, guided setup, onboarding video |
-| Recovery | Knowledge base re-upload, draft quality feedback loop |
+| Thomas — success path | Split-pane inbox, in-place reply composer, AI generation, send/archive/delete actions |
+| Sophie — edge case | Quote confirmation pop-in, personalized generation, manual edit before send |
+| Onboarding | Account creation, mailbox connection, knowledge base upload, guided setup |
+| Recovery | Composer editing, retry generation up to the limit, manual fallback |
 
 ---
 
-## Innovation & Novel Patterns
+## Innovation Analysis
 
 ### Detected Innovation Areas
 
-1. **Knowledge-grounded AI drafting** — Draft generation anchored exclusively to user-uploaded business documents. Eliminates hallucination risk on factual data (prices, availability, policies). No existing email tool offers this level of personalized grounding.
-2. **Unified triage-to-send workflow** — Single interface combining categorization, priority ranking, AI drafting, and sending. Competing tools solve one problem; MailAgent collapses the full workflow into one screen.
-3. **Adaptability as a product principle** — The roadmap is driven by direct user feedback loops, treating adaptability as a core feature rather than a release note.
+1. **Familiar composer-first email flow** — The product feels like a known mail client, but adds AI in the exact place users already expect to respond.
+2. **On-demand contextual generation** — The AI uses the current email thread and the user's knowledge base only when the user asks for help.
+3. **Intent-aware quote confirmation** — When the message implies a quote or attachment-based response, MailAgent slows down just enough to confirm the next step.
 
 ### Competitive Landscape
 
@@ -143,23 +153,24 @@ Un utilisateur remarque des scores de confiance systématiquement bas (< 40%). I
 | Superhuman / SaneBox | ✅ | ❌ | ❌ | Medium |
 | Copilot for Outlook | Partial | ✅ Generic | ❌ | Low |
 | ChatGPT / Claude | ❌ | ✅ Generic | ❌ | Low |
-| **MailAgent** | **✅** | **✅ Grounded** | **✅** | **High** |
+| **MailAgent** | **✅** | **✅ Contextual** | **✅** | **High** |
 
-The gap: no tool combines inbox integration + business-specific AI drafting + radical simplicity for SMB/B2B users.
+The gap: no tool combines inbox integration, business-specific reply generation, and a familiar Outlook/Gmail-style composer with a simple quote confirmation flow.
 
 ### Validation Approach
 
-- V1 pilot: draft acceptance rate ≥ 70% is the primary innovation validator
-- Draft modification rate reveals KB grounding failures — direct feedback loop
-- Daily active usage as trust proxy — genuine innovation creates habit, not occasional use
+- V1 pilot: users should be able to open an email and generate a usable reply on the first day without training
+- AI-assisted replies should require only light edits in most cases
+- The quote confirmation pop-in should reduce accidental quote-style responses while staying quick and unobtrusive
+- Daily active usage remains the strongest trust proxy because the workflow is simple enough to become habitual
 
 ---
 
-## Project Scoping & Phased Development
+## Product Scope
 
 ### MVP Strategy & Philosophy
 
-**MVP Approach:** Experience MVP — V1 must deliver a complete, delightful end-to-end experience. The goal is not a prototype; it is a product that 5 pilot users will use daily and cannot work without.
+**MVP Approach:** Experience MVP — V1 must deliver a complete, delightful end-to-end reply experience. The goal is not a draft engine or a separate AI workspace; it is a familiar mail flow that helps users answer messages faster.
 
 **Resource Requirements:** Small team (1–2 developers + product owner). Next.js + Supabase keeps complexity manageable; LLM API removes the need for in-house AI infrastructure.
 
@@ -172,83 +183,93 @@ The gap: no tool combines inbox integration + business-specific AI drafting + ra
 | Email sync (every 5 min, async) | Foundation of the inbox experience |
 | Auto-categorization (quote, inquiry, invoice, follow-up, spam) | Core triage value |
 | Priority ranking | Surfaces urgent emails first |
-| AI draft generation (async, RAG on KB) | Primary value proposition |
-| Confidence score per draft | Trust mechanism |
-| Draft editor: validate / modify / regenerate / reject | Full user control |
+| Split-pane inbox shell with in-place message reading | Familiar Outlook/Gmail-style layout |
+| Reply composer with textarea and AI wand button | Primary reply experience |
+| Visible actions: Send, Archive, Delete | Clear, familiar mail actions |
+| Quote confirmation pop-in | Prevents the wrong response format |
+| On-demand AI reply generation (RAG on KB + current thread) | Primary value proposition |
+| Manual editing of generated replies | Full user control |
+| Three-generation limit per email | Cost and misuse guardrail |
 | Knowledge base upload (CSV/Excel, drag-and-drop) | Grounds AI in business reality |
 | Guided onboarding + video | Removes friction for first-time setup |
 | Single-user account, full data isolation (RLS) | Security baseline |
 
-**Explicitly Out of V1 Scope:** AI assistant bot, mobile app, multi-user accounts, billing, CRM/ERP integrations, Slack/webhook notifications.
+**Explicitly Out of V1 Scope:** Persistent draft list, background draft generation at sync time, confidence scoring, AI assistant bot, mobile app, multi-user accounts, billing, CRM/ERP integrations, Slack/webhook notifications.
+
+**Browser Support:** Chrome, Firefox, Edge — latest 2 stable versions. Safari latest stable version. Desktop viewport only (minimum 1280px width).
+
+**Accessibility:** WCAG 2.1 Level AA compliance required — keyboard navigation, sufficient color contrast, and screen reader compatibility for all core inbox and composer interactions.
 
 ### Phase 2 — Growth (Post-Pilot)
 
-- AI assistant bot — conversational interface to query KB and email context
+- Reply templates and tone presets
+- More intelligent quote generation flows
 - Mobile PWA
 - Subscription billing (Stripe)
-- User feedback loop integrated into draft quality scoring
+- User feedback loop focused on reply usefulness and editing effort
 
 ### Phase 3 — Expansion (V3 SaaS)
 
 - Multi-user team accounts with role management
 - CRM / ERP connectors
 - Industry-agnostic onboarding + KB templates marketplace
-- Advanced analytics (time saved, draft acceptance trends)
+- Advanced analytics (time saved, AI usage, quote-confirmation rate)
 - API for third-party integrations
 - Fully autonomous email handling for low-risk categories (auto-send after user-defined approval threshold)
 
 ---
 
-## Domain-Specific Requirements
+## Domain Requirements
 
 ### Compliance & Data Privacy
 
 - User emails are **never stored** — read on-demand via provider APIs only
-- Knowledge base files (CSV/Excel) stored encrypted at rest
-- GDPR compliance required at launch: privacy policy, data deletion rights, data processing agreement
-- EU-hosted infrastructure preferred for B2B European clients
+- Knowledge base files (CSV/Excel) are stored encrypted at rest
+- Generated replies are ephemeral composer state, not a persistent draft archive
+- GDPR compliance is required at launch: privacy policy, data deletion rights, and a data processing agreement
+- EU-hosted infrastructure is preferred for B2B European clients
 
 ### Third-Party Integration Constraints
 
-- **Gmail OAuth verification:** Sensitive scope review required. Timeline: 4–8 weeks. V1 pilot (≤ 100 users) operates in test mode — initiate approval process at project kickoff, not at launch
+- **Gmail OAuth verification:** Sensitive scope review required. Timeline: 4–8 weeks. V1 pilot (≤ 100 users) operates in test mode — initiate approval at project kickoff, not at launch
 - **Microsoft Graph verification:** Azure AD publisher verification required; lower friction than Google for low volume
 - **IMAP fallback:** First-class V1 feature supporting non-Gmail/Outlook mailboxes (OVH, corporate SMTP, etc.)
 
 ### Performance & AI Throughput
 
-- Draft generation is asynchronous — pre-generated at sync time, never blocking the UI
-- LLM calls throttled per user and globally to prevent overload and control costs
-- Draft caching: a generated draft is not regenerated until email status changes
-- Priority queue: urgent emails processed first by the AI pipeline
+- AI reply generation is on-demand — it starts only after the user clicks the AI button
+- LLM calls are throttled per user and globally to prevent overload and control costs
+- There is no draft caching layer or background regeneration queue for saved drafts
+- Urgent emails still receive priority in the inbox, but reply generation remains user-triggered
 
 ---
 
-## SaaS B2B Technical Requirements
+## Project-Type Requirements
 
 ### Architecture Overview
 
-**Frontend:** Next.js (React) — cloud-hosted, desktop-first for V1, SSR for initial inbox load, client-side updates via Supabase Realtime
+**Frontend:** Next.js (React) — cloud-hosted, desktop-first for V1, split-pane inbox shell, SSR for initial inbox load, client-side updates via Supabase Realtime
 
 **Backend & Database:** Supabase — PostgreSQL with RLS, Supabase Auth (email/password + OAuth), Supabase Storage (encrypted file uploads), Supabase Realtime (live inbox updates)
 
-**AI Layer:** LLM API (OpenAI / Anthropic) called server-side only; async job queue for draft generation; knowledge base indexed as vector embeddings (RAG pattern)
+**AI Layer:** LLM API (OpenAI / Anthropic) called server-side only; on-demand reply generation pipeline; knowledge base indexed as vector embeddings (RAG pattern)
 
 **Email Integration:** Gmail API (OAuth 2.0), Microsoft Graph API (OAuth 2.0), IMAP/SMTP fallback
 
 ### Multi-Tenancy & Data Isolation
 
-- Each user account fully isolated: separate knowledge base, email connection, and draft history
-- Row-Level Security (RLS) enforced at Supabase level — zero cross-account data access
-- V1: single role per account (owner = admin = user)
+- Each user account is fully isolated: separate knowledge base, email connection, and composer state
+- Row-Level Security (RLS) is enforced at the Supabase level — zero cross-account data access
+- V1 uses a single role per account (owner = admin = user)
 - V3 architecture anticipates multi-user team accounts without V1 over-engineering
 - User accounts include a `plan` field from day one for future billing integration
 
 ### Implementation Notes
 
-- Supabase Edge Functions or lightweight Node.js/Python backend for LLM orchestration and email sync jobs
-- Email sync on scheduled interval (every 5 minutes) per connected account
-- Knowledge base re-indexing triggered on file upload only, not on every LLM call
-- All LLM calls server-side; no AI credentials exposed to the browser
+- Supabase Edge Functions or a lightweight Node.js/Python backend handle LLM orchestration and email sync jobs
+- Email sync runs on a scheduled interval (every 5 minutes) per connected account
+- Knowledge base re-indexing is triggered on file upload only, not on every LLM call
+- All LLM calls remain server-side; no AI credentials are exposed to the browser
 
 ---
 
@@ -258,7 +279,7 @@ The gap: no tool combines inbox integration + business-specific AI drafting + ra
 
 - FR1: A user can create an account with email and password
 - FR2: A user can verify their email address to activate their account
-- FR3: A user can log in and log out securely
+- FR3: A user can log in and log out; sessions expire after a configurable inactivity period
 - FR4: A user can delete their account and all associated data
 
 ### Email Provider Connection
@@ -267,7 +288,7 @@ The gap: no tool combines inbox integration + business-specific AI drafting + ra
 - FR6: A user can connect an Outlook mailbox via OAuth
 - FR7: A user can connect any IMAP/SMTP mailbox with credentials
 - FR8: A user can disconnect a connected mailbox
-- FR9: The system syncs new emails from the connected mailbox automatically at regular intervals
+- FR9: The system syncs new emails from the connected mailbox automatically every 5 minutes
 
 ### Inbox & Triage
 
@@ -280,34 +301,35 @@ The gap: no tool combines inbox integration + business-specific AI drafting + ra
 
 ### AI Draft Generation
 
-- FR16: The system generates a draft reply for each incoming email using the user's knowledge base as the sole source of factual data
-- FR17: The system displays a confidence score for each generated draft
-- FR18: A user can view the generated draft for any email
+- FR16: A user can trigger AI draft generation on demand for any email; the system generates a contextual reply using the current email thread and the user's knowledge base as the sole source of factual data
+- FR17: A user can view an in-place reply composer alongside the email they are reading
+- FR18: A user can view the AI-generated draft in the reply composer
 - FR19: A user can validate and send a draft as-is with a single action
 - FR20: A user can edit a draft manually before sending
-- FR21: A user can request a new draft with an optional instruction (e.g., "offer a delay of 24h")
-- FR22: A user can reject a draft and compose their own reply
-- FR23: The system generates drafts asynchronously at sync time, not on demand
+- FR21: A user can request a new draft with an optional instruction (e.g., "offer a delay of 24h"); the system limits AI generation to 3 attempts per email
+- FR22: A user can reject a draft and compose their own reply from scratch
+- FR23: A user can delete an email from their inbox
+- FR24: When an incoming email is detected as a potential quote request, the system prompts the user for confirmation before generating a quote-oriented reply
 
 ### Knowledge Base Management
 
-- FR24: A user can upload one or more CSV or Excel files as their knowledge base
-- FR25: A user can view the list of uploaded knowledge base files
-- FR26: A user can delete a knowledge base file
-- FR27: The system indexes uploaded files for use in AI draft generation
-- FR28: The system re-indexes the knowledge base when a file is added or removed
+- FR25: A user can upload one or more CSV or Excel files as their knowledge base
+- FR26: A user can view the list of uploaded knowledge base files
+- FR27: A user can delete a knowledge base file
+- FR28: The system indexes uploaded files for use in AI draft generation
+- FR29: The system re-indexes the knowledge base when a file is added or removed
 
 ### Onboarding
 
-- FR29: A new user is guided through a step-by-step onboarding flow (account creation → mailbox connection → knowledge base upload → configuration)
-- FR30: A user can configure their preferred reply tone (formal / informal) and language during onboarding
-- FR31: A user can access an onboarding help video at any time from the onboarding screen
+- FR30: A new user is guided through a step-by-step onboarding flow (account creation → mailbox connection → knowledge base upload → configuration)
+- FR31: A user can configure their preferred reply tone (formal / informal) and language during onboarding
+- FR32: A user can access an onboarding help video at any time from the onboarding screen
 
 ### Data & Security
 
-- FR32: Each user's emails, knowledge base files, and drafts are fully isolated from other users
-- FR33: The system never stores user email content — emails are read on-demand via provider APIs
-- FR34: Knowledge base files are stored encrypted at rest
+- FR33: Each user's emails, knowledge base files, and generated replies are fully isolated from other users
+- FR34: The system never stores user email content; emails are read on-demand from the connected mailbox provider
+- FR35: Knowledge base files are stored encrypted at rest
 
 ---
 
@@ -315,40 +337,32 @@ The gap: no tool combines inbox integration + business-specific AI drafting + ra
 
 ### Performance
 
-- Email sync latency: new emails appear in MailAgent within 2 minutes of receipt
-- AI draft generation: draft available within 10 seconds of email sync completion (async — not blocking the UI)
-- Knowledge base indexing: uploaded files fully indexed within 60 seconds
-- UI responsiveness: all user actions complete within 1 second regardless of AI pipeline load
-- Email send: confirmed as sent within 3 seconds of user validation
+- Email sync latency: new emails appear in MailAgent within 2 minutes of receipt, as measured by end-to-end delivery timestamp comparison
+- AI draft generation: reply draft appears in the composer within 10 seconds of the user triggering generation, as measured from click to text render
+- Knowledge base indexing: uploaded files fully indexed and available for AI generation within 60 seconds of upload confirmation
+- UI responsiveness: all user-initiated actions (send, archive, delete, filter) complete within 1 second under normal load, as measured by client-side interaction timing
+- Email send: delivery confirmed to the user within 3 seconds of clicking send
 
 ### Security
 
 - All data transmitted over HTTPS/TLS
-- Knowledge base files encrypted at rest (Supabase Storage)
-- User email content never persisted — read on-demand via provider APIs only
-- Row-Level Security (RLS) at database level — zero cross-account data access
-- LLM API calls server-side only — no AI credentials exposed to the browser
-- OAuth tokens stored server-side, never in browser localStorage
-- GDPR: user data deletion on account close, privacy policy required at launch
+- Knowledge base files stored encrypted at rest using cloud-provider managed encryption
+- User email content never persisted server-side; read on-demand from the connected mailbox provider per request
+- User data is fully isolated per account — no cross-account data access is possible at any layer
+- AI generation credentials never exposed to client-side code; all AI calls are proxied server-side
+- Authentication tokens never accessible to client-side scripts
+- GDPR: user data deletion on account close within 30 days; privacy policy required at launch
 
 ### Scalability
 
-- Supports 50 DAU at Month 3 without degradation
-- AI job queue handles concurrent draft generation across all active users without blocking
-- Per-user LLM call throttling prevents cost spikes
-- Architecture anticipates V3 multi-user accounts without V1 over-engineering
+- Supports 50 DAU at Month 3 with email sync latency and AI generation time remaining within Performance targets above
+- Concurrent AI generation requests from multiple users are queued; no user waits more than 30 seconds for their generation to start
+- Per-user AI call rate limited to a maximum of 20 generations per hour to control costs
+- Data model supports future multi-user team accounts without V1 schema changes
 
 ### Reliability
 
-- Application uptime ≥ 99.5% during business hours (Mon–Fri, 8h–20h)
-- Email sync failures retried automatically; user notified if sync is degraded
-- IMAP fallback available if Gmail or Outlook APIs are unavailable
-- Draft generation failures handled gracefully — error with retry option, never a blank state
-
-### Integration
-
-- Gmail API: OAuth 2.0 scopes limited to minimum required (read, send, label)
-- Microsoft Graph API: OAuth 2.0 with equivalent minimum scopes
-- IMAP/SMTP: standard ports (993/465) with TLS
-- LLM provider API: abstracted server-side to allow provider switching without frontend changes
-- Supabase Realtime: live inbox updates — fallback to polling if WebSocket unavailable
+- Application uptime ≥ 99.5% during business hours (Mon–Fri, 8h–20h), as measured by uptime monitoring
+- Email sync failures retried automatically up to 3 times; user notified via in-app banner if sync remains degraded after retries
+- IMAP/SMTP connection available as fallback if Gmail or Outlook APIs are unavailable
+- AI generation failures display an error message with a retry button within 3 seconds; the composer never shows a blank or loading state indefinitely
