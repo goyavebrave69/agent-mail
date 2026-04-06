@@ -170,9 +170,16 @@ export function InboxShell({
       if (showUnreadOnly && email.is_read) return false
       if (!searchQuery) return true
 
-      const sender = (email.from_name ?? email.from_email ?? "").toLowerCase()
+      const senderName = (email.from_name ?? "").toLowerCase()
+      const senderEmail = (email.from_email ?? "").toLowerCase()
       const subject = (email.subject ?? "").toLowerCase()
-      return sender.includes(searchQuery) || subject.includes(searchQuery)
+      const bodyPreview = (email.body_text ?? "").toLowerCase()
+      return (
+        senderName.includes(searchQuery) ||
+        senderEmail.includes(searchQuery) ||
+        subject.includes(searchQuery) ||
+        bodyPreview.includes(searchQuery)
+      )
     })
   }, [emails, search, showUnreadOnly])
 

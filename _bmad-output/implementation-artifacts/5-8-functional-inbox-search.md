@@ -1,6 +1,6 @@
 # Story 5.8: Functional Inbox Search
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -32,16 +32,16 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Harden search behavior in `components/inbox/inbox-shell.tsx` (AC: 1, 2, 3)
-  - [ ] Ensure filtering fields include sender name/email, subject, and body preview
-  - [ ] Keep search case-insensitive and whitespace-trimmed
-  - [ ] Maintain stable selected-email behavior during filtering
-- [ ] Add tests for search interactions (AC: 1, 2, 3)
-  - [ ] Add component tests for query matching and empty state
-  - [ ] Add tests for selection retention and fallback auto-selection
-- [ ] Keep architecture compliance (AC: 1)
-  - [ ] No new route/page for search behavior
-  - [ ] Stay in existing inbox shell and state flow
+- [x] Harden search behavior in `components/inbox/inbox-shell.tsx` (AC: 1, 2, 3)
+  - [x] Ensure filtering fields include sender name/email, subject, and body preview
+  - [x] Keep search case-insensitive and whitespace-trimmed
+  - [x] Maintain stable selected-email behavior during filtering
+- [x] Add tests for search interactions (AC: 1, 2, 3)
+  - [x] Add component tests for query matching and empty state
+  - [x] Add tests for selection retention and fallback auto-selection
+- [x] Keep architecture compliance (AC: 1)
+  - [x] No new route/page for search behavior
+  - [x] Stay in existing inbox shell and state flow
 
 ---
 
@@ -80,16 +80,26 @@ Status: ready-for-dev
 
 ### Agent Model Used
 
-Codex (GPT-5)
+claude-sonnet-4-6
 
 ### Debug Log References
 
-- Story created via `.claude/skills/bmad-create-story` workflow
+- Both emails in filter tests must use unique `from_email` overrides; otherwise the `baseEmail` default (`alice@example.com`) causes cross-contamination when searching "alice".
+- `from_name ?? from_email` (old) silently dropped `from_email` search when a name was present. Fixed by searching each field independently.
 
 ### Completion Notes List
 
-- Ordered first to stabilize inbox list interaction before navigation and action enhancements.
+- Extended `filteredEmails` useMemo in `inbox-shell.tsx` to search `senderName`, `senderEmail`, `subject`, and `bodyPreview` independently (case-insensitive, whitespace-trimmed).
+- Selection retention behavior was already correct; no change needed.
+- Added 12 component tests in `inbox-shell.test.tsx` covering: all-fields search, empty state, reading-pane safety, clear-to-restore, whitespace trim, auto-select, and selection retention/fallback.
+- 207 tests pass; typecheck and lint clean.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-8-functional-inbox-search.md
+- components/inbox/inbox-shell.tsx
+- components/inbox/inbox-shell.test.tsx
+
+### Change Log
+
+- Extended inbox search to cover sender email and body preview (Date: 2026-04-06)
