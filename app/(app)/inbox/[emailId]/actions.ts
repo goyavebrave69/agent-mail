@@ -449,6 +449,52 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
   return { success: true }
 }
 
+// ─── Archive email ────────────────────────────────────────────────────────────
+
+export async function archiveEmail(
+  emailId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('emails')
+    .update({ is_archived: true, updated_at: new Date().toISOString() })
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/inbox')
+  return { success: true }
+}
+
+// ─── Trash email ──────────────────────────────────────────────────────────────
+
+export async function trashEmail(
+  emailId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('emails')
+    .update({ is_archived: true, updated_at: new Date().toISOString() })
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/inbox')
+  return { success: true }
+}
+
 // ─── Send manual reply ────────────────────────────────────────────────────────
 
 export async function sendManualReply(
