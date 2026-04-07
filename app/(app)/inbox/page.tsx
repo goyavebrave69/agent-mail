@@ -1,7 +1,8 @@
 import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { InboxShell } from "@/components/inbox/inbox-shell"
-import type { InboxCategory } from "@/components/inbox/inbox-list"
+import { isSystemInboxCategory, type CustomCategory } from "@/lib/inbox/custom-categories"
+import type { EmailCategory } from "@/types/email"
 
 export interface InboxEmail {
   id: string
@@ -11,7 +12,7 @@ export interface InboxEmail {
   received_at: string
   is_read: boolean
   is_archived: boolean
-  category: "quote" | "inquiry" | "invoice" | "follow_up" | "spam" | "other"
+  category: EmailCategory
   priority_rank: number
   body_text: string | null
 }
@@ -20,27 +21,32 @@ interface InboxPageProps {
   searchParams: Promise<{ category?: string }>
 }
 
-const VALID_CATEGORIES: InboxCategory[] = [
-  "quote",
-  "inquiry",
-  "invoice",
-  "follow_up",
-  "spam",
-  "other",
-]
-
-function normalizeCategory(value?: string): InboxCategory | null {
+function normalizeCategory(
+  value: string | undefined,
+  customCategorySlugs: Set<string>
+): string | null {
   if (!value) return null
-  return VALID_CATEGORIES.includes(value as InboxCategory) ? (value as InboxCategory) : null
+  if (isSystemInboxCategory(value)) return value
+  return customCategorySlugs.has(value) ? value : null
 }
 
-async function InboxContent({ category }: { category: InboxCategory | null }) {
+async function InboxContent({ categoryParam }: { categoryParam?: string }) {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (!user) return null
+
+  const { data: customCategoryRows } = await supabase
+    .from("custom_categories")
+    .select("id, name, slug")
+    .eq("user_id", user.id)
+    .order("name", { ascending: true })
+
+  const customCategories = (customCategoryRows as CustomCategory[] | null) ?? []
+  const customCategorySlugs = new Set(customCategories.map((customCategory) => customCategory.slug))
+  const category = normalizeCategory(categoryParam, customCategorySlugs)
 
   const { data: allEmails } = await supabase
     .from("emails")
@@ -53,13 +59,18 @@ async function InboxContent({ category }: { category: InboxCategory | null }) {
     .order("received_at", { ascending: false })
 
   const emails = ((allEmails as InboxEmail[]) ?? [])
-  const visibleEmails = category ? emails.filter((email) => email.category === category) : emails
+  const visibleEmails = !category
+    ? emails
+    : isSystemInboxCategory(category)
+      ? emails.filter((email) => email.category === category)
+      : []
 
   return (
     <InboxShell
       emails={visibleEmails}
       userId={user.id}
       activeCategory={category}
+      customCategories={customCategories}
     />
   )
 }
@@ -76,11 +87,10 @@ function InboxSkeleton() {
 
 export default async function InboxPage({ searchParams }: InboxPageProps) {
   const resolvedParams = await searchParams
-  const category = normalizeCategory(resolvedParams.category)
 
   return (
     <Suspense fallback={<InboxSkeleton />}>
-      <InboxContent category={category} />
+      <InboxContent categoryParam={resolvedParams.category} />
     </Suspense>
   )
 }
