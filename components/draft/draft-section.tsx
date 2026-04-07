@@ -75,8 +75,11 @@ export function DraftSection({ draft: initialDraft, emailId, userId }: DraftSect
       if (updated.status === 'ready' || updated.status === 'error') {
         clearCreating()
       }
+      if (updated.status === 'ready' && updated.content && isComposing) {
+        updateManualContent(updated.content)
+      }
     },
-    [clearCreating]
+    [clearCreating, isComposing, updateManualContent]
   )
 
   const handleValidateAndSend = useCallback(async () => {
@@ -132,6 +135,8 @@ export function DraftSection({ draft: initialDraft, emailId, userId }: DraftSect
             sendError={sendManualError}
             manualContent={manualContent}
             onContentChange={updateManualContent}
+            onCreateDraft={handleCreateDraft}
+            isCreating={isCreating}
           />
         </div>
       )
