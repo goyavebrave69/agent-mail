@@ -4,7 +4,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DraftSection } from './draft-section'
 import { useDraftStore } from '@/stores/draft-store'
 
-// Mock server actions
 vi.mock('@/app/(app)/inbox/[emailId]/actions', () => ({
   validateAndSendDraft: vi.fn().mockResolvedValue({ success: true }),
   rejectDraft: vi.fn().mockResolvedValue({ success: true }),
@@ -13,12 +12,10 @@ vi.mock('@/app/(app)/inbox/[emailId]/actions', () => ({
   regenerateDraft: vi.fn().mockResolvedValue({ success: true }),
 }))
 
-// Mock DraftRealtime to avoid Supabase client setup in tests
 vi.mock('./draft-realtime', () => ({
   DraftRealtime: () => null,
 }))
 
-// Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }))
@@ -26,7 +23,6 @@ vi.mock('next/navigation', () => ({
 import { createDraftOnDemand } from '@/app/(app)/inbox/[emailId]/actions'
 
 const defaultProps = {
-  draft: null,
   emailId: 'email-1',
   userId: 'user-1',
 }
@@ -36,69 +32,28 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('DraftSection — empty state (no draft)', () => {
-  it('shows "No draft available yet." message and Create Draft button', () => {
-    render(<DraftSection {...defaultProps} />)
-    expect(screen.getByText(/no draft available yet/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /create draft/i })).toBeInTheDocument()
-  })
-
-  it('Create Draft button is enabled initially', () => {
-    render(<DraftSection {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /create draft/i })).not.toBeDisabled()
-  })
-
-  it('shows generating skeleton immediately after Create Draft is clicked', async () => {
-    // Make createDraftOnDemand never resolve so we can observe the optimistic state
-    vi.mocked(createDraftOnDemand).mockImplementation(() => new Promise(() => {}))
-
-    render(<DraftSection {...defaultProps} />)
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
-
-    await waitFor(() => {
-      expect(screen.getByLabelText(/generating draft/i)).toBeInTheDocument()
-    })
-    expect(screen.queryByRole('button', { name: /create draft/i })).not.toBeInTheDocument()
-  })
-
-  it('shows error alert when createDraftOnDemand fails', async () => {
-    vi.mocked(createDraftOnDemand).mockResolvedValue({
-      success: false,
-      error: 'Edge function unavailable.',
-    })
-
-    render(<DraftSection {...defaultProps} />)
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument()
-      expect(screen.getByText('Edge function unavailable.')).toBeInTheDocument()
-    })
-  })
-
-  it('calls createDraftOnDemand with correct emailId', async () => {
-    vi.mocked(createDraftOnDemand).mockResolvedValue({ success: true })
-
-    render(<DraftSection {...defaultProps} emailId="email-42" />)
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
-
-    await waitFor(() => {
-      expect(createDraftOnDemand).toHaveBeenCalledWith('email-42')
-    })
+describe('DraftSection — not composing', () => {
+  it('renders nothing when not composing', () => {
+    const { container } = render(<DraftSection {...defaultProps} />)
+    expect(container).toBeEmptyDOMElement()
   })
 })
 
-describe('DraftSection — compose mode (rejected + composing)', () => {
+describe('DraftSection — compose mode', () => {
   function renderComposing() {
-    useDraftStore.getState().optimisticReject()
     useDraftStore.getState().startComposing()
     return render(<DraftSection {...defaultProps} />)
   }
 
-  it('shows ManualCompose with Create Draft button next to Send', () => {
+  it('shows ManualCompose with Send and Create Draft buttons when composing', () => {
     renderComposing()
-    expect(screen.getByRole('button', { name: /create draft/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /send reply/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /create draft/i })).toBeInTheDocument()
+  })
+
+  it('shows textarea for manual reply', () => {
+    renderComposing()
+    expect(screen.getByRole('textbox', { name: /write your reply/i })).toBeInTheDocument()
   })
 
   it('clicking Create Draft calls createDraftOnDemand with emailId', async () => {
@@ -121,15 +76,27 @@ describe('DraftSection — compose mode (rejected + composing)', () => {
     })
   })
 
-  it('duplicate clicks are prevented: Create Draft disabled once creating starts', async () => {
+  it('duplicate clicks are prevented once creating starts', async () => {
     vi.mocked(createDraftOnDemand).mockImplementation(() => new Promise(() => {}))
     renderComposing()
     fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /create draft/i })).toBeDisabled()
     })
-    // Second click should not call createDraftOnDemand again
     fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
     expect(createDraftOnDemand).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows error alert when createDraftOnDemand fails', async () => {
+    vi.mocked(createDraftOnDemand).mockResolvedValue({
+      success: false,
+      error: 'Edge function unavailable.',
+    })
+    renderComposing()
+    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+      expect(screen.getByText('Edge function unavailable.')).toBeInTheDocument()
+    })
   })
 })
