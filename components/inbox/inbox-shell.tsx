@@ -28,11 +28,9 @@ import { CATEGORY_BADGE, type InboxCategory } from "@/components/inbox/inbox-lis
 import { DraftSection } from "@/components/draft/draft-section"
 import {
   archiveEmail,
-  fetchDraftForEmail,
   trashEmail,
 } from "@/app/(app)/inbox/[emailId]/actions"
 import { useDraftStore } from "@/stores/draft-store"
-import type { Draft } from "@/types/draft"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -154,7 +152,6 @@ export function InboxShell({
   const [search, setSearch] = useState("")
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null)
-  const [currentDraft, setCurrentDraft] = useState<Draft | null>(null)
   const [customCategoriesState, setCustomCategoriesState] = useState<CustomCategory[]>(customCategories)
   const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState("")
@@ -162,6 +159,7 @@ export function InboxShell({
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false)
   const resetDraftStore = useDraftStore((s) => s.reset)
   const startComposing = useDraftStore((s) => s.startComposing)
+  const isComposing = useDraftStore((s) => s.isComposing)
   const [actionError, setActionError] = useState<string | null>(null)
   const [isActioning, setIsActioning] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -253,11 +251,6 @@ export function InboxShell({
 
   useEffect(() => {
     resetDraftStore()
-    setCurrentDraft(null)
-    if (!selectedEmailId) return
-    fetchDraftForEmail(selectedEmailId)
-      .then((draft) => setCurrentDraft(draft))
-      .catch(() => setCurrentDraft(null))
   }, [selectedEmailId, resetDraftStore])
 
   const filteredEmails = useMemo(() => {
@@ -734,13 +727,14 @@ export function InboxShell({
                 </div>
               </div>
 
-              <div className="mt-3 rounded-xl border border-[#e6e6e8] bg-white p-4">
-                <DraftSection
-                  draft={currentDraft}
-                  emailId={selectedEmailId!}
-                  userId={userId}
-                />
-              </div>
+              {isComposing && (
+                <div className="mt-3 rounded-xl border border-[#e6e6e8] bg-white p-4">
+                  <DraftSection
+                    emailId={selectedEmailId!}
+                    userId={userId}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

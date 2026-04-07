@@ -10,6 +10,8 @@ const KB_CHUNKS = [
   { content: "Our return policy is 30 days, no questions asked.", similarity: 0.85 },
 ]
 
+const SAMPLE_BODY = "Hi, I wanted to ask about your shipping policy. Do you offer free shipping?"
+
 function mockLlmSuccess(content: string) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
@@ -40,6 +42,7 @@ describe("generateDraft", () => {
     const result = await generateDraft(
       "Shipping question",
       "customer@example.com",
+      SAMPLE_BODY,
       KB_CHUNKS,
       TEST_API_KEY
     )
@@ -54,7 +57,7 @@ describe("generateDraft", () => {
   it("returns error with retryable: true when a network error occurs", async () => {
     mockFetch.mockRejectedValueOnce(new Error("fetch failed"))
     const { generateDraft } = await import("./draft")
-    const result = await generateDraft("Subject", "from@example.com", KB_CHUNKS, TEST_API_KEY)
+    const result = await generateDraft("Subject", "from@example.com", null, KB_CHUNKS, TEST_API_KEY)
     expect("error" in result).toBe(true)
     if ("error" in result) {
       expect(result.retryable).toBe(true)
@@ -65,7 +68,7 @@ describe("generateDraft", () => {
   it("returns error with retryable: false when quota is exceeded (HTTP 429)", async () => {
     mockLlmError(429, "quota exceeded")
     const { generateDraft } = await import("./draft")
-    const result = await generateDraft("Subject", "from@example.com", KB_CHUNKS, TEST_API_KEY)
+    const result = await generateDraft("Subject", "from@example.com", null, KB_CHUNKS, TEST_API_KEY)
     expect("error" in result).toBe(true)
     if ("error" in result) {
       expect(result.retryable).toBe(false)
@@ -79,17 +82,51 @@ describe("generateDraft", () => {
     ]
     mockLlmSuccess("Here is the draft reply.")
     const { generateDraft } = await import("./draft")
-    const result = await generateDraft("Clear subject with detail", null, highSimChunks, TEST_API_KEY)
+    const result = await generateDraft(
+      "Clear subject with detail",
+      null,
+      SAMPLE_BODY,
+      highSimChunks,
+      TEST_API_KEY
+    )
     if (!("error" in result)) {
-      // base 50 + up to 30 (avg 0.965 * 30 ≈ 29) + up to 20 (long subject) = ~99
+      // base 40 + body 20 + kb ~24 (avg 0.965 * 25) + subject 15 = ~99
       expect(result.confidenceScore).toBeGreaterThan(75)
     }
+  })
+
+  it("generates a draft from email body alone (no KB chunks)", async () => {
+    mockLlmSuccess("Thanks for reaching out. Here is our answer.")
+    const { generateDraft } = await import("./draft")
+    const result = await generateDraft(
+      "A question",
+      "sender@example.com",
+      SAMPLE_BODY,
+      [],
+      TEST_API_KEY
+    )
+    expect("error" in result).toBe(false)
+    if (!("error" in result)) {
+      expect(result.content).toBeTruthy()
+    }
+  })
+
+  it("includes the email body in the user message sent to the LLM", async () => {
+    mockLlmSuccess("Here is a reply.")
+    const { generateDraft } = await import("./draft")
+    await generateDraft("Subject", "from@example.com", SAMPLE_BODY, [], TEST_API_KEY)
+    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(options.body as string) as {
+      messages: Array<{ role: string; content: string }>
+    }
+    const userMsg = body.messages.find(m => m.role === "user")?.content ?? ""
+    expect(userMsg).toContain(SAMPLE_BODY)
   })
 
   it("includes tone and language preferences in the generated prompt", async () => {
     mockLlmSuccess("Voici le brouillon de réponse.")
     const { generateDraft } = await import("./draft")
-    await generateDraft("Sujet", "exp@example.com", KB_CHUNKS, TEST_API_KEY, {
+    await generateDraft("Sujet", "exp@example.com", null, KB_CHUNKS, TEST_API_KEY, {
       tone: "informal",
       language: "French",
     })
@@ -105,7 +142,7 @@ describe("generateDraft", () => {
   it("includes the instruction parameter in the user message for regeneration", async () => {
     mockLlmSuccess("Updated draft with instruction.")
     const { generateDraft } = await import("./draft")
-    await generateDraft("Subject", "from@example.com", KB_CHUNKS, TEST_API_KEY, {
+    await generateDraft("Subject", "from@example.com", null, KB_CHUNKS, TEST_API_KEY, {
       instruction: "Be more concise and focus on the return policy.",
     })
     const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
@@ -119,7 +156,7 @@ describe("generateDraft", () => {
   it("returns error with retryable: true for 5xx server errors", async () => {
     mockLlmError(503, "Service unavailable")
     const { generateDraft } = await import("./draft")
-    const result = await generateDraft("Subject", "from@example.com", KB_CHUNKS, TEST_API_KEY)
+    const result = await generateDraft("Subject", "from@example.com", null, KB_CHUNKS, TEST_API_KEY)
     expect("error" in result).toBe(true)
     if ("error" in result) {
       expect(result.retryable).toBe(true)

@@ -1,6 +1,6 @@
 # Story 5.12: Manual Draft Button Next To Send
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -30,16 +30,16 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Add `Create Draft` control in reply composer footer (AC: 1, 2, 3)
-  - [ ] Place button directly next to existing `Send` action
-  - [ ] Add loading/disabled state during generation
-- [ ] Reuse existing manual generation backend flow (AC: 1, 3)
-  - [ ] Integrate with create-on-demand draft action/pipeline (`5-7`)
-  - [ ] Keep single-active-generation guard per email
-- [ ] Bind composer content to generated draft result (AC: 2)
-  - [ ] Hydrate composer when draft transitions to ready
-  - [ ] Preserve user edits when appropriate
-- [ ] Add tests for happy path and duplicate/error cases (AC: 2, 3)
+- [x] Add `Create Draft` control in reply composer footer (AC: 1, 2, 3)
+  - [x] Place button directly next to existing `Send` action
+  - [x] Add loading/disabled state during generation
+- [x] Reuse existing manual generation backend flow (AC: 1, 3)
+  - [x] Integrate with create-on-demand draft action/pipeline (`5-7`)
+  - [x] Keep single-active-generation guard per email
+- [x] Bind composer content to generated draft result (AC: 2)
+  - [x] Hydrate composer when draft transitions to ready
+  - [x] Preserve user edits when appropriate
+- [x] Add tests for happy path and duplicate/error cases (AC: 2, 3)
 
 ---
 
@@ -81,16 +81,31 @@ Status: ready-for-dev
 
 ### Agent Model Used
 
-Codex (GPT-5)
+claude-sonnet-4-6
 
 ### Debug Log References
 
-- Story created via `.claude/skills/bmad-create-story` workflow
+- `ManualCompose` renders "Create Draft" only when `onCreateDraft` prop is provided — opt-in pattern keeps backward compatibility.
+- Hydration in `handleDraftUpdate`: when draft arrives as `ready` while `isComposing=true`, `updateManualContent(draft.content)` is called — populates textarea without leaving compose mode.
+- `regenerateDraft` added to the actions mock in `draft-section.test.tsx` (was missing, caused no-op but cleaner to declare).
 
 ### Completion Notes List
 
-- Ordered last because it builds on action wiring and existing draft-generation safeguards.
+- Added `onCreateDraft?: () => void` and `isCreating?: boolean` props to `ManualCompose`; "Create Draft" button rendered next to Send when prop provided.
+- "Create Draft" disabled and shows "Generating…" while `isCreating=true`; Cancel also disabled during generation.
+- `DraftSection` passes `onCreateDraft={handleCreateDraft}` and `isCreating={isCreating}` to ManualCompose in the `isRejected && isComposing` branch.
+- `handleDraftUpdate` extended: when draft arrives `ready` while `isComposing`, calls `updateManualContent(draft.content)` to hydrate the textarea.
+- 7 new tests in `manual-compose.test.tsx`; 4 new tests in `draft-section.test.tsx` (composing-mode describe block).
+- 251 tests pass; typecheck and lint clean.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-12-manual-draft-button-next-to-send.md
+- components/draft/manual-compose.tsx
+- components/draft/draft-section.tsx
+- components/draft/manual-compose.test.tsx
+- components/draft/draft-section.test.tsx
+
+### Change Log
+
+- Added Create Draft button next to Send in ManualCompose composer footer; hydrate textarea on draft arrival (Date: 2026-04-07)

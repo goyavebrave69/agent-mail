@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { ArrowLeft, Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { DraftSection } from '@/components/draft/draft-section'
-import { fetchEmail, fetchDraftForEmail } from './actions'
+import { fetchEmail } from './actions'
 
 interface Props {
   params: Promise<{ emailId: string }>
@@ -44,10 +44,7 @@ async function EmailDetailContent({ emailId }: { emailId: string }) {
 
   if (!user) redirect('/sign-in')
 
-  const [email, draft] = await Promise.all([
-    fetchEmail(emailId),
-    fetchDraftForEmail(emailId),
-  ])
+  const email = await fetchEmail(emailId)
 
   if (!email) notFound()
 
@@ -76,7 +73,7 @@ async function EmailDetailContent({ emailId }: { emailId: string }) {
         </div>
       )}
 
-      <DraftSection draft={draft} emailId={emailId} userId={user.id} />
+      <DraftSection emailId={emailId} userId={user.id} />
     </>
   )
 }

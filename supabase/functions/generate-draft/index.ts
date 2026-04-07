@@ -37,9 +37,6 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 
 type DraftStatus = 'pending' | 'generating' | 'ready' | 'sent' | 'rejected' | 'error'
 
-const FALLBACK_DRAFT_CONTENT =
-  'Thank you for your email. We will review and respond shortly.'
-const FALLBACK_CONFIDENCE_SCORE = 20
 
 function buildEmbeddingQueryText(args: {
   emailContent?: string | null
@@ -209,23 +206,11 @@ deno.serve(async (req: Request): Promise<Response> => {
       kbChunks = await findRelevantKbChunks(queryEmbedding, userId, supabase)
     }
 
-    // 7. If no KB chunks, use fallback draft
-    if (kbChunks.length === 0) {
-      await updateDraftStatus(draftId, {
-        status: 'ready',
-        content: FALLBACK_DRAFT_CONTENT,
-        confidence_score: FALLBACK_CONFIDENCE_SCORE,
-      })
-      return new Response(
-        JSON.stringify({ success: true, draftId, fallback: true }),
-        { status: 200 }
-      )
-    }
-
-    // 8. Call generateDraft
+    // 7. Call generateDraft — KB chunks are optional enrichment; email body is the primary input
     const result = await generateDraft(
       emailData.subject,
       emailData.from_email,
+      emailContent,
       kbChunks,
       openAiApiKey,
       { instruction }

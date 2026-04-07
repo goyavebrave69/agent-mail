@@ -75,11 +75,6 @@ describe('ManualCompose', () => {
     expect(screen.getByRole('button', { name: /send reply/i })).toHaveTextContent('Sending…')
   })
 
-  it('displays character count', () => {
-    render(<ManualCompose {...defaultProps} manualContent="Hello" />)
-    expect(screen.getByText(/5\s*\/\s*10\s*000/)).toBeInTheDocument()
-  })
-
   it('shows error alert when sendError is provided', () => {
     render(<ManualCompose {...defaultProps} sendError="Failed to send." />)
     expect(screen.getByRole('alert')).toBeInTheDocument()
@@ -89,5 +84,46 @@ describe('ManualCompose', () => {
   it('does not show error alert when sendError is null', () => {
     render(<ManualCompose {...defaultProps} sendError={null} />)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+describe('ManualCompose — Create Draft button', () => {
+  it('does not render Create Draft button when onCreateDraft is not provided', () => {
+    render(<ManualCompose {...defaultProps} />)
+    expect(screen.queryByRole('button', { name: /create draft/i })).not.toBeInTheDocument()
+  })
+
+  it('renders Create Draft button when onCreateDraft is provided', () => {
+    render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /create draft/i })).toBeInTheDocument()
+  })
+
+  it('Create Draft button is enabled initially', () => {
+    render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /create draft/i })).not.toBeDisabled()
+  })
+
+  it('calls onCreateDraft when Create Draft button is clicked', () => {
+    const onCreateDraft = vi.fn()
+    render(<ManualCompose {...defaultProps} onCreateDraft={onCreateDraft} />)
+    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    expect(onCreateDraft).toHaveBeenCalledOnce()
+  })
+
+  it('Create Draft button shows Generating… and is disabled when isCreating is true', () => {
+    render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} isCreating />)
+    const btn = screen.getByRole('button', { name: /create draft/i })
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveTextContent('Generating…')
+  })
+
+  it('Create Draft button is disabled while isSending is true', () => {
+    render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} isSending manualContent="Hello" />)
+    expect(screen.getByRole('button', { name: /create draft/i })).toBeDisabled()
+  })
+
+  it('Cancel button is disabled when isCreating is true', () => {
+    render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} isCreating />)
+    expect(screen.getByRole('button', { name: /cancel reply/i })).toBeDisabled()
   })
 })

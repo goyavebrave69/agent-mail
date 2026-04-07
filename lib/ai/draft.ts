@@ -11,13 +11,19 @@ export interface DraftGenerationError {
   retryable: boolean
 }
 
+const MAX_BODY_CHARS = 4000
+
 function buildSystemPrompt(
   tone: 'formal' | 'informal',
-  language: string
+  language: string,
+  hasKbContext: boolean
 ): string {
   const toneDesc = tone === 'formal' ? 'professional and formal' : 'friendly and informal'
-  return `You are an email assistant that writes reply drafts grounded exclusively in the provided knowledge base context.
-Use only the information from the context to compose the reply. Do not add any information not present in the context.
+  const kbLine = hasKbContext
+    ? ' When relevant, draw on the knowledge base context provided.'
+    : ''
+  return `You are an email assistant that writes helpful, relevant reply drafts.
+Read the incoming email carefully and respond directly to what the sender is asking or requesting.${kbLine}
 Write in ${language}. Use a ${toneDesc} tone.
 Reply with the email body only — no subject line, no greeting header, no signature placeholder.`
 }
@@ -25,6 +31,7 @@ Reply with the email body only — no subject line, no greeting header, no signa
 function buildUserMessage(
   emailSubject: string | null,
   emailFrom: string | null,
+  emailBody: string | null,
   kbChunks: Array<{ content: string; similarity: number }>,
   instruction: string | null | undefined
 ): string {
@@ -41,37 +48,50 @@ function buildUserMessage(
   parts.push('=== Email to Reply To ===')
   if (emailFrom) parts.push(`From: ${emailFrom}`)
   if (emailSubject) parts.push(`Subject: ${emailSubject}`)
+  if (emailBody) {
+    parts.push('')
+    parts.push(emailBody.trim().slice(0, MAX_BODY_CHARS))
+  }
 
   if (instruction) {
     parts.push('')
-    parts.push(`=== Special Instruction ===`)
+    parts.push('=== Special Instruction ===')
     parts.push(instruction)
   }
 
   parts.push('')
-  parts.push('Write a reply draft based on the knowledge base context above.')
+  parts.push('Write a reply draft to this email.')
 
   return parts.join('\n')
 }
 
 function calculateConfidenceScore(
   kbChunks: Array<{ content: string; similarity: number }>,
-  emailSubject: string | null
+  emailSubject: string | null,
+  emailBody: string | null
 ): number {
-  // Base score: 50
-  let score = 50
+  // Base score: 40 — the LLM always has at least the email to work with
+  let score = 40
 
-  // Add up to 30 points based on average KB chunk similarity
-  if (kbChunks.length > 0) {
-    const avgSimilarity = kbChunks.reduce((sum, c) => sum + c.similarity, 0) / kbChunks.length
-    score += Math.round(avgSimilarity * 30)
+  // Add up to 20 points if email body is present and non-trivial
+  const bodyLength = emailBody?.trim().length ?? 0
+  if (bodyLength >= 50) {
+    score += 20
+  } else if (bodyLength > 0) {
+    score += 10
   }
 
-  // Add up to 20 points based on prompt clarity (subject length)
+  // Add up to 25 points based on average KB chunk similarity (optional enrichment)
+  if (kbChunks.length > 0) {
+    const avgSimilarity = kbChunks.reduce((sum, c) => sum + c.similarity, 0) / kbChunks.length
+    score += Math.round(avgSimilarity * 25)
+  }
+
+  // Add up to 15 points based on subject clarity
   if (emailSubject && emailSubject.trim().length >= 10) {
-    score += 20
+    score += 15
   } else if (emailSubject && emailSubject.trim().length > 0) {
-    score += 10
+    score += 7
   }
 
   // Cap at 0–100
@@ -81,6 +101,7 @@ function calculateConfidenceScore(
 export async function generateDraft(
   emailSubject: string | null,
   emailFrom: string | null,
+  emailBody: string | null,
   kbChunks: Array<{ content: string; similarity: number }>,
   openAiApiKey: string,
   options?: {
@@ -93,8 +114,8 @@ export async function generateDraft(
   const language = options?.language ?? 'English'
   const instruction = options?.instruction ?? null
 
-  const systemPrompt = buildSystemPrompt(tone, language)
-  const userMessage = buildUserMessage(emailSubject, emailFrom, kbChunks, instruction)
+  const systemPrompt = buildSystemPrompt(tone, language, kbChunks.length > 0)
+  const userMessage = buildUserMessage(emailSubject, emailFrom, emailBody, kbChunks, instruction)
 
   try {
     const response = await fetch(OPENAI_CHAT_URL, {
@@ -133,7 +154,7 @@ export async function generateDraft(
       return { error: 'LLM returned empty content', retryable: true }
     }
 
-    const confidenceScore = calculateConfidenceScore(kbChunks, emailSubject)
+    const confidenceScore = calculateConfidenceScore(kbChunks, emailSubject, emailBody)
 
     return { content: content.trim(), confidenceScore }
   } catch (err) {

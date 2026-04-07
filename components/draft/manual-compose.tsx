@@ -10,6 +10,8 @@ interface ManualComposeProps {
   sendError?: string | null
   manualContent: string
   onContentChange: (content: string) => void
+  onCreateDraft?: () => void
+  isCreating?: boolean
 }
 
 const MAX_LENGTH = 10_000
@@ -21,6 +23,8 @@ export function ManualCompose({
   sendError,
   manualContent,
   onContentChange,
+  onCreateDraft,
+  isCreating = false,
 }: ManualComposeProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -79,12 +83,22 @@ export function ManualCompose({
       <div className="flex gap-2">
         <button
           onClick={onCancel}
-          disabled={isSending}
+          disabled={isSending || isCreating}
           className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Cancel reply"
         >
           Cancel
         </button>
+        {onCreateDraft && (
+          <button
+            onClick={onCreateDraft}
+            disabled={isCreating || isSending}
+            className="inline-flex items-center gap-2 rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Create draft"
+          >
+            {isCreating ? 'Generating…' : 'Create Draft'}
+          </button>
+        )}
         <button
           onClick={() => onSend(manualContent)}
           disabled={isDisabled}
