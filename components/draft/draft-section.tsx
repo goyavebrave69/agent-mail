@@ -36,6 +36,8 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
 
   const handleDraftUpdate = useCallback(
     (updated: Draft) => {
+      if (updated.email_id !== emailId) return
+
       if (updated.status === 'ready' || updated.status === 'error') {
         clearCreating()
       }
@@ -43,7 +45,7 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
         updateManualContent(updated.content)
       }
     },
-    [clearCreating, isComposing, updateManualContent]
+    [clearCreating, emailId, isComposing, updateManualContent]
   )
 
   const handleSendManual = useCallback(
@@ -60,23 +62,28 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
   )
 
   const handleCreateDraft = useCallback(async () => {
+    if (isCreating) return
+
     startCreating()
-    const result = await createDraftOnDemand(emailId)
-    if (!result.success) {
-      failCreating(result.error ?? 'Failed to start draft generation.')
-      return
-    }
-    // Edge function is synchronous: draft is ready in DB when the action resolves.
-    // Fetch it directly rather than relying solely on Realtime.
     try {
-      const draft = await fetchDraftForEmail(emailId)
-      if (draft?.status === 'ready' && draft.content) {
-        updateManualContent(draft.content)
+      const result = await createDraftOnDemand(emailId)
+      if (!result.success) {
+        failCreating(result.error ?? 'Failed to start draft generation.')
+        return
       }
-    } finally {
-      clearCreating()
+
+      try {
+        const draft = await fetchDraftForEmail(emailId)
+        if (draft?.status === 'ready' && draft.content) {
+          updateManualContent(draft.content)
+        }
+      } finally {
+        clearCreating()
+      }
+    } catch {
+      failCreating('Failed to start draft generation.')
     }
-  }, [emailId, startCreating, failCreating, clearCreating, updateManualContent])
+  }, [emailId, isCreating, startCreating, failCreating, clearCreating, updateManualContent])
 
   if (!isComposing) return null
 

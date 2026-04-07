@@ -18,8 +18,25 @@ vi.mock('@/app/(app)/inbox/[emailId]/actions', () => ({
   }),
 }))
 
+const realtimeCallbacks: {
+  onDraftUpdate?: (draft: {
+    email_id: string
+    status: 'ready' | 'error' | 'generating' | 'pending' | 'sent' | 'rejected'
+    content?: string | null
+    [key: string]: unknown
+  }) => void
+} = {}
+
 vi.mock('./draft-realtime', () => ({
-  DraftRealtime: () => null,
+  DraftRealtime: ({ onDraftUpdate }: { onDraftUpdate: (draft: {
+    email_id: string
+    status: 'ready' | 'error' | 'generating' | 'pending' | 'sent' | 'rejected'
+    content?: string | null
+    [key: string]: unknown
+  }) => void }) => {
+    realtimeCallbacks.onDraftUpdate = onDraftUpdate
+    return null
+  },
 }))
 
 vi.mock('next/navigation', () => ({
@@ -128,6 +145,49 @@ describe('DraftSection — compose mode', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
       expect(screen.getByText('Edge function unavailable.')).toBeInTheDocument()
+    })
+  })
+
+  it('shows fallback error when createDraftOnDemand throws', async () => {
+    vi.mocked(createDraftOnDemand).mockRejectedValue(new Error('network error'))
+    renderComposing()
+
+    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+      expect(screen.getByText('Failed to start draft generation.')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('button', { name: /create draft/i })).toBeEnabled()
+  })
+
+  it('ignores realtime draft updates for another email while composing', async () => {
+    renderComposing()
+
+    fireEvent.change(screen.getByRole('textbox', { name: /write your reply/i }), {
+      target: { value: 'my manual draft' },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /write your reply/i })).toHaveValue('my manual draft')
+    })
+
+    realtimeCallbacks.onDraftUpdate?.({
+      id: 'draft-other',
+      email_id: 'email-2',
+      user_id: 'user-1',
+      status: 'ready',
+      content: 'other email draft content',
+      confidence_score: 88,
+      error_message: null,
+      retry_count: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /write your reply/i })).toHaveValue('my manual draft')
     })
   })
 })
