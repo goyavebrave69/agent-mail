@@ -120,28 +120,33 @@ export function DraftSection({ draft: initialDraft, emailId, userId }: DraftSect
     // On success, DraftRealtime (with draftId=null) will fire when the draft arrives
   }, [emailId, startCreating, failCreating])
 
-  if (isRejected) {
-    if (isComposing) {
-      return (
-        <div className="space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Manual Reply
-          </h2>
-          <ManualCompose
-            emailId={emailId}
-            onSend={handleSendManual}
-            onCancel={cancelComposing}
-            isSending={isSendingManual}
-            sendError={sendManualError}
-            manualContent={manualContent}
-            onContentChange={updateManualContent}
-            onCreateDraft={handleCreateDraft}
-            isCreating={isCreating}
-          />
-        </div>
-      )
-    }
+  if (isComposing) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Manual Reply
+        </h2>
+        <ManualCompose
+          emailId={emailId}
+          onSend={handleSendManual}
+          onCancel={cancelComposing}
+          isSending={isSendingManual}
+          sendError={sendManualError}
+          manualContent={manualContent}
+          onContentChange={updateManualContent}
+          onCreateDraft={handleCreateDraft}
+          isCreating={isCreating}
+        />
+        <DraftRealtime
+          draftId={draft?.id ?? null}
+          userId={userId}
+          onDraftUpdate={handleDraftUpdate}
+        />
+      </div>
+    )
+  }
 
+  if (isRejected) {
     return (
       <div className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
