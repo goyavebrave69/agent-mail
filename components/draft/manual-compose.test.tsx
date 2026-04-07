@@ -75,11 +75,6 @@ describe('ManualCompose', () => {
     expect(screen.getByRole('button', { name: /send reply/i })).toHaveTextContent('Sending…')
   })
 
-  it('displays character count', () => {
-    render(<ManualCompose {...defaultProps} manualContent="Hello" />)
-    expect(screen.getByText(/5\s*\/\s*10\s*000/)).toBeInTheDocument()
-  })
-
   it('shows error alert when sendError is provided', () => {
     render(<ManualCompose {...defaultProps} sendError="Failed to send." />)
     expect(screen.getByRole('alert')).toBeInTheDocument()

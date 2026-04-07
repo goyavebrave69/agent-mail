@@ -7,6 +7,7 @@ import { useDraftStore } from '@/stores/draft-store'
 import {
   sendManualReply,
   createDraftOnDemand,
+  fetchDraftForEmail,
 } from '@/app/(app)/inbox/[emailId]/actions'
 import type { Draft } from '@/types/draft'
 
@@ -63,8 +64,19 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
     const result = await createDraftOnDemand(emailId)
     if (!result.success) {
       failCreating(result.error ?? 'Failed to start draft generation.')
+      return
     }
-  }, [emailId, startCreating, failCreating])
+    // Edge function is synchronous: draft is ready in DB when the action resolves.
+    // Fetch it directly rather than relying solely on Realtime.
+    try {
+      const draft = await fetchDraftForEmail(emailId)
+      if (draft?.status === 'ready' && draft.content) {
+        updateManualContent(draft.content)
+      }
+    } finally {
+      clearCreating()
+    }
+  }, [emailId, startCreating, failCreating, clearCreating, updateManualContent])
 
   if (!isComposing) return null
 

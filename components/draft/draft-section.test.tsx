@@ -10,6 +10,12 @@ vi.mock('@/app/(app)/inbox/[emailId]/actions', () => ({
   sendManualReply: vi.fn().mockResolvedValue({ success: true }),
   createDraftOnDemand: vi.fn().mockResolvedValue({ success: true }),
   regenerateDraft: vi.fn().mockResolvedValue({ success: true }),
+  fetchDraftForEmail: vi.fn().mockResolvedValue({
+    id: 'draft-1',
+    status: 'ready',
+    content: 'AI generated reply content.',
+    confidence_score: 80,
+  }),
 }))
 
 vi.mock('./draft-realtime', () => ({
@@ -20,7 +26,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }))
 
-import { createDraftOnDemand } from '@/app/(app)/inbox/[emailId]/actions'
+import { createDraftOnDemand, fetchDraftForEmail } from '@/app/(app)/inbox/[emailId]/actions'
 
 const defaultProps = {
   emailId: 'email-1',
@@ -85,6 +91,31 @@ describe('DraftSection — compose mode', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
     expect(createDraftOnDemand).toHaveBeenCalledTimes(1)
+  })
+
+  it('populates textarea with draft content after successful generation', async () => {
+    vi.mocked(createDraftOnDemand).mockResolvedValue({ success: true })
+    vi.mocked(fetchDraftForEmail).mockResolvedValue({
+      id: 'draft-1',
+      status: 'ready',
+      content: 'AI generated reply content.',
+      confidence_score: 80,
+      email_id: 'email-1',
+      user_id: 'user-1',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      error_message: null,
+      sent_at: null,
+      regeneration_count: 0,
+      generation_instruction: null,
+      retry_count: 0,
+    })
+    renderComposing()
+    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    await waitFor(() => {
+      const textarea = screen.getByRole('textbox', { name: /write your reply/i }) as HTMLTextAreaElement
+      expect(textarea.value).toBe('AI generated reply content.')
+    })
   })
 
   it('shows error alert when createDraftOnDemand fails', async () => {
