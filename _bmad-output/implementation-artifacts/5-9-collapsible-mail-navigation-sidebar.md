@@ -1,6 +1,6 @@
 # Story 5.9: Collapsible Mail Navigation Sidebar
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -31,15 +31,15 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Implement collapsible sidebar behavior in `components/inbox/inbox-shell.tsx` (AC: 1, 2, 3)
-  - [ ] Add collapse trigger and state handling
-  - [ ] Render primary and secondary navigation groups with separator
-  - [ ] Preserve responsive behavior across desktop sizes
-- [ ] Use shadcn sidebar primitives where relevant (AC: 1, 2)
-  - [ ] Reuse generated sidebar component patterns instead of custom reinvention
-- [ ] Add interaction tests (AC: 1, 2, 3)
-  - [ ] Verify collapse/expand behavior
-  - [ ] Verify section ordering and separator rendering
+- [x] Implement collapsible sidebar behavior in `components/inbox/inbox-shell.tsx` (AC: 1, 2, 3)
+  - [x] Add collapse trigger and state handling
+  - [x] Render primary and secondary navigation groups with separator
+  - [x] Preserve responsive behavior across desktop sizes
+- [x] Use shadcn sidebar primitives where relevant (AC: 1, 2)
+  - [x] Reuse generated sidebar component patterns instead of custom reinvention
+- [x] Add interaction tests (AC: 1, 2, 3)
+  - [x] Verify collapse/expand behavior
+  - [x] Verify section ordering and separator rendering
 
 ---
 
@@ -78,16 +78,31 @@ Status: ready-for-dev
 
 ### Agent Model Used
 
-Codex (GPT-5)
+claude-sonnet-4-6
 
 ### Debug Log References
 
-- Story created via `.claude/skills/bmad-create-story` workflow
+- "Inbox" text appears in both the nav sidebar AND the email list panel header — tests use `getAllByText` for duplicate cases.
+- Session persistence uses `sessionStorage` (not `localStorage`) to match the "same session" wording in AC3.
+- Story 5-10 (Custom Category Management Modal) was implemented concurrently on the same branch; `inbox-shell.tsx` carries both stories' changes.
 
 ### Completion Notes List
 
-- Ordered second to establish stable navigation structure before advanced actions and modal tooling.
+- Replaced the 49px category icon rail with a collapsible `nav-sidebar` div (220px expanded / 49px collapsed) with `data-testid="nav-sidebar"` and `data-collapsed` attribute.
+- Primary group: Inbox, Drafts, Sent, Trash — labels shown when expanded, icons only when collapsed, each with a tooltip.
+- Separator (`shadcn/ui Separator`, `data-testid="nav-separator"`) between primary and secondary nav.
+- Secondary group: category filters (existing CATEGORY_MENU) with same collapse behavior.
+- `sidebarCollapsed` state initialized from `sessionStorage.getItem('inbox_sidebar_collapsed')`; persisted on every toggle.
+- `PanelLeft` toggle button with `aria-label` switching between "Collapse sidebar" and "Expand sidebar".
+- 11 sidebar-specific component tests in `inbox-sidebar.test.tsx` + 5 additional from story 5-10 (custom categories modal tests added to same file).
+- 218 tests pass; typecheck and lint clean.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-9-collapsible-mail-navigation-sidebar.md
+- components/inbox/inbox-shell.tsx
+- components/inbox/inbox-sidebar.test.tsx
+
+### Change Log
+
+- Added collapsible nav sidebar with primary/secondary groups and session persistence (Date: 2026-04-07)

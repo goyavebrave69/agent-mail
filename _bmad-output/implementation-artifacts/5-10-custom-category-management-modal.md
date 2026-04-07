@@ -1,6 +1,6 @@
 # Story 5.10: Custom Category Management Modal
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -31,16 +31,16 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Add data model + server mutation path for custom categories (AC: 1, 2, 3)
-  - [ ] Introduce table/migration for user-scoped custom categories (RLS protected)
-  - [ ] Add Server Action to create category with normalization and duplicate checks
-- [ ] Add modal UI entrypoint in inbox shell (AC: 1, 2, 3)
-  - [ ] Add `Manage Categories` button in inbox interface
-  - [ ] Implement modal with shadcn `Dialog`, input, and validation states
-- [ ] Connect categories to inbox sorting/filter rendering (AC: 2)
-  - [ ] Include custom categories in list grouping/filter controls
-  - [ ] Keep compatibility with fixed system categories
-- [ ] Add tests for validation and persistence (AC: 2, 3)
+- [x] Add data model + server mutation path for custom categories (AC: 1, 2, 3)
+  - [x] Introduce table/migration for user-scoped custom categories (RLS protected)
+  - [x] Add Server Action to create category with normalization and duplicate checks
+- [x] Add modal UI entrypoint in inbox shell (AC: 1, 2, 3)
+  - [x] Add `Manage Categories` button in inbox interface
+  - [x] Implement modal with shadcn `Dialog`, input, and validation states
+- [x] Connect categories to inbox sorting/filter rendering (AC: 2)
+  - [x] Include custom categories in list grouping/filter controls
+  - [x] Keep compatibility with fixed system categories
+- [x] Add tests for validation and persistence (AC: 2, 3)
 
 ---
 
@@ -91,7 +91,25 @@ Codex (GPT-5)
 ### Completion Notes List
 
 - Ordered after sidebar/search so category management lands on stabilized inbox IA.
+- Added `custom_categories` table with RLS policies and unique per-user slug constraint.
+- Added `createCustomCategoryAction` with server-side normalization, length checks, duplicate checks, and inbox revalidation.
+- Added `Manage Categories` modal in `InboxShell` using shadcn `Dialog` patterns and inline validation/error states.
+- Extended inbox category normalization/rendering to support user custom category filters while preserving system categories.
+- Added focused tests for server action validation/persistence and modal open/close/error/success flows.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-10-custom-category-management-modal.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- app/(app)/inbox/actions.ts
+- app/(app)/inbox/actions.test.ts
+- app/(app)/inbox/page.tsx
+- components/inbox/inbox-shell.tsx
+- components/inbox/inbox-sidebar.test.tsx
+- components/ui/dialog.tsx
+- lib/inbox/custom-categories.ts
+- supabase/migrations/018_custom_categories.sql
+
+## Change Log
+
+- 2026-04-06: Implemented custom category data model, server mutation path, inbox modal UI integration, category rendering updates, and validation/persistence test coverage for story 5.10.

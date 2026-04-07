@@ -11,11 +11,18 @@ import {
   Forward,
   Inbox as InboxIcon,
   MessageSquare,
+  PanelLeft,
+  Pencil,
   Receipt,
   Reply,
   ReplyAll,
+  Send as SendIcon,
+  Settings2,
   ShieldAlert,
+  Trash2,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Separator } from "@/components/ui/separator"
 import { createClient } from "@/lib/supabase/client"
 import type { InboxEmail } from "@/app/(app)/inbox/page"
 import { CATEGORY_BADGE, type InboxCategory } from "@/components/inbox/inbox-list"
@@ -34,21 +41,38 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { createCustomCategoryAction } from "@/app/(app)/inbox/actions"
+import {
+  MAX_CUSTOM_CATEGORY_NAME_LENGTH,
+  isSystemInboxCategory,
+  normalizeCustomCategoryName,
+  toCustomCategorySlug,
+  type CustomCategory,
+} from "@/lib/inbox/custom-categories"
 
 type CategoryMenuItem = {
-  key: InboxCategory | "all"
+  key: InboxCategory | string | "all"
   label: string
   icon: React.ComponentType<{ className?: string }>
 }
 
-const CATEGORY_MENU: CategoryMenuItem[] = [
-  { key: "all", label: "All", icon: InboxIcon },
+const SYSTEM_CATEGORY_MENU: CategoryMenuItem[] = [
   { key: "quote", label: CATEGORY_BADGE.quote.label, icon: FileText },
   { key: "inquiry", label: CATEGORY_BADGE.inquiry.label, icon: MessageSquare },
   { key: "invoice", label: CATEGORY_BADGE.invoice.label, icon: Receipt },
@@ -58,10 +82,27 @@ const CATEGORY_MENU: CategoryMenuItem[] = [
 ]
 const CATEGORY_ORDER: InboxCategory[] = ["quote", "inquiry", "invoice", "follow_up", "spam", "other"]
 
+const SESSION_KEY = "inbox_sidebar_collapsed"
+
+type PrimaryNavItem = {
+  key: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  href: string
+}
+
+const PRIMARY_NAV: PrimaryNavItem[] = [
+  { key: "inbox", label: "Inbox", icon: InboxIcon, href: "/inbox" },
+  { key: "drafts", label: "Drafts", icon: Pencil, href: "#" },
+  { key: "sent", label: "Sent", icon: SendIcon, href: "#" },
+  { key: "trash", label: "Trash", icon: Trash2, href: "#" },
+]
+
 interface InboxShellProps {
   emails: InboxEmail[]
   userId: string
-  activeCategory: InboxCategory | null
+  activeCategory: string | null
+  customCategories: CustomCategory[]
 }
 
 function formatRelativeDate(iso: string): string {
@@ -101,6 +142,7 @@ export function InboxShell({
   emails,
   userId,
   activeCategory,
+  customCategories,
 }: InboxShellProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -109,7 +151,22 @@ export function InboxShell({
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null)
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null)
+  const [customCategoriesState, setCustomCategoriesState] = useState<CustomCategory[]>(customCategories)
+  const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [categoryError, setCategoryError] = useState<string | null>(null)
+  const [isSubmittingCategory, setIsSubmittingCategory] = useState(false)
   const resetDraftStore = useDraftStore((s) => s.reset)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false
+    return sessionStorage.getItem(SESSION_KEY) === "true"
+  })
+
+  const toggleSidebar = () => {
+    const next = !sidebarCollapsed
+    setSidebarCollapsed(next)
+    sessionStorage.setItem(SESSION_KEY, String(next))
+  }
 
   useEffect(() => {
     const supabase = createClient()
@@ -156,6 +213,10 @@ export function InboxShell({
   }, [router, userId])
 
   useEffect(() => {
+    setCustomCategoriesState(customCategories)
+  }, [customCategories])
+
+  useEffect(() => {
     resetDraftStore()
     setCurrentDraft(null)
     if (!selectedEmailId) return
@@ -188,7 +249,20 @@ export function InboxShell({
     }
   }, [filteredEmails, selectedEmailId])
 
-  const activeKey: InboxCategory | "all" = activeCategory ?? "all"
+  const categoryMenu = useMemo<CategoryMenuItem[]>(
+    () => [
+      { key: "all", label: "All", icon: InboxIcon },
+      ...SYSTEM_CATEGORY_MENU,
+      ...customCategoriesState.map((customCategory) => ({
+        key: customCategory.slug,
+        label: customCategory.name,
+        icon: Circle,
+      })),
+    ],
+    [customCategoriesState]
+  )
+
+  const activeKey: string | "all" = activeCategory ?? "all"
   const selectedEmail = filteredEmails.find((email) => email.id === selectedEmailId) ?? null
   const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Unknown sender"
   const selectedSenderEmail = selectedEmail?.from_email ?? "No sender email"
@@ -202,7 +276,7 @@ export function InboxShell({
     [filteredEmails]
   )
 
-  const setCategory = (key: InboxCategory | "all") => {
+  const setCategory = (key: string | "all") => {
     const params = new URLSearchParams(searchParams.toString())
     if (key === "all") {
       params.delete("category")
@@ -213,29 +287,222 @@ export function InboxShell({
     router.push(query ? `/inbox?${query}` : "/inbox")
   }
 
+  const handleCreateCategory = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const normalizedName = normalizeCustomCategoryName(newCategoryName)
+
+    if (!normalizedName) {
+      setCategoryError("Category name is required.")
+      return
+    }
+
+    if (normalizedName.length > MAX_CUSTOM_CATEGORY_NAME_LENGTH) {
+      setCategoryError(`Category name must be ${MAX_CUSTOM_CATEGORY_NAME_LENGTH} characters or fewer.`)
+      return
+    }
+
+    const slug = toCustomCategorySlug(normalizedName)
+
+    if (!slug) {
+      setCategoryError("Category name must contain at least one letter or number.")
+      return
+    }
+
+    if (
+      isSystemInboxCategory(slug) ||
+      customCategoriesState.some((customCategory) => customCategory.slug === slug)
+    ) {
+      setCategoryError("Category already exists.")
+      return
+    }
+
+    setCategoryError(null)
+    setIsSubmittingCategory(true)
+
+    try {
+      const result = await createCustomCategoryAction(normalizedName)
+
+      if (!result.success || !result.category) {
+        setCategoryError(result.error ?? "Unable to create category. Please try again.")
+        return
+      }
+
+      const createdCategory = result.category
+      setCustomCategoriesState((previous) =>
+        [...previous, createdCategory].sort((a, b) => a.name.localeCompare(b.name))
+      )
+      setNewCategoryName("")
+      setCategoryError(null)
+      setIsManageCategoriesOpen(false)
+    } catch {
+      setCategoryError("Unable to create category. Please try again.")
+    } finally {
+      setIsSubmittingCategory(false)
+    }
+  }
+
   return (
     <TooltipProvider delayDuration={0}>
       <div className="flex h-svh w-full overflow-hidden">
-        {/* Category icon rail */}
-        <div className="flex w-[49px] shrink-0 flex-col border-r bg-sidebar">
-          <div className="h-[49px] shrink-0 border-b" />
-          <div className="flex flex-1 flex-col items-center gap-1 py-2">
-            {CATEGORY_MENU.map((item) => (
+        {/* Navigation sidebar */}
+        <div
+          data-testid="nav-sidebar"
+          data-collapsed={sidebarCollapsed}
+          className={cn(
+            "flex shrink-0 flex-col border-r bg-sidebar transition-[width] duration-200",
+            sidebarCollapsed ? "w-[49px]" : "w-[220px]"
+          )}
+        >
+          {/* Toggle header */}
+          <div
+            className={cn(
+              "flex h-[49px] shrink-0 items-center border-b",
+              sidebarCollapsed ? "justify-center" : "justify-end px-3"
+            )}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                >
+                  <PanelLeft className="h-4 w-4 shrink-0" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {sidebarCollapsed ? "Expand" : "Collapse"}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Primary nav: Inbox, Drafts, Sent, Trash */}
+          <div className="flex flex-col gap-1 px-2 py-2">
+            {PRIMARY_NAV.map((item) => (
+              <Tooltip key={item.key}>
+                <TooltipTrigger asChild>
+                  <a
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      item.key === "inbox" && !activeCategory
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : ""
+                    )}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {!sidebarCollapsed && <span>{item.label}</span>}
+                  </a>
+                </TooltipTrigger>
+                {sidebarCollapsed && (
+                  <TooltipContent side="right">{item.label}</TooltipContent>
+                )}
+              </Tooltip>
+            ))}
+          </div>
+
+          {/* Separator between primary and secondary nav */}
+          <Separator data-testid="nav-separator" />
+
+          {/* Secondary nav: category filters */}
+          <div className="flex flex-col gap-1 px-2 py-2">
+            <Dialog
+              open={isManageCategoriesOpen}
+              onOpenChange={(open) => {
+                setIsManageCategoriesOpen(open)
+                if (!open) {
+                  setCategoryError(null)
+                  setNewCategoryName("")
+                }
+              }}
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      data-testid="manage-categories-button"
+                      className="mb-1 flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    >
+                      <Settings2 className="h-4 w-4 shrink-0" />
+                      {!sidebarCollapsed && <span>Manage Categories</span>}
+                    </button>
+                  </DialogTrigger>
+                </TooltipTrigger>
+                {sidebarCollapsed && (
+                  <TooltipContent side="right">Manage Categories</TooltipContent>
+                )}
+              </Tooltip>
+
+              <DialogContent className="sm:max-w-md" data-testid="manage-categories-dialog">
+                <DialogHeader>
+                  <DialogTitle>Manage Categories</DialogTitle>
+                  <DialogDescription>
+                    Create custom inbox categories for your personal sorting taxonomy.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleCreateCategory} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-category-name">Category name</Label>
+                    <Input
+                      id="custom-category-name"
+                      data-testid="custom-category-input"
+                      value={newCategoryName}
+                      onChange={(event) => setNewCategoryName(event.target.value)}
+                      placeholder="e.g. VIP clients"
+                      maxLength={MAX_CUSTOM_CATEGORY_NAME_LENGTH}
+                      aria-invalid={Boolean(categoryError)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {normalizeCustomCategoryName(newCategoryName).length}/{MAX_CUSTOM_CATEGORY_NAME_LENGTH}
+                    </p>
+                    {categoryError && (
+                      <p role="alert" className="text-sm text-destructive" data-testid="custom-category-error">
+                        {categoryError}
+                      </p>
+                    )}
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsManageCategoriesOpen(false)}
+                      disabled={isSubmittingCategory}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmittingCategory}>
+                      {isSubmittingCategory ? "Creating..." : "Create category"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            {categoryMenu.map((item) => (
               <Tooltip key={item.key}>
                 <TooltipTrigger asChild>
                   <button
+                    type="button"
                     onClick={() => setCategory(item.key)}
-                    className={`flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                       activeKey === item.key
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
                         : ""
-                    }`}
+                    )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="sr-only">{item.label}</span>
+                    {!sidebarCollapsed && <span>{item.label}</span>}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right">{item.label}</TooltipContent>
+                {sidebarCollapsed && (
+                  <TooltipContent side="right">{item.label}</TooltipContent>
+                )}
               </Tooltip>
             ))}
           </div>
