@@ -179,13 +179,19 @@ export function InboxShell({
     if (!selectedEmailId || isActioning) return
     setIsActioning(true)
     setActionError(null)
-    const result = await archiveEmail(selectedEmailId)
-    setIsActioning(false)
-    if (!result.success) {
-      setActionError(result.error ?? "Archive failed. Please try again.")
-    } else {
+    try {
+      const result = await archiveEmail(selectedEmailId)
+      if (!result.success) {
+        setActionError(result.error ?? "Archive failed. Please try again.")
+        return
+      }
+
       setSelectedEmailId(null)
       router.refresh()
+    } catch {
+      setActionError("Archive failed. Please try again.")
+    } finally {
+      setIsActioning(false)
     }
   }
 
@@ -193,13 +199,19 @@ export function InboxShell({
     if (!selectedEmailId || isActioning) return
     setIsActioning(true)
     setActionError(null)
-    const result = await trashEmail(selectedEmailId)
-    setIsActioning(false)
-    if (!result.success) {
-      setActionError(result.error ?? "Trash failed. Please try again.")
-    } else {
+    try {
+      const result = await trashEmail(selectedEmailId)
+      if (!result.success) {
+        setActionError(result.error ?? "Trash failed. Please try again.")
+        return
+      }
+
       setSelectedEmailId(null)
       router.refresh()
+    } catch {
+      setActionError("Trash failed. Please try again.")
+    } finally {
+      setIsActioning(false)
     }
   }
 

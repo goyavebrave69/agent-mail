@@ -708,3 +708,109 @@ describe('createDraftOnDemand', () => {
     expect(mockErrorUpdate).toHaveBeenCalled()
   })
 })
+
+describe('archiveEmail', () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockEmailMaybeSingle: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+
+    mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockEmailMaybeSingle = vi.fn()
+
+    const emailsQuery = {
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              maybeSingle: mockEmailMaybeSingle,
+            }),
+          }),
+        }),
+      }),
+    }
+
+    mockCreateClient.mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: vi.fn((table: string) => {
+        if (table !== 'emails') throw new Error(`Unexpected table: ${table}`)
+        return emailsQuery
+      }),
+    })
+  })
+
+  it('returns not found when archive update affects no email row', async () => {
+    mockEmailMaybeSingle.mockResolvedValue({ data: null, error: null })
+
+    const { archiveEmail } = await import('./actions')
+    const result = await archiveEmail('missing-email')
+
+    expect(result).toEqual({ success: false, error: 'Email not found.' })
+    expect(mockRevalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('returns success and revalidates inbox when archive update succeeds', async () => {
+    mockEmailMaybeSingle.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+
+    const { archiveEmail } = await import('./actions')
+    const result = await archiveEmail('email-1')
+
+    expect(result).toEqual({ success: true })
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
+  })
+})
+
+describe('trashEmail', () => {
+  let mockGetUser: ReturnType<typeof vi.fn>
+  let mockEmailMaybeSingle: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+
+    mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockEmailMaybeSingle = vi.fn()
+
+    const emailsQuery = {
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              maybeSingle: mockEmailMaybeSingle,
+            }),
+          }),
+        }),
+      }),
+    }
+
+    mockCreateClient.mockResolvedValue({
+      auth: { getUser: mockGetUser },
+      from: vi.fn((table: string) => {
+        if (table !== 'emails') throw new Error(`Unexpected table: ${table}`)
+        return emailsQuery
+      }),
+    })
+  })
+
+  it('returns not found when trash update affects no email row', async () => {
+    mockEmailMaybeSingle.mockResolvedValue({ data: null, error: null })
+
+    const { trashEmail } = await import('./actions')
+    const result = await trashEmail('missing-email')
+
+    expect(result).toEqual({ success: false, error: 'Email not found.' })
+    expect(mockRevalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('returns success and revalidates inbox when trash update succeeds', async () => {
+    mockEmailMaybeSingle.mockResolvedValue({ data: { id: 'email-1' }, error: null })
+
+    const { trashEmail } = await import('./actions')
+    const result = await trashEmail('email-1')
+
+    expect(result).toEqual({ success: true })
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/inbox')
+  })
+})

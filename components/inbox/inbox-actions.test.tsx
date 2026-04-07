@@ -130,6 +130,21 @@ describe("InboxShell — Archive action", () => {
       expect(screen.getByRole("button", { name: /archive/i })).toBeDisabled()
     })
   })
+
+  it("shows fallback error and re-enables button when archive throws", async () => {
+    mockArchiveEmail.mockRejectedValue(new Error("network down"))
+    render(<InboxShell {...defaultProps} />)
+
+    await waitFor(() => screen.getByRole("button", { name: /archive/i }))
+    fireEvent.click(screen.getByRole("button", { name: /archive/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument()
+      expect(screen.getByText("Archive failed. Please try again.")).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole("button", { name: /archive/i })).toBeEnabled()
+  })
 })
 
 // ─── Trash ────────────────────────────────────────────────────────────────────
@@ -170,6 +185,21 @@ describe("InboxShell — Trash action", () => {
       expect(screen.getByRole("alert")).toBeInTheDocument()
       expect(screen.getByText("Trash failed.")).toBeInTheDocument()
     })
+  })
+
+  it("shows fallback error and re-enables button when trash throws", async () => {
+    mockTrashEmail.mockRejectedValue(new Error("network down"))
+    render(<InboxShell {...defaultProps} />)
+
+    await waitFor(() => screen.getByRole("button", { name: /trash/i }))
+    fireEvent.click(screen.getByRole("button", { name: /trash/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument()
+      expect(screen.getByText("Trash failed. Please try again.")).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole("button", { name: /trash/i })).toBeEnabled()
   })
 })
 

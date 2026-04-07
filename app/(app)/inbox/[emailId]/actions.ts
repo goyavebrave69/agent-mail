@@ -460,13 +460,16 @@ export async function archiveEmail(
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated.' }
 
-  const { error } = await supabase
+  const { data: archivedEmail, error } = await supabase
     .from('emails')
     .update({ is_archived: true, updated_at: new Date().toISOString() })
     .eq('id', emailId)
     .eq('user_id', user.id)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { success: false, error: error.message }
+  if (!archivedEmail) return { success: false, error: 'Email not found.' }
 
   revalidatePath('/inbox')
   return { success: true }
@@ -483,13 +486,16 @@ export async function trashEmail(
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated.' }
 
-  const { error } = await supabase
+  const { data: trashedEmail, error } = await supabase
     .from('emails')
     .update({ is_archived: true, updated_at: new Date().toISOString() })
     .eq('id', emailId)
     .eq('user_id', user.id)
+    .select('id')
+    .maybeSingle()
 
   if (error) return { success: false, error: error.message }
+  if (!trashedEmail) return { success: false, error: 'Email not found.' }
 
   revalidatePath('/inbox')
   return { success: true }
