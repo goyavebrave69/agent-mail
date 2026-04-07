@@ -26,10 +26,16 @@ vi.mock("@/lib/supabase/client", () => ({
 
 vi.mock("@/app/(app)/inbox/[emailId]/actions", () => ({
   fetchDraftForEmail: vi.fn().mockResolvedValue(null),
+  archiveEmail: vi.fn().mockResolvedValue({ success: true }),
+  trashEmail: vi.fn().mockResolvedValue({ success: true }),
   createDraftOnDemand: vi.fn(),
   validateAndSendDraft: vi.fn(),
   rejectDraft: vi.fn(),
   sendManualReply: vi.fn(),
+}))
+
+vi.mock("@/app/(app)/inbox/actions", () => ({
+  createCustomCategoryAction: vi.fn(),
 }))
 
 vi.mock("@/components/draft/draft-section", () => ({
@@ -37,8 +43,8 @@ vi.mock("@/components/draft/draft-section", () => ({
 }))
 
 vi.mock("@/stores/draft-store", () => ({
-  useDraftStore: vi.fn((selector: (s: { reset: () => void }) => unknown) =>
-    selector({ reset: vi.fn() })
+  useDraftStore: vi.fn((selector: (s: { reset: () => void; startComposing: () => void }) => unknown) =>
+    selector({ reset: vi.fn(), startComposing: vi.fn() })
   ),
 }))
 
@@ -71,7 +77,7 @@ describe("InboxShell — search filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice", subject: "First" }),
       makeEmail({ id: "e2", from_name: "Bob", subject: "Second" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     await waitFor(() => {
       // Both names appear in the list; Alice also appears in the reading pane (auto-selected)
@@ -85,7 +91,7 @@ describe("InboxShell — search filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice Smith", from_email: "a@a.com", subject: "Subject A" }),
       makeEmail({ id: "e2", from_name: "Bob Jones", from_email: "b@b.com", subject: "Subject B" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
       target: { value: "alice" },
@@ -102,7 +108,7 @@ describe("InboxShell — search filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice Smith", from_email: "alice@corp.com", subject: "A" }),
       makeEmail({ id: "e2", from_name: "Bob Jones", from_email: "bob@corp.com", subject: "B" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
       target: { value: "alice@corp.com" },
@@ -119,7 +125,7 @@ describe("InboxShell — search filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice", subject: "Invoice #123" }),
       makeEmail({ id: "e2", from_name: "Bob", subject: "Hello there" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
       target: { value: "invoice" },
@@ -136,7 +142,7 @@ describe("InboxShell — search filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice", subject: "A", body_text: "please send a quote" }),
       makeEmail({ id: "e2", from_name: "Bob", subject: "B", body_text: "see you tomorrow" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
       target: { value: "quote" },
@@ -150,7 +156,7 @@ describe("InboxShell — search filtering", () => {
 
   it("shows empty-state message when no emails match", async () => {
     const emails = [makeEmail({ id: "e1", from_name: "Alice", subject: "Hello" })]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
       target: { value: "zzznomatch" },
@@ -163,7 +169,7 @@ describe("InboxShell — search filtering", () => {
 
   it("does not crash the reading pane when no emails match", async () => {
     const emails = [makeEmail({ id: "e1", from_name: "Alice", subject: "Hello" })]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
       target: { value: "zzznomatch" },
@@ -179,7 +185,7 @@ describe("InboxShell — search filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice", from_email: "a@a.com", subject: "First" }),
       makeEmail({ id: "e2", from_name: "Bob", from_email: "b@b.com", subject: "Second" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     const input = screen.getByPlaceholderText("Type to search...")
     fireEvent.change(input, { target: { value: "alice" } })
@@ -201,7 +207,7 @@ describe("InboxShell — search filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice", subject: "First" }),
       makeEmail({ id: "e2", from_name: "Bob", subject: "Second" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     // Only whitespace → no filter applied
     fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
@@ -223,7 +229,7 @@ describe("InboxShell — selection behavior during filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice", subject: "First" }),
       makeEmail({ id: "e2", from_name: "Bob", subject: "Second" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     await waitFor(() => {
       const firstButton = screen.getByRole("button", { name: /Alice/i })
@@ -236,7 +242,7 @@ describe("InboxShell — selection behavior during filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice", subject: "Match me" }),
       makeEmail({ id: "e2", from_name: "Bob", subject: "Also match" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     // Select Bob
     await waitFor(() => {
@@ -260,7 +266,7 @@ describe("InboxShell — selection behavior during filtering", () => {
       makeEmail({ id: "e1", from_name: "Alice", subject: "Hello" }),
       makeEmail({ id: "e2", from_name: "Bob", subject: "Unique subject xyz" }),
     ]
-    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} />)
+    render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     // Select Bob
     await waitFor(() => {

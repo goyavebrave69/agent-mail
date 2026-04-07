@@ -1,6 +1,6 @@
 # Story 5.11: Functional Mail Action Buttons
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -30,16 +30,16 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] Implement missing button handlers in inbox reading pane (AC: 1, 2, 3)
-  - [ ] Wire client actions to Server Actions for archive/trash/read-state updates
-  - [ ] Wire reply/reply-all/forward triggers to compose workflow entrypoint
-- [ ] Ensure optimistic + realtime consistency (AC: 2)
-  - [ ] Keep selection/list state stable after mutation
-  - [ ] Refresh via existing realtime + fallback patterns
-- [ ] Add robust error handling (AC: 3)
-  - [ ] Display non-blocking feedback for failed actions
-  - [ ] Prevent duplicate submissions on rapid click
-- [ ] Add tests for each action path (AC: 1, 2, 3)
+- [x] Implement missing button handlers in inbox reading pane (AC: 1, 2, 3)
+  - [x] Wire client actions to Server Actions for archive/trash/read-state updates
+  - [x] Wire reply/reply-all/forward triggers to compose workflow entrypoint
+- [x] Ensure optimistic + realtime consistency (AC: 2)
+  - [x] Keep selection/list state stable after mutation
+  - [x] Refresh via existing realtime + fallback patterns
+- [x] Add robust error handling (AC: 3)
+  - [x] Display non-blocking feedback for failed actions
+  - [x] Prevent duplicate submissions on rapid click
+- [x] Add tests for each action path (AC: 1, 2, 3)
 
 ---
 
@@ -81,16 +81,34 @@ Status: ready-for-dev
 
 ### Agent Model Used
 
-Codex (GPT-5)
+claude-sonnet-4-6
 
 ### Debug Log References
 
-- Story created via `.claude/skills/bmad-create-story` workflow
+- Snooze button (Clock3) removed and replaced with Trash (Trash2) — snooze is out of scope for V1.
+- `inbox-shell.test.tsx` (story 5-8) needed `customCategories: []` and new action mocks added after story 5-10 changed `InboxShellProps`.
+- Archive and Trash both set `is_archived = true` — no separate `is_trashed` column in the DB schema for V1.
+- `startComposing` read from Zustand store via selector, passed directly as onClick for Reply/Reply All/Forward.
 
 ### Completion Notes List
 
-- Ordered before manual-draft button story to first establish reliable action wiring in reading pane.
+- Added `archiveEmail(emailId)` and `trashEmail(emailId)` Server Actions in `app/(app)/inbox/[emailId]/actions.ts` — both set `is_archived = true` + `revalidatePath('/inbox')`.
+- Added `isActioning` flag (prevents duplicate clicks) and `actionError` state to `InboxShell`.
+- Archive/Trash buttons: `disabled={isActioning}`, on success `setSelectedEmailId(null)` + `router.refresh()`, on failure show `<Alert role="alert">` with error message.
+- Reply / Reply All / Forward buttons wired to `startComposing()` from Zustand draft store — opens existing compose area in DraftSection.
+- `Alert` shadcn component added via `npx shadcn add alert`.
+- 10 new component tests in `inbox-actions.test.tsx`; updated `inbox-shell.test.tsx` for new prop + mocks.
+- 240 tests pass; typecheck and lint clean.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-11-functional-mail-action-buttons.md
+- app/(app)/inbox/[emailId]/actions.ts
+- components/inbox/inbox-shell.tsx
+- components/inbox/inbox-shell.test.tsx
+- components/inbox/inbox-actions.test.tsx
+- components/ui/alert.tsx
+
+### Change Log
+
+- Added archiveEmail and trashEmail server actions; wired Archive, Trash, Reply, Reply All, Forward buttons (Date: 2026-04-07)

@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation"
 import {
   Archive,
   Circle,
-  Clock3,
   EllipsisVertical,
   FileText,
   Forward,
@@ -27,7 +26,11 @@ import { createClient } from "@/lib/supabase/client"
 import type { InboxEmail } from "@/app/(app)/inbox/page"
 import { CATEGORY_BADGE, type InboxCategory } from "@/components/inbox/inbox-list"
 import { DraftSection } from "@/components/draft/draft-section"
-import { fetchDraftForEmail } from "@/app/(app)/inbox/[emailId]/actions"
+import {
+  archiveEmail,
+  fetchDraftForEmail,
+  trashEmail,
+} from "@/app/(app)/inbox/[emailId]/actions"
 import { useDraftStore } from "@/stores/draft-store"
 import type { Draft } from "@/types/draft"
 import {
@@ -42,6 +45,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Dialog,
   DialogContent,
@@ -157,6 +161,9 @@ export function InboxShell({
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false)
   const resetDraftStore = useDraftStore((s) => s.reset)
+  const startComposing = useDraftStore((s) => s.startComposing)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [isActioning, setIsActioning] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false
     return sessionStorage.getItem(SESSION_KEY) === "true"
@@ -166,6 +173,34 @@ export function InboxShell({
     const next = !sidebarCollapsed
     setSidebarCollapsed(next)
     sessionStorage.setItem(SESSION_KEY, String(next))
+  }
+
+  const handleArchive = async () => {
+    if (!selectedEmailId || isActioning) return
+    setIsActioning(true)
+    setActionError(null)
+    const result = await archiveEmail(selectedEmailId)
+    setIsActioning(false)
+    if (!result.success) {
+      setActionError(result.error ?? "Archive failed. Please try again.")
+    } else {
+      setSelectedEmailId(null)
+      router.refresh()
+    }
+  }
+
+  const handleTrash = async () => {
+    if (!selectedEmailId || isActioning) return
+    setIsActioning(true)
+    setActionError(null)
+    const result = await trashEmail(selectedEmailId)
+    setIsActioning(false)
+    if (!result.success) {
+      setActionError(result.error ?? "Trash failed. Please try again.")
+    } else {
+      setSelectedEmailId(null)
+      router.refresh()
+    }
   }
 
   useEffect(() => {
@@ -612,38 +647,45 @@ export function InboxShell({
                   <div className="flex items-center gap-2 text-[#3b3b44]">
                     <button
                       type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6]"
+                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
                       aria-label="Reply"
+                      onClick={startComposing}
                     >
                       <Reply className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6]"
+                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
                       aria-label="Reply all"
+                      onClick={startComposing}
                     >
                       <ReplyAll className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6]"
+                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
                       aria-label="Forward"
+                      onClick={startComposing}
                     >
                       <Forward className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6]"
+                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
                       aria-label="Archive"
+                      disabled={isActioning}
+                      onClick={handleArchive}
                     >
                       <Archive className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6]"
-                      aria-label="Snooze"
+                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
+                      aria-label="Trash"
+                      disabled={isActioning}
+                      onClick={handleTrash}
                     >
-                      <Clock3 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                   <button
@@ -654,6 +696,11 @@ export function InboxShell({
                     <EllipsisVertical className="h-4 w-4" />
                   </button>
                 </div>
+                {actionError && (
+                  <Alert role="alert" variant="destructive" className="mx-4 mt-2">
+                    <AlertDescription>{actionError}</AlertDescription>
+                  </Alert>
+                )}
 
                 <div className="border-b border-[#ececef] px-6 py-4">
                   <h2 className="text-[22px] font-semibold leading-tight text-[#24242a]">
