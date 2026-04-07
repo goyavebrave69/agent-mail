@@ -13,7 +13,6 @@ const { mockArchiveEmail, mockTrashEmail, mockStartComposing, mockRefresh } = vi
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: mockRefresh }),
-  useSearchParams: () => new URLSearchParams(),
 }))
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -37,17 +36,13 @@ vi.mock("@/app/(app)/inbox/[emailId]/actions", () => ({
   sendManualReply: vi.fn(),
 }))
 
-vi.mock("@/app/(app)/inbox/actions", () => ({
-  createCustomCategoryAction: vi.fn(),
-}))
-
 vi.mock("@/components/draft/draft-section", () => ({
   DraftSection: () => <div data-testid="draft-section" />,
 }))
 
 vi.mock("@/stores/draft-store", () => ({
-  useDraftStore: vi.fn((selector: (s: { reset: () => void; startComposing: () => void }) => unknown) =>
-    selector({ reset: vi.fn(), startComposing: mockStartComposing })
+  useDraftStore: vi.fn((selector: (s: { reset: () => void; startComposing: () => void; isComposing: boolean }) => unknown) =>
+    selector({ reset: vi.fn(), startComposing: mockStartComposing, isComposing: false })
   ),
 }))
 
@@ -67,8 +62,6 @@ const baseEmail: InboxEmail = {
 const defaultProps = {
   emails: [baseEmail],
   userId: "user-1",
-  activeCategory: null as null,
-  customCategories: [],
 }
 
 beforeEach(() => {

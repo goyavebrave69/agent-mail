@@ -69,8 +69,6 @@ async function InboxContent({ categoryParam }: { categoryParam?: string }) {
     <InboxShell
       emails={visibleEmails}
       userId={user.id}
-      activeCategory={category}
-      customCategories={customCategories}
     />
   )
 }
