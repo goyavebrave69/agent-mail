@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { InboxShell } from "@/components/inbox/inbox-shell"
-import { isSystemInboxCategory, type CustomCategory } from "@/lib/inbox/custom-categories"
+import type { CustomCategory } from "@/lib/inbox/custom-categories"
 import type { EmailCategory } from "@/types/email"
 
 export interface InboxEmail {
@@ -15,6 +15,7 @@ export interface InboxEmail {
   category: EmailCategory
   priority_rank: number
   body_text: string | null
+  body_html: string | null
 }
 
 interface InboxPageProps {
@@ -26,7 +27,6 @@ function normalizeCategory(
   customCategorySlugs: Set<string>
 ): string | null {
   if (!value) return null
-  if (isSystemInboxCategory(value)) return value
   return customCategorySlugs.has(value) ? value : null
 }
 
@@ -40,9 +40,9 @@ async function InboxContent({ categoryParam }: { categoryParam?: string }) {
 
   const { data: customCategoryRows } = await supabase
     .from("custom_categories")
-    .select("id, name, slug")
+    .select("id, name, slug, sort_order")
     .eq("user_id", user.id)
-    .order("name", { ascending: true })
+    .order("sort_order", { ascending: true })
 
   const customCategories = (customCategoryRows as CustomCategory[] | null) ?? []
   const customCategorySlugs = new Set(customCategories.map((customCategory) => customCategory.slug))
@@ -51,7 +51,7 @@ async function InboxContent({ categoryParam }: { categoryParam?: string }) {
   const { data: allEmails } = await supabase
     .from("emails")
     .select(
-      "id, subject, from_email, from_name, received_at, is_read, is_archived, category, priority_rank, body_text"
+      "id, subject, from_email, from_name, received_at, is_read, is_archived, category, priority_rank, body_text, body_html"
     )
     .eq("user_id", user.id)
     .eq("is_archived", false)
@@ -61,9 +61,7 @@ async function InboxContent({ categoryParam }: { categoryParam?: string }) {
   const emails = ((allEmails as InboxEmail[]) ?? [])
   const visibleEmails = !category
     ? emails
-    : isSystemInboxCategory(category)
-      ? emails.filter((email) => email.category === category)
-      : []
+    : emails.filter((email) => email.category === category)
 
   return (
     <InboxShell

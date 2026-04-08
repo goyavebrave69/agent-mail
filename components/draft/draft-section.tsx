@@ -19,12 +19,18 @@ interface DraftSectionProps {
 export function DraftSection({ emailId, userId }: DraftSectionProps) {
   const {
     isComposing,
+    composeMode,
+    composeTo,
+    composeSubject,
+    composeQuotedBody,
     manualContent,
     isSendingManual,
     sendManualError,
     isCreating,
     createError,
     cancelComposing,
+    updateComposeTo,
+    updateComposeSubject,
     updateManualContent,
     optimisticSendManual,
     confirmSendManual,
@@ -49,14 +55,18 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
   const handleSendManual = useCallback(
     async (content: string) => {
       optimisticSendManual()
-      const result = await sendManualReply(emailId, content)
+      const result = await sendManualReply(emailId, content, {
+        to: composeTo,
+        subject: composeSubject,
+        isForward: composeMode === 'forward',
+      })
       if (result.success) {
         confirmSendManual()
       } else {
         failSendManual(result.error ?? 'Failed to send reply.')
       }
     },
-    [emailId, optimisticSendManual, confirmSendManual, failSendManual]
+    [emailId, composeTo, composeSubject, composeMode, optimisticSendManual, confirmSendManual, failSendManual]
   )
 
   const handleCreateDraft = useCallback(async () => {
@@ -84,6 +94,12 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
     <div className="space-y-3">
       <ManualCompose
         emailId={emailId}
+        mode={composeMode}
+        composeTo={composeTo}
+        composeSubject={composeSubject}
+        composeQuotedBody={composeQuotedBody}
+        onToChange={updateComposeTo}
+        onSubjectChange={updateComposeSubject}
         onSend={handleSendManual}
         onCancel={cancelComposing}
         isSending={isSendingManual}

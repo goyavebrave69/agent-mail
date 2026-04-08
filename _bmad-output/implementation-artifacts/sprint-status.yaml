@@ -75,11 +75,11 @@ development_status:
 
   epic-5: in-progress
   5-1-asynchronous-draft-generation-pipeline: done
-  5-2-draft-view-with-confidence-score: review
+  5-2-draft-view-with-confidence-score: done
   5-3-validate-and-send-draft: done
-  5-4-edit-draft-before-sending: review
-  5-5-regenerate-draft-with-instruction: review
-  5-6-reject-draft-and-compose-own-reply: review
+  5-4-edit-draft-before-sending: done
+  5-5-regenerate-draft-with-instruction: done
+  5-6-reject-draft-and-compose-own-reply: done
   5-7-create-draft-on-demand: review
   5-8-functional-inbox-search: review
   5-9-collapsible-mail-navigation-sidebar: review

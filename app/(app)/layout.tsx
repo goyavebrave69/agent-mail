@@ -16,9 +16,9 @@ export default async function AppLayout({
   if (user) {
     const { data } = await supabase
       .from("custom_categories")
-      .select("id, name, slug")
+      .select("id, name, slug, description, sort_order")
       .eq("user_id", user.id)
-      .order("name", { ascending: true })
+      .order("sort_order", { ascending: true })
     customCategories = (data as CustomCategory[] | null) ?? []
   }
 

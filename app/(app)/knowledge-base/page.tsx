@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { KbUploadZone } from "@/components/kb/kb-upload-zone"
 import { KbFileList } from "@/components/kb/kb-file-list"
+import { UserProfileForm } from "@/components/kb/user-profile-form"
 
 export interface KbFile {
   id: string
@@ -15,13 +16,20 @@ export interface KbFile {
 
 async function KbContent() {
   const supabase = await createClient()
-  const { data: files } = await supabase
-    .from("kb_files")
-    .select("id, filename, file_size, mime_type, status, error_message, created_at")
-    .order("created_at", { ascending: false })
+  const [{ data: files }, { data: profile }] = await Promise.all([
+    supabase
+      .from("kb_files")
+      .select("id, filename, file_size, mime_type, status, error_message, created_at")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("user_profile")
+      .select("description")
+      .maybeSingle(),
+  ])
 
   return (
     <>
+      <UserProfileForm initialDescription={profile?.description ?? ""} />
       <KbUploadZone />
       <KbFileList files={(files as KbFile[]) ?? []} />
     </>
@@ -33,7 +41,8 @@ export default function KnowledgeBasePage() {
     <main className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="mb-2 text-2xl font-bold">Knowledge Base</h1>
       <p className="mb-8 text-sm text-muted-foreground">
-        Upload CSV or Excel files. The AI will use this data to generate accurate draft replies.
+        Configure your business profile and upload reference files. The AI uses this context to
+        generate accurate, personalised draft replies.
       </p>
 
       <Suspense

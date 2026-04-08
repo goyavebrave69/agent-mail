@@ -17,7 +17,8 @@ export interface CreateCustomCategoryResult {
 }
 
 export async function createCustomCategoryAction(
-  rawName: string
+  rawName: string,
+  description?: string
 ): Promise<CreateCustomCategoryResult> {
   const supabase = await createClient()
   const {
@@ -65,14 +66,17 @@ export async function createCustomCategoryAction(
     console.warn("[createCustomCategoryAction] duplicate pre-check failed", existingCategoryError.message)
   }
 
+  const normalizedDescription = description?.trim() || null
+
   const { data: createdCategory, error: createError } = await supabase
     .from("custom_categories")
     .insert({
       user_id: user.id,
       name: normalizedName,
       slug,
+      ...(normalizedDescription !== null && { description: normalizedDescription }),
     })
-    .select("id, name, slug")
+    .select("id, name, slug, description")
     .single()
 
   if (createError?.code === "23505") {
@@ -96,4 +100,122 @@ export async function createCustomCategoryAction(
     success: true,
     category: createdCategory as CustomCategory,
   }
+}
+
+export interface MutateCustomCategoryResult {
+  success: boolean
+  error?: string
+}
+
+export async function renameCustomCategoryAction(
+  id: string,
+  rawName: string
+): Promise<MutateCustomCategoryResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: "Unauthorized" }
+
+  const normalizedName = normalizeCustomCategoryName(rawName ?? "")
+  if (!normalizedName) return { success: false, error: "Category name is required." }
+  if (normalizedName.length > MAX_CUSTOM_CATEGORY_NAME_LENGTH) {
+    return { success: false, error: `Category name must be ${MAX_CUSTOM_CATEGORY_NAME_LENGTH} characters or fewer.` }
+  }
+
+  const slug = toCustomCategorySlug(normalizedName)
+  if (!slug) return { success: false, error: "Category name must contain at least one letter or number." }
+
+  const { error } = await supabase
+    .from("custom_categories")
+    .update({ name: normalizedName, slug })
+    .eq("id", id)
+    .eq("user_id", user.id)
+
+  if (error) return { success: false, error: "Unable to rename category. Please try again." }
+
+  revalidatePath("/inbox")
+  return { success: true }
+}
+
+export async function updateCustomCategoryAction(
+  id: string,
+  rawName: string,
+  description?: string
+): Promise<MutateCustomCategoryResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: "Unauthorized" }
+
+  const normalizedName = normalizeCustomCategoryName(rawName ?? "")
+  if (!normalizedName) return { success: false, error: "Category name is required." }
+  if (normalizedName.length > MAX_CUSTOM_CATEGORY_NAME_LENGTH) {
+    return { success: false, error: `Category name must be ${MAX_CUSTOM_CATEGORY_NAME_LENGTH} characters or fewer.` }
+  }
+
+  const slug = toCustomCategorySlug(normalizedName)
+  if (!slug) return { success: false, error: "Category name must contain at least one letter or number." }
+
+  const normalizedDescription = description?.trim() ?? null
+
+  const { error } = await supabase
+    .from("custom_categories")
+    .update({ name: normalizedName, slug, description: normalizedDescription })
+    .eq("id", id)
+    .eq("user_id", user.id)
+
+  if (error) return { success: false, error: "Unable to update category. Please try again." }
+
+  revalidatePath("/inbox")
+  return { success: true }
+}
+
+export async function deleteCustomCategoryAction(
+  id: string
+): Promise<MutateCustomCategoryResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: "Unauthorized" }
+
+  const { error } = await supabase
+    .from("custom_categories")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id)
+
+  if (error) return { success: false, error: "Unable to delete category. Please try again." }
+
+  revalidatePath("/inbox")
+  return { success: true }
+}
+
+export async function reorderCustomCategoriesAction(
+  orderedIds: string[]
+): Promise<MutateCustomCategoryResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: "Unauthorized" }
+
+  const updates = orderedIds.map((id, index) =>
+    supabase
+      .from("custom_categories")
+      .update({ sort_order: index })
+      .eq("id", id)
+      .eq("user_id", user.id)
+  )
+
+  await Promise.all(updates)
+
+  revalidatePath("/inbox")
+  return { success: true }
 }

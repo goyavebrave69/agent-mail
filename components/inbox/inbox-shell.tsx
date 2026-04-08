@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Archive,
@@ -10,7 +10,6 @@ import {
   ReplyAll,
   Trash2,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import type { InboxEmail } from "@/app/(app)/inbox/page"
 import { CATEGORY_BADGE, type InboxCategory } from "@/components/inbox/inbox-list"
 import type { EmailCategory } from "@/types/email"
@@ -19,8 +18,10 @@ const CATEGORY_ORDER: EmailCategory[] = ["quote", "inquiry", "invoice", "follow_
 import { DraftSection } from "@/components/draft/draft-section"
 import {
   archiveEmail,
+  fetchDraftForEmail,
   trashEmail,
 } from "@/app/(app)/inbox/[emailId]/actions"
+import type { Draft } from "@/types/draft"
 import { useDraftStore } from "@/stores/draft-store"
 import { createClient } from "@/lib/supabase/client"
 import {
@@ -35,7 +36,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import type { Draft } from "@/types/draft"
 
 interface InboxShellProps {
   emails: InboxEmail[]
@@ -65,6 +65,44 @@ function formatDateTime(iso: string): string {
   })
 }
 
+function EmailBodyRenderer({ html, text }: { html: string | null; text: string | null }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [iframeHeight, setIframeHeight] = useState(300)
+
+  const handleLoad = useCallback(() => {
+    const iframe = iframeRef.current
+    if (!iframe?.contentDocument?.body) return
+    const height = iframe.contentDocument.documentElement.scrollHeight
+    setIframeHeight(Math.max(height, 100))
+  }, [])
+
+  if (html) {
+    return (
+      <iframe
+        ref={iframeRef}
+        srcDoc={html}
+        sandbox="allow-same-origin"
+        onLoad={handleLoad}
+        style={{ height: iframeHeight }}
+        className="w-full border-0"
+        title="Email body"
+      />
+    )
+  }
+
+  if (text) {
+    return (
+      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#2a2a32]">
+        {text}
+      </div>
+    )
+  }
+
+  return (
+    <p className="text-sm text-[#6c6c77]">Body not available for this email yet.</p>
+  )
+}
+
 function getSenderInitials(sender: string): string {
   const tokens = sender.trim().split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return "?"
@@ -80,10 +118,38 @@ export function InboxShell({ emails, userId }: InboxShellProps) {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [isActioning, setIsActioning] = useState(false)
+  const [sentDraft, setSentDraft] = useState<Draft | null>(null)
 
   const resetDraftStore = useDraftStore((s) => s.reset)
   const startComposing = useDraftStore((s) => s.startComposing)
   const isComposing = useDraftStore((s) => s.isComposing)
+
+  const handleReply = () => {
+    if (!selectedEmail) return
+    startComposing('reply', {
+      to: selectedEmail.from_email ?? '',
+      subject: selectedEmail.subject ? `Re: ${selectedEmail.subject}` : '',
+      quotedBody: selectedEmail.body_text?.trim() ?? '',
+    })
+  }
+
+  const handleReplyAll = () => {
+    if (!selectedEmail) return
+    startComposing('replyAll', {
+      to: selectedEmail.from_email ?? '',
+      subject: selectedEmail.subject ? `Re: ${selectedEmail.subject}` : '',
+      quotedBody: selectedEmail.body_text?.trim() ?? '',
+    })
+  }
+
+  const handleForward = () => {
+    if (!selectedEmail) return
+    startComposing('forward', {
+      to: '',
+      subject: selectedEmail.subject ? `Fwd: ${selectedEmail.subject}` : '',
+      quotedBody: selectedEmail.body_text?.trim() ?? '',
+    })
+  }
 
   const handleArchive = async () => {
     if (!selectedEmailId || isActioning) return
@@ -159,6 +225,13 @@ export function InboxShell({ emails, userId }: InboxShellProps) {
 
   useEffect(() => {
     resetDraftStore()
+    setSentDraft(null)
+    if (!selectedEmailId) return
+    fetchDraftForEmail(selectedEmailId)
+      .then((draft) => {
+        if (draft?.status === 'sent') setSentDraft(draft)
+      })
+      .catch(() => { /* non-critical */ })
   }, [selectedEmailId, resetDraftStore])
 
   const filteredEmails = useMemo(() => {
@@ -306,7 +379,7 @@ export function InboxShell({ emails, userId }: InboxShellProps) {
                     type="button"
                     className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
                     aria-label="Reply"
-                    onClick={startComposing}
+                    onClick={handleReply}
                   >
                     <Reply className="h-4 w-4" />
                   </button>
@@ -314,7 +387,7 @@ export function InboxShell({ emails, userId }: InboxShellProps) {
                     type="button"
                     className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
                     aria-label="Reply all"
-                    onClick={startComposing}
+                    onClick={handleReplyAll}
                   >
                     <ReplyAll className="h-4 w-4" />
                   </button>
@@ -322,7 +395,7 @@ export function InboxShell({ emails, userId }: InboxShellProps) {
                     type="button"
                     className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
                     aria-label="Forward"
-                    onClick={startComposing}
+                    onClick={handleForward}
                   >
                     <Forward className="h-4 w-4" />
                   </button>
@@ -385,10 +458,34 @@ export function InboxShell({ emails, userId }: InboxShellProps) {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
-                <div className="whitespace-pre-wrap break-words text-[28px] leading-tight text-[#2a2a32]">
-                  {selectedEmail.body_text?.trim() ?? "Body not available for this email yet."}
-                </div>
+              <div className="min-h-0 flex-1 overflow-auto px-6 py-5 space-y-6">
+                <EmailBodyRenderer
+                  html={selectedEmail.body_html}
+                  text={selectedEmail.body_text}
+                />
+
+                {sentDraft && (
+                  <div className="border-t border-[#ececef] pt-5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d1fae5] text-xs font-semibold text-[#065f46]">
+                        Me
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-semibold text-[#24242a]">You</span>
+                          {sentDraft.sent_at && (
+                            <span className="text-xs text-[#6c6c77]">
+                              {formatDateTime(sentDraft.sent_at)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#2a2a32]">
+                          {sentDraft.content}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

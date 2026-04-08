@@ -4,6 +4,8 @@ export interface CustomCategory {
   id: string
   name: string
   slug: string
+  description?: string | null
+  sort_order?: number
 }
 
 export const SYSTEM_INBOX_CATEGORIES: EmailCategory[] = [

@@ -105,20 +105,18 @@ describe("AppSidebar — primary navigation", () => {
 // ─── Category section (inbox route) ──────────────────────────────────────────
 
 describe("AppSidebar — category section on /inbox", () => {
-  it("renders separator and category items on inbox route", () => {
+  it("renders separator and All filter on inbox route", () => {
     render(<AppSidebar {...defaultProps} />)
     expect(screen.getByTestId("nav-separator")).toBeInTheDocument()
-    expect(screen.getByText("Quote")).toBeInTheDocument()
-    expect(screen.getByText("Inquiry")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^all$/i })).toBeInTheDocument()
   })
 
-  it("renders custom categories alongside system categories", () => {
+  it("renders custom categories in the sidebar", () => {
     render(
       <AppSidebar
         customCategories={[{ id: "cat-1", name: "VIP Clients", slug: "vip_clients" }]}
       />
     )
-    expect(screen.getByText("Quote")).toBeInTheDocument()
     expect(screen.getByText("VIP Clients")).toBeInTheDocument()
   })
 })
@@ -170,7 +168,7 @@ describe("AppSidebar — manage categories modal", () => {
     })
     fireEvent.click(screen.getByRole("button", { name: /create category/i }))
     await waitFor(() => {
-      expect(mockCreateCustomCategoryAction).toHaveBeenCalledWith("Priority Clients")
+      expect(mockCreateCustomCategoryAction).toHaveBeenCalledWith("Priority Clients", undefined)
     })
     expect(screen.getByText("Priority Clients")).toBeInTheDocument()
   })

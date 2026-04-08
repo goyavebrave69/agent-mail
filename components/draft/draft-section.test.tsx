@@ -46,37 +46,39 @@ describe('DraftSection — not composing', () => {
 })
 
 describe('DraftSection — compose mode', () => {
+  const defaultPrefill = { to: 'sender@example.com', subject: 'Re: Test', quotedBody: '' }
+
   function renderComposing() {
-    useDraftStore.getState().startComposing()
+    useDraftStore.getState().startComposing('reply', defaultPrefill)
     return render(<DraftSection {...defaultProps} />)
   }
 
-  it('shows ManualCompose with Send and Create Draft buttons when composing', () => {
+  it('shows ManualCompose with Send and Réponse buttons when composing', () => {
     renderComposing()
     expect(screen.getByRole('button', { name: /send reply/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /create draft/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /réponse/i })).toBeInTheDocument()
   })
 
   it('shows textarea for manual reply', () => {
     renderComposing()
-    expect(screen.getByRole('textbox', { name: /write your reply/i })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /message body/i })).toBeInTheDocument()
   })
 
-  it('clicking Create Draft calls createDraftOnDemand with emailId', async () => {
+  it('clicking Réponse calls createDraftOnDemand with emailId', async () => {
     vi.mocked(createDraftOnDemand).mockImplementation(() => new Promise(() => {}))
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
     await waitFor(() => {
       expect(createDraftOnDemand).toHaveBeenCalledWith('email-1')
     })
   })
 
-  it('Create Draft button shows Generating… and is disabled while creating', async () => {
+  it('Réponse button shows Generating… and is disabled while creating', async () => {
     vi.mocked(createDraftOnDemand).mockImplementation(() => new Promise(() => {}))
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
     await waitFor(() => {
-      const btn = screen.getByRole('button', { name: /create draft/i })
+      const btn = screen.getByRole('button', { name: /generating/i })
       expect(btn).toBeDisabled()
       expect(btn).toHaveTextContent('Generating…')
     })
@@ -85,11 +87,11 @@ describe('DraftSection — compose mode', () => {
   it('duplicate clicks are prevented once creating starts', async () => {
     vi.mocked(createDraftOnDemand).mockImplementation(() => new Promise(() => {}))
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /create draft/i })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /generating/i })).toBeDisabled()
     })
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /generating/i }))
     expect(createDraftOnDemand).toHaveBeenCalledTimes(1)
   })
 
@@ -111,9 +113,9 @@ describe('DraftSection — compose mode', () => {
       retry_count: 0,
     })
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
     await waitFor(() => {
-      const textarea = screen.getByRole('textbox', { name: /write your reply/i }) as HTMLTextAreaElement
+      const textarea = screen.getByRole('textbox', { name: /message body/i }) as HTMLTextAreaElement
       expect(textarea.value).toBe('AI generated reply content.')
     })
   })
@@ -124,7 +126,7 @@ describe('DraftSection — compose mode', () => {
       error: 'Edge function unavailable.',
     })
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /create draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
       expect(screen.getByText('Edge function unavailable.')).toBeInTheDocument()

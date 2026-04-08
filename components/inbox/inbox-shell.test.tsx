@@ -54,6 +54,7 @@ const baseEmail: InboxEmail = {
   category: "inquiry",
   priority_rank: 1,
   body_text: "This is the body preview text",
+  body_html: null,
 }
 
 function makeEmail(overrides: Partial<InboxEmail>): InboxEmail {
