@@ -27,7 +27,6 @@ export function ManualCompose({
   mode,
   composeTo,
   composeSubject,
-  composeQuotedBody,
   onToChange,
   onSubjectChange,
   onSend,
@@ -113,14 +112,7 @@ export function ManualCompose({
       />
 
       {/* Quoted original email */}
-      {composeQuotedBody && (
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">— Original message —</p>
-          <pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground line-clamp-6">
-            {composeQuotedBody}
-          </pre>
-        </div>
-      )}
+      
 
       {sendError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3" role="alert">

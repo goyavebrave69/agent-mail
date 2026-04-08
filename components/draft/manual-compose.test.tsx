@@ -90,16 +90,6 @@ describe('ManualCompose', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('shows quoted body when composeQuotedBody is provided', () => {
-    render(<ManualCompose {...defaultProps} composeQuotedBody="Original message text" />)
-    expect(screen.getByText('Original message text')).toBeInTheDocument()
-  })
-
-  it('does not show quoted body block when composeQuotedBody is empty', () => {
-    render(<ManualCompose {...defaultProps} composeQuotedBody="" />)
-    expect(screen.queryByText(/original message/i)).not.toBeInTheDocument()
-  })
-
   it('shows Forward button label in forward mode', () => {
     render(<ManualCompose {...defaultProps} mode="forward" manualContent="Fwd text" />)
     expect(screen.getByRole('button', { name: /forward/i })).toBeInTheDocument()
