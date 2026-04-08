@@ -4,7 +4,7 @@
 // Fetches new emails for all active sync jobs and stores metadata + body text.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { triageEmail, type EmailCategory } from './triage.ts'
+import { triageEmail, type UserCategory } from './triage.ts'
 
 type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
 type DenoLike = {
@@ -51,7 +51,7 @@ interface EmailMessage {
   fromName: string | null
   bodyText: string | null
   receivedAt: Date
-  category: EmailCategory
+  category: string
   priorityRank: number
 }
 
@@ -251,6 +251,13 @@ async function syncGmail(
 
   if (!listRes.ok) throw new Error(`Gmail list failed: ${listRes.status}`)
 
+  const { data: categoryRows } = await supabase
+    .from('custom_categories')
+    .select('slug, name, description')
+    .eq('user_id', job.user_id)
+    .order('sort_order', { ascending: true })
+  const userCategories: UserCategory[] = (categoryRows ?? []) as UserCategory[]
+
   const listData = (await listRes.json()) as { messages?: Array<{ id: string }> }
   const messageIds = listData.messages?.map((m) => m.id) ?? []
 
@@ -287,9 +294,9 @@ async function syncGmail(
     // Extract plain-text body, fall back to snippet
     const bodyText = extractGmailBodyText(msg.payload) ?? msg.snippet ?? null
 
-    const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
-      category: 'other' as EmailCategory,
-      priorityRank: 20,
+    const triage = await triageEmail(subject, fromEmail, userCategories, openAiApiKey).catch(() => ({
+      category: 'inbox',
+      priorityRank: 0,
     }))
 
     emails.push({
@@ -351,6 +358,13 @@ async function syncOutlook(
 
   if (!res.ok) throw new Error(`Outlook list failed: ${res.status}`)
 
+  const { data: categoryRows } = await supabase
+    .from('custom_categories')
+    .select('slug, name, description')
+    .eq('user_id', job.user_id)
+    .order('sort_order', { ascending: true })
+  const userCategories: UserCategory[] = (categoryRows ?? []) as UserCategory[]
+
   interface GraphMsg {
     id: string
     subject?: string
@@ -380,9 +394,9 @@ async function syncOutlook(
       }
       bodyText ??= typeof m.bodyPreview === 'string' ? m.bodyPreview : null
 
-      const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
-        category: 'other' as EmailCategory,
-        priorityRank: 20,
+      const triage = await triageEmail(subject, fromEmail, userCategories, openAiApiKey).catch(() => ({
+        category: 'inbox',
+        priorityRank: 0,
       }))
 
       return {

@@ -82,7 +82,6 @@ const SYSTEM_CATEGORY_MENU: CategoryMenuItem[] = [
   { key: "spam", label: CATEGORY_BADGE.spam.label, icon: ShieldAlert },
   { key: "other", label: CATEGORY_BADGE.other.label, icon: Circle },
 ]
-const CATEGORY_ORDER: InboxCategory[] = ["quote", "inquiry", "invoice", "follow_up", "spam", "other"]
 
 const SESSION_KEY = "inbox_sidebar_collapsed"
 
@@ -301,15 +300,26 @@ export function InboxShell({
   const selectedEmail = filteredEmails.find((email) => email.id === selectedEmailId) ?? null
   const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Unknown sender"
   const selectedSenderEmail = selectedEmail?.from_email ?? "No sender email"
-  const groupedEmails = useMemo(
-    () =>
-      CATEGORY_ORDER.map((category) => ({
-        category,
-        label: CATEGORY_BADGE[category].label,
-        emails: filteredEmails.filter((email) => email.category === category),
-      })).filter((group) => group.emails.length > 0),
-    [filteredEmails]
-  )
+  const groupedEmails = useMemo(() => {
+    const slugToName = new Map(customCategoriesState.map((c) => [c.slug, c.name]))
+    const groups = new Map<string, { label: string; emails: InboxEmail[] }>()
+
+    // Preserve user-defined order
+    for (const cat of customCategoriesState) {
+      groups.set(cat.slug, { label: cat.name, emails: [] })
+    }
+    // Ensure fallback bucket exists
+    groups.set("inbox", { label: "Inbox", emails: [] })
+
+    for (const email of filteredEmails) {
+      const key = slugToName.has(email.category) ? email.category : "inbox"
+      groups.get(key)!.emails.push(email)
+    }
+
+    return Array.from(groups.entries())
+      .filter(([, g]) => g.emails.length > 0)
+      .map(([category, g]) => ({ category, label: g.label, emails: g.emails }))
+  }, [filteredEmails, customCategoriesState])
 
   const setCategory = (key: string | "all") => {
     const params = new URLSearchParams(searchParams.toString())
