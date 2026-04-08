@@ -1,42 +1,33 @@
-"use client"
+import { createClient } from "@/lib/supabase/server"
+import { AppSidebar } from "@/components/layout/app-sidebar"
+import type { CustomCategory } from "@/lib/inbox/custom-categories"
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-
-const NAV_LINKS = [
-  { href: "/inbox", label: "Inbox" },
-  { href: "/knowledge-base", label: "Knowledge Base" },
-  { href: "/settings", label: "Settings" },
-]
-
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
-  const isInboxRoute = pathname === "/inbox" || pathname.startsWith("/inbox/")
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (isInboxRoute) {
-    return <>{children}</>
+  let customCategories: CustomCategory[] = []
+  if (user) {
+    const { data } = await supabase
+      .from("custom_categories")
+      .select("id, name, slug, description, sort_order")
+      .eq("user_id", user.id)
+      .order("sort_order", { ascending: true })
+    customCategories = (data as CustomCategory[] | null) ?? []
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <nav className="border-b bg-background">
-        <div className="mx-auto flex max-w-4xl items-center gap-6 px-4 py-3">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      </nav>
-      {children}
+    <div className="flex h-svh overflow-hidden">
+      <AppSidebar customCategories={customCategories} />
+      <main className="flex-1 min-h-0 overflow-hidden">
+        {children}
+      </main>
     </div>
   )
 }

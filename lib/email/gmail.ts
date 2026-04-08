@@ -90,9 +90,15 @@ export async function sendViaGmail(
   let response = await sendWithToken(accessToken)
 
   if (response.status === 401 || response.status === 403) {
-    const refreshed = await refreshGmailToken(credentials.refresh_token)
-    accessToken = refreshed.access_token
-    response = await sendWithToken(accessToken)
+    console.error('[sendViaGmail] token rejected, attempting refresh', { status: response.status })
+    try {
+      const refreshed = await refreshGmailToken(credentials.refresh_token)
+      accessToken = refreshed.access_token
+      response = await sendWithToken(accessToken)
+    } catch (refreshErr) {
+      console.error('[sendViaGmail] token refresh failed', refreshErr)
+      return { success: false, error: 'Gmail token refresh failed. Please reconnect your mailbox.', errorCode: 'PROVIDER_ERROR' }
+    }
   }
 
   if (!response.ok) {
@@ -104,9 +110,16 @@ export async function sendViaGmail(
       }
     }
 
+    const errorBody = await response.text().catch(() => '(unreadable)')
+    console.error('[sendViaGmail] send failed', { status: response.status, body: errorBody })
+    let detail = ''
+    try {
+      const parsed = JSON.parse(errorBody) as { error?: { message?: string } }
+      detail = parsed?.error?.message ? ` (${parsed.error.message})` : ''
+    } catch { /* ignore */ }
     return {
       success: false,
-      error: 'Email provider error. Please try again.',
+      error: `Gmail error ${response.status}${detail}`,
       errorCode: 'PROVIDER_ERROR',
     }
   }

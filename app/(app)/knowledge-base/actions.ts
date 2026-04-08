@@ -3,6 +3,51 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 
+const MAX_PROFILE_DESCRIPTION_LENGTH = 2000
+
+export async function getUserProfileAction(): Promise<{ description: string } | { error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Unauthorized" }
+
+  const { data } = await supabase
+    .from("user_profile")
+    .select("description")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  return { description: data?.description ?? "" }
+}
+
+export async function saveUserProfileAction(
+  description: string
+): Promise<{ success: true } | { error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Unauthorized" }
+
+  const trimmed = description.trim()
+  if (trimmed.length > MAX_PROFILE_DESCRIPTION_LENGTH) {
+    return { error: `Description must be ${MAX_PROFILE_DESCRIPTION_LENGTH} characters or fewer.` }
+  }
+
+  const { error } = await supabase
+    .from("user_profile")
+    .upsert({ user_id: user.id, description: trimmed, updated_at: new Date().toISOString() })
+    .eq("user_id", user.id)
+
+  if (error) return { error: `Failed to save profile: ${error.message}` }
+
+  revalidatePath("/knowledge-base")
+  return { success: true }
+}
+
 const ACCEPTED_MIME_TYPES = [
   "text/csv",
   "application/vnd.ms-excel",
