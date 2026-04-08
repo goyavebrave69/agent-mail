@@ -4,9 +4,9 @@
 // Parses CSV/Excel content, generates embeddings, and stores them in the
 // embeddings table. Updates kb_files.status to 'ready' or 'error'.
 
-import { createClient } from 'npm:@supabase/supabase-js@2'
-import Papa from 'npm:papaparse@5.4.1'
-import * as XLSX from 'npm:xlsx@0.18.5'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import Papa from 'https://esm.sh/papaparse@5.4.1'
+import * as XLSX from 'https://esm.sh/xlsx@0.18.5'
 
 type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
 type DenoLike = {
@@ -132,12 +132,6 @@ async function cleanupEmbeddings(kbFileId: string): Promise<void> {
 deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
-  }
-
-  const authHeader = req.headers.get('authorization')
-  const expectedAuthHeader = `Bearer ${serviceRoleKey}`
-  if (authHeader !== expectedAuthHeader) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
   }
 
   let kbFileId: string

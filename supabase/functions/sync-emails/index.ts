@@ -4,7 +4,7 @@
 // Fetches new emails for all active sync jobs and stores metadata + body text.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { triageEmail, type EmailCategory } from './triage.ts'
+import { triageEmail, type UserCategory } from './triage.ts'
 
 type DenoServe = (handler: (_req: Request) => Response | Promise<Response>) => unknown
 type DenoLike = {
@@ -50,8 +50,9 @@ interface EmailMessage {
   fromEmail: string | null
   fromName: string | null
   bodyText: string | null
+  bodyHtml: string | null
   receivedAt: Date
-  category: EmailCategory
+  category: string
   priorityRank: number
 }
 
@@ -85,6 +86,24 @@ function extractGmailBodyText(part: GmailPart | undefined): string | null {
     for (const child of part.parts) {
       const text = extractGmailBodyText(child)
       if (text) return text
+    }
+  }
+  return null
+}
+
+function extractGmailBodyHtml(part: GmailPart | undefined): string | null {
+  if (!part) return null
+  if (part.mimeType === 'text/html' && part.body?.data) {
+    try {
+      return decodeBase64Url(part.body.data).slice(0, 500_000)
+    } catch {
+      return null
+    }
+  }
+  if (part.parts) {
+    for (const child of part.parts) {
+      const html = extractGmailBodyHtml(child)
+      if (html) return html
     }
   }
   return null
@@ -154,6 +173,7 @@ async function storeEmails(userId: string, provider: string, emails: EmailMessag
     category: e.category,
     priority_rank: e.priorityRank,
     body_text: e.bodyText,
+    body_html: e.bodyHtml,
   }))
 
   // ignoreDuplicates: false → update body_text on existing rows (backfill)
@@ -251,6 +271,13 @@ async function syncGmail(
 
   if (!listRes.ok) throw new Error(`Gmail list failed: ${listRes.status}`)
 
+  const { data: categoryRows } = await supabase
+    .from('custom_categories')
+    .select('slug, name, description')
+    .eq('user_id', job.user_id)
+    .order('sort_order', { ascending: true })
+  const userCategories: UserCategory[] = (categoryRows ?? []) as UserCategory[]
+
   const listData = (await listRes.json()) as { messages?: Array<{ id: string }> }
   const messageIds = listData.messages?.map((m) => m.id) ?? []
 
@@ -284,12 +311,12 @@ async function syncGmail(
         ? new Date(Number(msg.internalDate))
         : new Date()
 
-    // Extract plain-text body, fall back to snippet
+    const bodyHtml = extractGmailBodyHtml(msg.payload)
     const bodyText = extractGmailBodyText(msg.payload) ?? msg.snippet ?? null
 
-    const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
-      category: 'other' as EmailCategory,
-      priorityRank: 20,
+    const triage = await triageEmail(subject, fromEmail, bodyText, userCategories, openAiApiKey).catch(() => ({
+      category: 'inbox',
+      priorityRank: 0,
     }))
 
     emails.push({
@@ -298,6 +325,7 @@ async function syncGmail(
       fromEmail,
       fromName,
       bodyText,
+      bodyHtml,
       receivedAt,
       category: triage.category,
       priorityRank: triage.priorityRank,
@@ -351,6 +379,13 @@ async function syncOutlook(
 
   if (!res.ok) throw new Error(`Outlook list failed: ${res.status}`)
 
+  const { data: categoryRows } = await supabase
+    .from('custom_categories')
+    .select('slug, name, description')
+    .eq('user_id', job.user_id)
+    .order('sort_order', { ascending: true })
+  const userCategories: UserCategory[] = (categoryRows ?? []) as UserCategory[]
+
   interface GraphMsg {
     id: string
     subject?: string
@@ -369,20 +404,22 @@ async function syncOutlook(
       const subject = m.subject ?? null
       const fromEmail = m.from?.emailAddress?.address ?? null
 
-      // Extract body text: prefer plain text, fall back to stripped HTML, then bodyPreview
+      // Store HTML as-is; derive plain text from it for body_text
+      let bodyHtml: string | null = null
       let bodyText: string | null = null
       if (m.body?.content) {
         if (m.body.contentType === 'text') {
           bodyText = m.body.content.slice(0, 20_000)
         } else {
+          bodyHtml = m.body.content.slice(0, 500_000)
           bodyText = stripHtml(m.body.content)
         }
       }
       bodyText ??= typeof m.bodyPreview === 'string' ? m.bodyPreview : null
 
-      const triage = await triageEmail(subject, fromEmail, openAiApiKey).catch(() => ({
-        category: 'other' as EmailCategory,
-        priorityRank: 20,
+      const triage = await triageEmail(subject, fromEmail, bodyText, userCategories, openAiApiKey).catch(() => ({
+        category: 'inbox',
+        priorityRank: 0,
       }))
 
       return {
@@ -391,6 +428,7 @@ async function syncOutlook(
         fromEmail,
         fromName: m.from?.emailAddress?.name ?? null,
         bodyText,
+        bodyHtml,
         receivedAt: m.receivedDateTime ? new Date(m.receivedDateTime) : new Date(),
         category: triage.category,
         priorityRank: triage.priorityRank,

@@ -1,54 +1,66 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import type { UserCategory } from "./triage"
 
 const mockFetch = vi.fn()
 vi.stubGlobal("fetch", mockFetch)
+
+const CATEGORIES: UserCategory[] = [
+  { slug: "client-vip", name: "Client VIP", description: "Important clients requiring fast response" },
+  { slug: "prospect", name: "Prospect", description: "Potential new customers" },
+  { slug: "supplier", name: "Supplier", description: "Invoices and supplier communications" },
+]
 
 describe("triageEmail", () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
     mockFetch.mockReset()
-    process.env.OPENAI_API_KEY = "test-openai-key"
   })
 
   afterEach(() => {
     delete process.env.OPENAI_API_KEY
   })
 
-  function mockLlmResponse(category: string) {
+  function mockLlmResponse(slug: string) {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        choices: [{ message: { content: JSON.stringify({ category }) } }],
+        choices: [{ message: { content: JSON.stringify({ category: slug }) } }],
       }),
     })
   }
 
-  it("returns quote category with priority 100 for a quote request email", async () => {
-    mockLlmResponse("quote")
+  it("returns correct slug and priority for first category", async () => {
+    mockLlmResponse("client-vip")
     const { triageEmail } = await import("./triage")
-    const result = await triageEmail("Price request for 50 units", "buyer@example.com", "test-key")
-    expect(result.category).toBe("quote")
-    expect(result.priorityRank).toBe(100)
+    const result = await triageEmail("Urgent request from top client", "vip@example.com", null, CATEGORIES, "test-key")
+    expect(result.category).toBe("client-vip")
+    expect(result.priorityRank).toBe(30) // (3 - 0) * 10
   })
 
-  it("returns invoice category with priority 90", async () => {
-    mockLlmResponse("invoice")
+  it("returns correct slug and priority for last category", async () => {
+    mockLlmResponse("supplier")
     const { triageEmail } = await import("./triage")
-    const result = await triageEmail("Invoice #1234 attached", "billing@acme.com", "test-key")
-    expect(result.category).toBe("invoice")
-    expect(result.priorityRank).toBe(90)
+    const result = await triageEmail("Invoice #1234", "billing@supplier.com", null, CATEGORIES, "test-key")
+    expect(result.category).toBe("supplier")
+    expect(result.priorityRank).toBe(10) // (3 - 2) * 10
   })
 
-  it("returns inquiry category with priority 70", async () => {
-    mockLlmResponse("inquiry")
+  it("falls back to inbox/0 when no user categories are provided", async () => {
     const { triageEmail } = await import("./triage")
-    const result = await triageEmail("Question about your services", "client@example.com", "test-key")
-    expect(result.category).toBe("inquiry")
-    expect(result.priorityRank).toBe(70)
+    const result = await triageEmail("Some email", "test@example.com", null, [], "test-key")
+    expect(result).toEqual({ category: "inbox", priorityRank: 0 })
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it("falls back to other/20 when LLM returns unexpected JSON", async () => {
+  it("falls back to inbox/0 when LLM returns unknown slug", async () => {
+    mockLlmResponse("hallucinated-category")
+    const { triageEmail } = await import("./triage")
+    const result = await triageEmail("Some email", "test@example.com", null, CATEGORIES, "test-key")
+    expect(result).toEqual({ category: "inbox", priorityRank: 0 })
+  })
+
+  it("falls back to inbox/0 when LLM returns invalid JSON", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -56,39 +68,68 @@ describe("triageEmail", () => {
       }),
     })
     const { triageEmail } = await import("./triage")
-    const result = await triageEmail("Some email", "test@example.com", "test-key")
-    expect(result).toEqual({ category: "other", priorityRank: 20 })
+    const result = await triageEmail("Some email", "test@example.com", null, CATEGORIES, "test-key")
+    expect(result).toEqual({ category: "inbox", priorityRank: 0 })
   })
 
-  it("falls back to other/20 when fetch throws a network error", async () => {
+  it("falls back to inbox/0 when fetch throws a network error", async () => {
     mockFetch.mockRejectedValueOnce(new Error("network error"))
     const { triageEmail } = await import("./triage")
-    const result = await triageEmail("Some email", "test@example.com", "test-key")
-    expect(result).toEqual({ category: "other", priorityRank: 20 })
+    const result = await triageEmail("Some email", "test@example.com", null, CATEGORIES, "test-key")
+    expect(result).toEqual({ category: "inbox", priorityRank: 0 })
   })
 
-  it("falls back to other/20 and skips fetch when API key is missing", async () => {
+  it("falls back to inbox/0 and skips fetch when API key is missing", async () => {
     const { triageEmail } = await import("./triage")
-    const result = await triageEmail("Some email", "test@example.com", "   ")
-    expect(result).toEqual({ category: "other", priorityRank: 20 })
+    const result = await triageEmail("Some email", "test@example.com", null, CATEGORIES, "   ")
+    expect(result).toEqual({ category: "inbox", priorityRank: 0 })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it("falls back to other/20 when LLM returns non-200", async () => {
+  it("falls back to inbox/0 when LLM returns non-200", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 429,
       text: async () => "rate limit exceeded",
     })
     const { triageEmail } = await import("./triage")
-    const result = await triageEmail("Some email", "test@example.com", "test-key")
-    expect(result).toEqual({ category: "other", priorityRank: 20 })
+    const result = await triageEmail("Some email", "test@example.com", null, CATEGORIES, "test-key")
+    expect(result).toEqual({ category: "inbox", priorityRank: 0 })
   })
 
-  it("falls back to other/20 when LLM returns an unknown category", async () => {
-    mockLlmResponse("unknown_category")
+  it("includes category descriptions in the prompt", async () => {
+    mockLlmResponse("client-vip")
     const { triageEmail } = await import("./triage")
-    const result = await triageEmail("Some email", "test@example.com", "test-key")
-    expect(result).toEqual({ category: "other", priorityRank: 20 })
+    await triageEmail("Hello", "a@b.com", null, CATEGORIES, "test-key")
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string)
+    const systemPrompt = body.messages[0].content as string
+    expect(systemPrompt).toContain("client-vip")
+    expect(systemPrompt).toContain("Important clients requiring fast response")
+  })
+
+  it("includes body excerpt in the user message", async () => {
+    mockLlmResponse("supplier")
+    const { triageEmail } = await import("./triage")
+    await triageEmail(null, null, "Bonjour, voici la facture demandée.", CATEGORIES, "test-key")
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string)
+    const userMessage = body.messages[1].content as string
+    expect(userMessage).toContain("Body: Bonjour, voici la facture demandée.")
+  })
+
+  it("truncates body to 300 characters in the user message", async () => {
+    mockLlmResponse("supplier")
+    const { triageEmail } = await import("./triage")
+    const longBody = "x".repeat(500)
+    await triageEmail(null, null, longBody, CATEGORIES, "test-key")
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string)
+    const userMessage = body.messages[1].content as string
+    expect(userMessage).toBe(`Body: ${"x".repeat(300)}`)
+  })
+
+  it("classifies email with no subject using body only", async () => {
+    mockLlmResponse("supplier")
+    const { triageEmail } = await import("./triage")
+    const result = await triageEmail(null, null, "Bonjour, voici la facture que vous m'avez demandé.", CATEGORIES, "test-key")
+    expect(result.category).toBe("supplier")
   })
 })

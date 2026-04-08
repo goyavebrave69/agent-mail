@@ -1,58 +1,60 @@
 const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
 const TRIAGE_MODEL = "gpt-4o-mini"
 
-export type EmailCategory = "quote" | "inquiry" | "invoice" | "follow_up" | "spam" | "other"
+export interface UserCategory {
+  slug: string
+  name: string
+  description: string | null
+}
 
 export interface TriageResult {
-  category: EmailCategory
+  category: string
   priorityRank: number
 }
 
-const PRIORITY_MAP: Record<EmailCategory, number> = {
-  quote: 100,
-  invoice: 90,
-  inquiry: 70,
-  follow_up: 50,
-  other: 20,
-  spam: 0,
+const FALLBACK: TriageResult = { category: "inbox", priorityRank: 0 }
+
+function buildSystemPrompt(categories: UserCategory[]): string {
+  const list = categories
+    .map((c) => `- ${c.slug}: ${c.name}${c.description ? ` — ${c.description}` : ""}`)
+    .join("\n")
+
+  return `You are an email classifier for a business inbox.
+Classify the email into exactly one of these categories:
+${list}
+
+Respond with valid JSON only: {"category": "<slug>"}
+Use the exact slug as shown. No explanation, no extra text.`
 }
 
-const VALID_CATEGORIES = new Set<string>([
-  "quote",
-  "inquiry",
-  "invoice",
-  "follow_up",
-  "spam",
-  "other",
-])
-
-const FALLBACK: TriageResult = { category: "other", priorityRank: 20 }
-
-const SYSTEM_PROMPT = `You are an email classifier for a business inbox.
-Classify the email into exactly one of these categories:
-- quote: customer requesting a price quote or estimate
-- invoice: billing, payment request, or invoice
-- inquiry: general question or information request
-- follow_up: follow-up on a previous conversation or pending item
-- spam: unsolicited or irrelevant email
-- other: anything that does not fit the above
-
-Respond with valid JSON only: {"category": "<category>"}
-No explanation, no extra text.`
+const BODY_EXCERPT_LENGTH = 300
 
 export async function triageEmail(
   subject: string | null,
   fromEmail: string | null,
+  bodyText: string | null,
+  userCategories: UserCategory[],
   openAiApiKey: string
 ): Promise<TriageResult> {
+  if (userCategories.length === 0) {
+    return FALLBACK
+  }
+
   const apiKey = openAiApiKey.trim()
   if (!apiKey) {
     return FALLBACK
   }
 
+  const validSlugs = new Set(userCategories.map((c) => c.slug))
+  const priorityMap = new Map(
+    userCategories.map((c, i) => [c.slug, (userCategories.length - i) * 10])
+  )
+
+  const bodyExcerpt = bodyText?.trim().slice(0, BODY_EXCERPT_LENGTH) ?? null
   const content = [
     subject ? `Subject: ${subject}` : null,
     fromEmail ? `From: ${fromEmail}` : null,
+    bodyExcerpt ? `Body: ${bodyExcerpt}` : null,
   ]
     .filter(Boolean)
     .join("\n")
@@ -67,7 +69,7 @@ export async function triageEmail(
       body: JSON.stringify({
         model: TRIAGE_MODEL,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: buildSystemPrompt(userCategories) },
           { role: "user", content: content || "No subject or sender" },
         ],
         temperature: 0,
@@ -85,14 +87,13 @@ export async function triageEmail(
 
     const raw = json.choices?.[0]?.message?.content ?? ""
     const parsed = JSON.parse(raw) as { category?: string }
-    const category = parsed.category
+    const slug = parsed.category
 
-    if (!category || !VALID_CATEGORIES.has(category)) {
+    if (!slug || !validSlugs.has(slug)) {
       return FALLBACK
     }
 
-    const validCategory = category as EmailCategory
-    return { category: validCategory, priorityRank: PRIORITY_MAP[validCategory] }
+    return { category: slug, priorityRank: priorityMap.get(slug) ?? 0 }
   } catch {
     return FALLBACK
   }

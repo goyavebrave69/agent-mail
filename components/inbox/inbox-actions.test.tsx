@@ -62,6 +62,7 @@ const baseEmail: InboxEmail = {
   category: "inquiry",
   priority_rank: 1,
   body_text: "Body text",
+  body_html: null,
 }
 
 const defaultProps = {

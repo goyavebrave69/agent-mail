@@ -66,22 +66,27 @@ describe('useDraftStore', () => {
     expect(state.manualContent).toBe('')
   })
 
-  it('startComposing sets isComposing to true', () => {
+  it('startComposing sets isComposing to true with prefill', () => {
     useDraftStore.getState().optimisticReject()
-    useDraftStore.getState().startComposing()
-    expect(useDraftStore.getState().isComposing).toBe(true)
-    expect(useDraftStore.getState().manualContent).toBe('')
+    useDraftStore.getState().startComposing('reply', { to: 'a@b.com', subject: 'Re: Test', quotedBody: 'Original' })
+    const state = useDraftStore.getState()
+    expect(state.isComposing).toBe(true)
+    expect(state.composeMode).toBe('reply')
+    expect(state.composeTo).toBe('a@b.com')
+    expect(state.composeSubject).toBe('Re: Test')
+    expect(state.composeQuotedBody).toBe('Original')
+    expect(state.manualContent).toBe('')
   })
 
   it('updateManualContent updates manualContent', () => {
-    useDraftStore.getState().startComposing()
+    useDraftStore.getState().startComposing('reply', { to: 'a@b.com', subject: 'Re: Test', quotedBody: '' })
     useDraftStore.getState().updateManualContent('My reply')
     expect(useDraftStore.getState().manualContent).toBe('My reply')
   })
 
   it('cancelComposing returns to rejected state without composing', () => {
     useDraftStore.getState().optimisticReject()
-    useDraftStore.getState().startComposing()
+    useDraftStore.getState().startComposing('reply', { to: 'a@b.com', subject: 'Re: Test', quotedBody: '' })
     useDraftStore.getState().updateManualContent('draft text')
     useDraftStore.getState().cancelComposing()
     const state = useDraftStore.getState()

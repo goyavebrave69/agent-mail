@@ -121,7 +121,7 @@ export async function validateAndSendDraft(
   }
 
   const adminClient = createAdminClient()
-  const { data: secretData } = await adminClient.rpc('get_secret', {
+  const { data: secretData } = await adminClient.rpc('read_vault_secret', {
     secret_id: connection.vault_secret_id,
   })
   const credentials = JSON.parse(secretData as string)
@@ -499,7 +499,8 @@ export async function trashEmail(
 
 export async function sendManualReply(
   emailId: string,
-  content: string
+  content: string,
+  overrides?: { to?: string; subject?: string; isForward?: boolean }
 ): Promise<SendEmailResult> {
   const sanitized = content.trim()
   if (!sanitized) {
@@ -542,20 +543,24 @@ export async function sendManualReply(
   }
 
   const adminClient = createAdminClient()
-  const { data: secretData } = await adminClient.rpc('get_secret', {
+  const { data: secretData } = await adminClient.rpc('read_vault_secret', {
     secret_id: connection.vault_secret_id,
   })
   const credentials = JSON.parse(secretData as string)
+
+  const toAddress = overrides?.to?.trim() || email.from_email || ''
+  const subject = overrides?.subject?.trim() || `Re: ${email.subject ?? ''}`
+  const isForward = overrides?.isForward ?? false
 
   const sendResult = await sendEmailViaProvider(
     connection.provider as 'gmail' | 'outlook' | 'imap',
     credentials,
     {
-      to: email.from_email ?? '',
+      to: toAddress,
       from: connection.email,
-      subject: `Re: ${email.subject ?? ''}`,
+      subject,
       body: sanitized,
-      replyToMessageId: email.provider_email_id ?? undefined,
+      replyToMessageId: isForward ? undefined : (email.provider_email_id ?? undefined),
     }
   )
 

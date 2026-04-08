@@ -1,4 +1,4 @@
-export type EmailCategory = 'quote' | 'inquiry' | 'invoice' | 'follow_up' | 'spam' | 'other'
+export type EmailCategory = string
 
 export interface EmailMessage {
   id: string

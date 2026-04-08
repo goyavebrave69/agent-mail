@@ -41,69 +41,92 @@ async function refreshOutlookToken(refreshToken: string): Promise<RefreshResult>
   return res.json() as Promise<RefreshResult>
 }
 
+async function outlookFetch(
+  url: string,
+  accessToken: string,
+  body: object | null
+): Promise<Response> {
+  return fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    ...(body !== null && { body: JSON.stringify(body) }),
+  })
+}
+
+async function withTokenRefresh(
+  credentials: OutlookCredentials,
+  call: (token: string) => Promise<Response>
+): Promise<{ response: Response; accessToken: string }> {
+  let accessToken = credentials.access_token
+  let response = await call(accessToken)
+
+  if (response.status === 401 || response.status === 403) {
+    console.error('[sendViaOutlook] token rejected, attempting refresh', { status: response.status })
+    try {
+      const refreshed = await refreshOutlookToken(credentials.refresh_token)
+      accessToken = refreshed.access_token
+      response = await call(accessToken)
+    } catch (refreshErr) {
+      console.error('[sendViaOutlook] token refresh failed', refreshErr)
+      throw new Error('REFRESH_FAILED')
+    }
+  }
+
+  return { response, accessToken }
+}
+
+async function handleOutlookError(response: Response, label: string): Promise<SendEmailResult> {
+  if (response.status === 429) {
+    return { success: false, error: 'Rate limit exceeded. Please wait a moment before retrying.', errorCode: 'RATE_LIMIT' }
+  }
+  const errorBody = await response.text().catch(() => '(unreadable)')
+  console.error(`[${label}] send failed`, { status: response.status, body: errorBody })
+  let detail = ''
+  try {
+    const parsed = JSON.parse(errorBody) as { error?: { message?: string } }
+    detail = parsed?.error?.message ? ` (${parsed.error.message})` : ''
+  } catch { /* ignore */ }
+  return { success: false, error: `Outlook error ${response.status}${detail}`, errorCode: 'PROVIDER_ERROR' }
+}
+
 export async function sendViaOutlook(
   credentials: OutlookCredentials,
   params: SendEmailParams
 ): Promise<SendEmailResult> {
-  const message = {
-    subject: params.subject,
-    body: {
-      contentType: 'Text',
-      content: params.body,
-    },
-    toRecipients: [
-      {
-        emailAddress: {
-          address: params.to,
-        },
-      },
-    ],
-    internetMessageHeaders: params.replyToMessageId
-      ? [
-          { name: 'In-Reply-To', value: params.replyToMessageId },
-          { name: 'References', value: params.replyToMessageId },
-        ]
-      : undefined,
-  }
-
-  const sendWithToken = async (accessToken: string): Promise<Response> =>
-    fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ message }),
-    })
-
-  let accessToken = credentials.access_token
-  let response = await sendWithToken(accessToken)
-
-  if (response.status === 401 || response.status === 403) {
-    const refreshed = await refreshOutlookToken(credentials.refresh_token)
-    accessToken = refreshed.access_token
-    response = await sendWithToken(accessToken)
-  }
-
-  if (!response.ok) {
-    if (response.status === 429) {
-      return {
-        success: false,
-        error: 'Rate limit exceeded. Please wait a moment before retrying.',
-        errorCode: 'RATE_LIMIT',
-      }
+  try {
+    // For replies: use the /reply endpoint so Outlook handles threading natively.
+    // For new messages / forwards: use /sendMail.
+    if (params.replyToMessageId) {
+      const { response } = await withTokenRefresh(credentials, (token) =>
+        outlookFetch(
+          `https://graph.microsoft.com/v1.0/me/messages/${params.replyToMessageId}/reply`,
+          token,
+          { comment: params.body }
+        )
+      )
+      if (!response.ok) return handleOutlookError(response, 'sendViaOutlook/reply')
+      return { success: true, messageId: crypto.randomUUID() }
     }
 
-    return {
-      success: false,
-      error: 'Email provider error. Please try again.',
-      errorCode: 'PROVIDER_ERROR',
+    // New compose or forward
+    const message = {
+      subject: params.subject,
+      body: { contentType: 'Text', content: params.body },
+      toRecipients: [{ emailAddress: { address: params.to } }],
     }
-  }
-
-  return {
-    success: true,
-    messageId: crypto.randomUUID(),
+    const { response } = await withTokenRefresh(credentials, (token) =>
+      outlookFetch('https://graph.microsoft.com/v1.0/me/sendMail', token, { message })
+    )
+    if (!response.ok) return handleOutlookError(response, 'sendViaOutlook/sendMail')
+    return { success: true, messageId: crypto.randomUUID() }
+  } catch (err) {
+    if (err instanceof Error && err.message === 'REFRESH_FAILED') {
+      return { success: false, error: 'Outlook token refresh failed. Please reconnect your mailbox.', errorCode: 'PROVIDER_ERROR' }
+    }
+    throw err
   }
 }
 
