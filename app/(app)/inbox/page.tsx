@@ -62,9 +62,7 @@ async function InboxContent({ categoryParam }: { categoryParam?: string }) {
   const emails = ((allEmails as InboxEmail[]) ?? [])
   const visibleEmails = !category
     ? emails
-    : isSystemInboxCategory(category)
-      ? emails.filter((email) => email.category === category)
-      : []
+    : emails.filter((email) => email.category === category)
 
   return (
     <InboxShell
