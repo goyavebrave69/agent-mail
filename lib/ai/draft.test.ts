@@ -123,20 +123,30 @@ describe("generateDraft", () => {
     expect(userMsg).toContain(SAMPLE_BODY)
   })
 
-  it("includes tone and language preferences in the generated prompt", async () => {
+  it("includes userProfile in the system prompt when provided", async () => {
     mockLlmSuccess("Voici le brouillon de réponse.")
     const { generateDraft } = await import("./draft")
     await generateDraft("Sujet", "exp@example.com", null, KB_CHUNKS, TEST_API_KEY, {
-      tone: "informal",
-      language: "French",
+      userProfile: "Entreprise spécialisée en plomberie industrielle.",
     })
     const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(options.body as string) as {
       messages: Array<{ role: string; content: string }>
     }
     const systemMsg = body.messages.find(m => m.role === "system")?.content ?? ""
-    expect(systemMsg).toMatch(/French/i)
-    expect(systemMsg).toMatch(/friendly and informal/i)
+    expect(systemMsg).toContain("plomberie industrielle")
+  })
+
+  it("always enforces French in the system prompt", async () => {
+    mockLlmSuccess("Voici le brouillon.")
+    const { generateDraft } = await import("./draft")
+    await generateDraft("Subject", "from@example.com", null, [], TEST_API_KEY)
+    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(options.body as string) as {
+      messages: Array<{ role: string; content: string }>
+    }
+    const systemMsg = body.messages.find(m => m.role === "system")?.content ?? ""
+    expect(systemMsg).toMatch(/français/i)
   })
 
   it("includes the instruction parameter in the user message for regeneration", async () => {

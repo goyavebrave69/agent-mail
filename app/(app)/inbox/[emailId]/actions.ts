@@ -15,6 +15,7 @@ export interface EmailDetail {
   received_at: string
   is_read: boolean
   body_text: string | null
+  response_type: 'text_reply' | 'pdf_required' | 'unknown'
 }
 
 export interface RejectDraftResult {
@@ -39,7 +40,7 @@ export async function fetchEmail(emailId: string): Promise<EmailDetail | null> {
 
   const { data, error } = await supabase
     .from('emails')
-    .select('id, subject, from_email, from_name, received_at, is_read, body_text')
+    .select('id, subject, from_email, from_name, received_at, is_read, body_text, response_type')
     .eq('id', emailId)
     .eq('user_id', user.id)
     .single()

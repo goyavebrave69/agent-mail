@@ -43,6 +43,11 @@ describe('DraftSection — not composing', () => {
     const { container } = render(<DraftSection {...defaultProps} />)
     expect(container).toBeEmptyDOMElement()
   })
+
+  it('does not show PDF block when not composing even if responseType is pdf_required', () => {
+    const { container } = render(<DraftSection {...defaultProps} responseType="pdf_required" />)
+    expect(container).toBeEmptyDOMElement()
+  })
 })
 
 describe('DraftSection — compose mode', () => {
@@ -118,6 +123,25 @@ describe('DraftSection — compose mode', () => {
       const textarea = screen.getByRole('textbox', { name: /message body/i }) as HTMLTextAreaElement
       expect(textarea.value).toBe('AI generated reply content.')
     })
+  })
+
+  it('shows PDF confirmation block when responseType is pdf_required', () => {
+    useDraftStore.getState().startComposing('reply', defaultPrefill)
+    render(<DraftSection {...defaultProps} responseType="pdf_required" />)
+    expect(screen.getByText(/nécessiter un devis/i)).toBeInTheDocument()
+  })
+
+  it('hides PDF confirmation block after clicking Ignorer', () => {
+    useDraftStore.getState().startComposing('reply', defaultPrefill)
+    render(<DraftSection {...defaultProps} responseType="pdf_required" />)
+    fireEvent.click(screen.getByRole('button', { name: /ignorer/i }))
+    expect(screen.queryByText(/nécessiter un devis/i)).not.toBeInTheDocument()
+  })
+
+  it('does not show PDF block when responseType is text_reply', () => {
+    useDraftStore.getState().startComposing('reply', defaultPrefill)
+    render(<DraftSection {...defaultProps} responseType="text_reply" />)
+    expect(screen.queryByText(/nécessiter un devis/i)).not.toBeInTheDocument()
   })
 
   it('shows error alert when createDraftOnDemand fails', async () => {

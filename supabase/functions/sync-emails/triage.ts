@@ -7,12 +7,15 @@ export interface UserCategory {
   description: string | null
 }
 
+export type ResponseType = "text_reply" | "pdf_required"
+
 export interface TriageResult {
   category: string
   priorityRank: number
+  responseType: ResponseType
 }
 
-const FALLBACK: TriageResult = { category: "inbox", priorityRank: 0 }
+const FALLBACK: TriageResult = { category: "inbox", priorityRank: 0, responseType: "text_reply" }
 
 function buildSystemPrompt(categories: UserCategory[]): string {
   const list = categories
@@ -20,10 +23,19 @@ function buildSystemPrompt(categories: UserCategory[]): string {
     .join("\n")
 
   return `You are an email classifier for a business inbox.
+
+## Task 1 — Category
 Classify the email into exactly one of these categories:
 ${list}
 
-Respond with valid JSON only: {"category": "<slug>"}
+## Task 2 — Response type
+Determine whether the email requires a commercial document (quote, estimate, price list, offer, proposal) or a plain text reply.
+Set "response_type" to "pdf_required" if the sender is requesting: a quote, price, estimate, offer, proposal, devis, tarif, or any commercial document.
+Set "response_type" to "text_reply" for all other emails (questions, follow-ups, invoices, support requests, etc.).
+
+Respond with valid JSON only:
+{"category": "<slug>", "response_type": "text_reply" | "pdf_required"}
+
 Use the exact slug as shown. No explanation, no extra text.`
 }
 
@@ -73,7 +85,7 @@ export async function triageEmail(
           { role: "user", content: content || "No subject or sender" },
         ],
         temperature: 0,
-        max_tokens: 32,
+        max_tokens: 64,
       }),
     })
 
@@ -86,14 +98,17 @@ export async function triageEmail(
     }
 
     const raw = json.choices?.[0]?.message?.content ?? ""
-    const parsed = JSON.parse(raw) as { category?: string }
+    const parsed = JSON.parse(raw) as { category?: string; response_type?: string }
     const slug = parsed.category
 
     if (!slug || !validSlugs.has(slug)) {
       return FALLBACK
     }
 
-    return { category: slug, priorityRank: priorityMap.get(slug) ?? 0 }
+    const responseType: ResponseType =
+      parsed.response_type === "pdf_required" ? "pdf_required" : "text_reply"
+
+    return { category: slug, priorityRank: priorityMap.get(slug) ?? 0, responseType }
   } catch {
     return FALLBACK
   }

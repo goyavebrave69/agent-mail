@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { ManualCompose } from './manual-compose'
 import { DraftRealtime } from './draft-realtime'
+import { PdfConfirmationBlock } from './pdf-confirmation-block'
 import { useDraftStore } from '@/stores/draft-store'
 import {
   sendManualReply,
@@ -14,9 +15,11 @@ import type { Draft } from '@/types/draft'
 interface DraftSectionProps {
   emailId: string
   userId: string
+  responseType?: 'text_reply' | 'pdf_required' | 'unknown'
 }
 
-export function DraftSection({ emailId, userId }: DraftSectionProps) {
+export function DraftSection({ emailId, userId, responseType }: DraftSectionProps) {
+  const [pdfIgnored, setPdfIgnored] = useState(false)
   const {
     isComposing,
     composeMode,
@@ -92,6 +95,14 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
 
   return (
     <div className="space-y-3">
+      {responseType === 'pdf_required' && !pdfIgnored && (
+        <PdfConfirmationBlock
+          onGenerate={() => {
+            // TODO: trigger PDF generation flow (Story 6.x)
+          }}
+          onIgnore={() => setPdfIgnored(true)}
+        />
+      )}
       <ManualCompose
         emailId={emailId}
         mode={composeMode}
