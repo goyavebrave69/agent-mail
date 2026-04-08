@@ -314,7 +314,7 @@ async function syncGmail(
     const bodyHtml = extractGmailBodyHtml(msg.payload)
     const bodyText = extractGmailBodyText(msg.payload) ?? msg.snippet ?? null
 
-    const triage = await triageEmail(subject, fromEmail, userCategories, openAiApiKey).catch(() => ({
+    const triage = await triageEmail(subject, fromEmail, bodyText, userCategories, openAiApiKey).catch(() => ({
       category: 'inbox',
       priorityRank: 0,
     }))
@@ -417,7 +417,7 @@ async function syncOutlook(
       }
       bodyText ??= typeof m.bodyPreview === 'string' ? m.bodyPreview : null
 
-      const triage = await triageEmail(subject, fromEmail, userCategories, openAiApiKey).catch(() => ({
+      const triage = await triageEmail(subject, fromEmail, bodyText, userCategories, openAiApiKey).catch(() => ({
         category: 'inbox',
         priorityRank: 0,
       }))

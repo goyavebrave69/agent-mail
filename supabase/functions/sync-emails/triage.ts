@@ -27,9 +27,12 @@ Respond with valid JSON only: {"category": "<slug>"}
 Use the exact slug as shown. No explanation, no extra text.`
 }
 
+const BODY_EXCERPT_LENGTH = 300
+
 export async function triageEmail(
   subject: string | null,
   fromEmail: string | null,
+  bodyText: string | null,
   userCategories: UserCategory[],
   openAiApiKey: string
 ): Promise<TriageResult> {
@@ -47,9 +50,11 @@ export async function triageEmail(
     userCategories.map((c, i) => [c.slug, (userCategories.length - i) * 10])
   )
 
+  const bodyExcerpt = bodyText?.trim().slice(0, BODY_EXCERPT_LENGTH) ?? null
   const content = [
     subject ? `Subject: ${subject}` : null,
     fromEmail ? `From: ${fromEmail}` : null,
+    bodyExcerpt ? `Body: ${bodyExcerpt}` : null,
   ]
     .filter(Boolean)
     .join("\n")
