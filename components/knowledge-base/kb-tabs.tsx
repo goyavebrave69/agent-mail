@@ -29,18 +29,12 @@ export function KbTabs({ files, profileDescription, invoiceSettings }: KbTabsPro
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange}>
-      <TabsList className="mb-8 h-10 w-full justify-start rounded-lg border bg-transparent p-0">
-        <TabsTrigger
-          value="ai"
-          className="flex h-10 items-center gap-2 rounded-none border-b-2 border-transparent px-5 text-sm font-medium text-muted-foreground transition-colors data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-        >
+      <TabsList variant="line" className="mb-8 w-full justify-start border-b">
+        <TabsTrigger value="ai" className="px-5">
           <Brain className="h-4 w-4" />
           Contexte IA
         </TabsTrigger>
-        <TabsTrigger
-          value="devis"
-          className="flex h-10 items-center gap-2 rounded-none border-b-2 border-transparent px-5 text-sm font-medium text-muted-foreground transition-colors data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-        >
+        <TabsTrigger value="devis" className="px-5">
           <FileText className="h-4 w-4" />
           Devis &amp; Facturation
         </TabsTrigger>
