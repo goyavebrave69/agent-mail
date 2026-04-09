@@ -167,6 +167,15 @@ deno.serve(async (req: Request): Promise<Response> => {
   // Use body_text from DB; fall back to emailContent passed in request (legacy / IMAP path)
   emailContent = emailData.body_text ?? emailContent
 
+  // 1b. Fetch user business profile for LLM context enrichment
+  const { data: profileData } = await supabase
+    .from('user_profile')
+    .select('description')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  const userProfile = (profileData as { description: string | null } | null)?.description ?? null
+
   // 2. Upsert draft with pending status
   const draftId = await upsertDraftPending(emailId, userId)
   if (!draftId) {
@@ -213,7 +222,7 @@ deno.serve(async (req: Request): Promise<Response> => {
       emailContent,
       kbChunks,
       openAiApiKey,
-      { instruction }
+      { instruction, userProfile }
     )
 
     if ('error' in result) {

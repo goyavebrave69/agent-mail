@@ -13,19 +13,50 @@ export interface DraftGenerationError {
 
 const MAX_BODY_CHARS = 4000
 
-function buildSystemPrompt(
-  tone: 'formal' | 'informal',
-  language: string,
-  hasKbContext: boolean
-): string {
-  const toneDesc = tone === 'formal' ? 'professional and formal' : 'friendly and informal'
-  const kbLine = hasKbContext
-    ? ' When relevant, draw on the knowledge base context provided.'
-    : ''
-  return `You are an email assistant that writes helpful, relevant reply drafts.
-Read the incoming email carefully and respond directly to what the sender is asking or requesting.${kbLine}
-Write in ${language}. Use a ${toneDesc} tone.
-Reply with the email body only — no subject line, no greeting header, no signature placeholder.`
+function buildSystemPrompt(userProfile: string | null, hasKbContext: boolean): string {
+  const sections: string[] = []
+
+  sections.push(`# Rôle
+Tu es l'assistant email professionnel de l'utilisateur.
+Tu rédiges des réponses d'email en français uniquement, même si l'email reçu est dans une autre langue.`)
+
+  if (userProfile?.trim()) {
+    sections.push(`# Contexte métier
+${userProfile.trim()}`)
+  }
+
+  if (hasKbContext) {
+    sections.push(`# Base de connaissances
+Des extraits de la base de connaissances de l'utilisateur sont fournis ci-après.
+Utilise ces informations pour personnaliser la réponse si elles sont pertinentes.
+Ne les invente pas — utilise uniquement ce qui est fourni.`)
+  }
+
+  sections.push(`# Format de réponse OBLIGATOIRE
+
+Ta réponse doit TOUJOURS respecter ce gabarit exact, sans exception :
+
+[salutation]
+
+[remerciement ou accusé de réception si pertinent]
+
+[corps de la réponse]
+
+[formule de politesse]
+
+Règles pour chaque partie :
+- [salutation] : "Bonjour [Prénom]," si le prénom est identifiable dans l'email, sinon "Bonjour," — JAMAIS omettre cette ligne
+- [remerciement] : inclure si l'expéditeur a fait une demande, envoyé un document, ou initié un contact. Ex : "Merci pour votre message." / "Merci de votre retour."
+- [corps] : réponds précisément à la demande. Sépare les idées par des lignes vides. Ne commence pas par "Je".
+- [formule de politesse] : TOUJOURS terminer par "Cordialement," ou "Bien cordialement," sur sa propre ligne — c'est non négociable
+
+Contraintes globales :
+- Français exclusivement, même si l'email reçu est dans une autre langue
+- Ton professionnel et cordial
+- Pas d'objet, pas de signature (nom/coordonnées)
+- N'invente aucune information non présente dans l'email ou la base de connaissances`)
+
+  return sections.join('\n\n')
 }
 
 function buildUserMessage(
@@ -38,16 +69,16 @@ function buildUserMessage(
   const parts: string[] = []
 
   if (kbChunks.length > 0) {
-    parts.push('=== Knowledge Base Context ===')
+    parts.push('=== Base de connaissances ===')
     kbChunks.forEach((c, i) => {
-      parts.push(`[${i + 1}] (similarity: ${c.similarity.toFixed(2)})\n${c.content}`)
+      parts.push(`[${i + 1}] (similarité: ${c.similarity.toFixed(2)})\n${c.content}`)
     })
     parts.push('')
   }
 
-  parts.push('=== Email to Reply To ===')
-  if (emailFrom) parts.push(`From: ${emailFrom}`)
-  if (emailSubject) parts.push(`Subject: ${emailSubject}`)
+  parts.push('=== Email reçu ===')
+  if (emailFrom) parts.push(`De : ${emailFrom}`)
+  if (emailSubject) parts.push(`Objet : ${emailSubject}`)
   if (emailBody) {
     parts.push('')
     parts.push(emailBody.trim().slice(0, MAX_BODY_CHARS))
@@ -55,12 +86,12 @@ function buildUserMessage(
 
   if (instruction) {
     parts.push('')
-    parts.push('=== Special Instruction ===')
+    parts.push('=== Instruction spécifique ===')
     parts.push(instruction)
   }
 
   parts.push('')
-  parts.push('Write a reply draft to this email.')
+  parts.push('Rédige une réponse à cet email.')
 
   return parts.join('\n')
 }
@@ -105,16 +136,14 @@ export async function generateDraft(
   kbChunks: Array<{ content: string; similarity: number }>,
   openAiApiKey: string,
   options?: {
-    tone?: 'formal' | 'informal'
-    language?: string
+    userProfile?: string | null
     instruction?: string | null
   }
 ): Promise<DraftGenerationResult | DraftGenerationError> {
-  const tone = options?.tone ?? 'formal'
-  const language = options?.language ?? 'English'
+  const userProfile = options?.userProfile ?? null
   const instruction = options?.instruction ?? null
 
-  const systemPrompt = buildSystemPrompt(tone, language, kbChunks.length > 0)
+  const systemPrompt = buildSystemPrompt(userProfile, kbChunks.length > 0)
   const userMessage = buildUserMessage(emailSubject, emailFrom, emailBody, kbChunks, instruction)
 
   try {

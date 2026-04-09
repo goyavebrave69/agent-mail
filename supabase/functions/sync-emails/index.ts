@@ -54,6 +54,7 @@ interface EmailMessage {
   receivedAt: Date
   category: string
   priorityRank: number
+  responseType: 'text_reply' | 'pdf_required'
 }
 
 const MAX_RETRIES = 3
@@ -172,6 +173,7 @@ async function storeEmails(userId: string, provider: string, emails: EmailMessag
     received_at: e.receivedAt.toISOString(),
     category: e.category,
     priority_rank: e.priorityRank,
+    response_type: e.responseType,
     body_text: e.bodyText,
     body_html: e.bodyHtml,
   }))
@@ -317,6 +319,7 @@ async function syncGmail(
     const triage = await triageEmail(subject, fromEmail, bodyText, userCategories, openAiApiKey).catch(() => ({
       category: 'inbox',
       priorityRank: 0,
+      responseType: 'text_reply' as const,
     }))
 
     emails.push({
@@ -329,6 +332,7 @@ async function syncGmail(
       receivedAt,
       category: triage.category,
       priorityRank: triage.priorityRank,
+      responseType: triage.responseType ?? 'text_reply',
     })
   }
 
@@ -420,6 +424,7 @@ async function syncOutlook(
       const triage = await triageEmail(subject, fromEmail, bodyText, userCategories, openAiApiKey).catch(() => ({
         category: 'inbox',
         priorityRank: 0,
+        responseType: 'text_reply' as const,
       }))
 
       return {
@@ -432,6 +437,7 @@ async function syncOutlook(
         receivedAt: m.receivedDateTime ? new Date(m.receivedDateTime) : new Date(),
         category: triage.category,
         priorityRank: triage.priorityRank,
+        responseType: triage.responseType ?? 'text_reply',
       }
     })
   )

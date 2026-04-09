@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ManualCompose } from './manual-compose'
 import { DraftRealtime } from './draft-realtime'
+import { PdfConfirmationBlock } from './pdf-confirmation-block'
+import { ConfidenceBadge } from './confidence-badge'
 import { useDraftStore } from '@/stores/draft-store'
 import {
   sendManualReply,
@@ -14,9 +16,22 @@ import type { Draft } from '@/types/draft'
 interface DraftSectionProps {
   emailId: string
   userId: string
+  responseType?: 'text_reply' | 'pdf_required' | 'unknown'
+  confidenceScore?: number | null
 }
 
-export function DraftSection({ emailId, userId }: DraftSectionProps) {
+export function DraftSection({ emailId, userId, responseType, confidenceScore }: DraftSectionProps) {
+  const [pdfIgnored, setPdfIgnored] = useState(false)
+  const [streamingContent, setStreamingContent] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
+    }
+  }, [])
+
   const {
     isComposing,
     composeMode,
@@ -39,6 +54,47 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
     failCreating,
     clearCreating,
   } = useDraftStore()
+
+  const startTypewriter = useCallback(
+    (fullContent: string) => {
+      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
+      setIsStreaming(true)
+      setStreamingContent('')
+      let idx = 0
+
+      const tick = () => {
+        if (idx >= fullContent.length) {
+          updateManualContent(fullContent)
+          setIsStreaming(false)
+          return
+        }
+
+        const char = fullContent[idx]
+        // Vary chunk: 1 char at pauses, 1-3 chars normally
+        const isNewline = char === '\n'
+        const isSentenceEnd = '.!?'.includes(char) && (idx + 1 >= fullContent.length || fullContent[idx + 1] === ' ' || fullContent[idx + 1] === '\n')
+        const isComma = char === ','
+
+        const chunk = isNewline || isSentenceEnd || isComma ? 1 : Math.random() < 0.4 ? 3 : Math.random() < 0.6 ? 2 : 1
+        idx = Math.min(idx + chunk, fullContent.length)
+        setStreamingContent(fullContent.slice(0, idx))
+
+        // Delay: long pause after sentence end / newline, medium after comma, fast otherwise
+        const delay = isSentenceEnd
+          ? 120 + Math.random() * 180
+          : isNewline
+            ? 80 + Math.random() * 120
+            : isComma
+              ? 50 + Math.random() * 60
+              : 18 + Math.random() * 22
+
+        streamTimeoutRef.current = setTimeout(tick, delay)
+      }
+
+      streamTimeoutRef.current = setTimeout(tick, 0)
+    },
+    [updateManualContent]
+  )
 
   const handleDraftUpdate = useCallback(
     (updated: Draft) => {
@@ -81,17 +137,31 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
     try {
       const draft = await fetchDraftForEmail(emailId)
       if (draft?.status === 'ready' && draft.content) {
-        updateManualContent(draft.content)
+        startTypewriter(draft.content)
       }
     } finally {
       clearCreating()
     }
-  }, [emailId, startCreating, failCreating, clearCreating, updateManualContent])
+  }, [emailId, startCreating, failCreating, clearCreating, startTypewriter])
 
   if (!isComposing) return null
 
   return (
     <div className="space-y-3">
+      {confidenceScore != null && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>✨ Brouillon généré par IA</span>
+          <ConfidenceBadge score={confidenceScore} size="sm" showLabel={false} />
+        </div>
+      )}
+      {responseType === 'pdf_required' && !pdfIgnored && (
+        <PdfConfirmationBlock
+          onGenerate={() => {
+            // TODO: trigger PDF generation flow (Story 6.x)
+          }}
+          onIgnore={() => setPdfIgnored(true)}
+        />
+      )}
       <ManualCompose
         emailId={emailId}
         mode={composeMode}
@@ -108,6 +178,8 @@ export function DraftSection({ emailId, userId }: DraftSectionProps) {
         onContentChange={updateManualContent}
         onCreateDraft={handleCreateDraft}
         isCreating={isCreating}
+        isStreaming={isStreaming}
+        streamingContent={streamingContent}
       />
       {createError && (
         <div

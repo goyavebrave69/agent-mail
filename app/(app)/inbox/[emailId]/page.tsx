@@ -73,7 +73,7 @@ async function EmailDetailContent({ emailId }: { emailId: string }) {
         </div>
       )}
 
-      <DraftSection emailId={emailId} userId={user.id} />
+      <DraftSection emailId={emailId} userId={user.id} responseType={email.response_type} />
     </>
   )
 }

@@ -29,6 +29,7 @@ vi.mock("@/lib/supabase/client", () => ({
 
 vi.mock("@/app/(app)/inbox/[emailId]/actions", () => ({
   fetchDraftForEmail: vi.fn().mockResolvedValue(null),
+  markEmailAsRead: vi.fn().mockResolvedValue(undefined),
   archiveEmail: mockArchiveEmail,
   trashEmail: mockTrashEmail,
   createDraftOnDemand: vi.fn(),
@@ -63,6 +64,7 @@ const baseEmail: InboxEmail = {
   priority_rank: 1,
   body_text: "Body text",
   body_html: null,
+  response_type: 'text_reply' as const,
 }
 
 const defaultProps = {

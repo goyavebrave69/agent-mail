@@ -26,6 +26,7 @@ vi.mock("@/lib/supabase/client", () => ({
 
 vi.mock("@/app/(app)/inbox/[emailId]/actions", () => ({
   fetchDraftForEmail: vi.fn().mockResolvedValue(null),
+  markEmailAsRead: vi.fn().mockResolvedValue(undefined),
   archiveEmail: vi.fn().mockResolvedValue({ success: true }),
   trashEmail: vi.fn().mockResolvedValue({ success: true }),
   createDraftOnDemand: vi.fn(),
@@ -60,6 +61,7 @@ const baseEmail: InboxEmail = {
   priority_rank: 1,
   body_text: "This is the body preview text",
   body_html: null,
+  response_type: 'text_reply' as const,
 }
 
 function makeEmail(overrides: Partial<InboxEmail>): InboxEmail {
@@ -234,7 +236,7 @@ describe("InboxShell — selection behavior during filtering", () => {
 
     await waitFor(() => {
       const firstButton = screen.getByRole("button", { name: /Alice/i })
-      expect(firstButton).toHaveClass("bg-sidebar-accent/80")
+      expect(firstButton).toHaveClass("bg-sidebar-accent")
     })
   })
 
@@ -258,7 +260,7 @@ describe("InboxShell — selection behavior during filtering", () => {
 
     await waitFor(() => {
       const bobButton = screen.getByRole("button", { name: /Bob/i })
-      expect(bobButton).toHaveClass("bg-sidebar-accent/80")
+      expect(bobButton).toHaveClass("bg-sidebar-accent")
     })
   })
 
@@ -283,7 +285,7 @@ describe("InboxShell — selection behavior during filtering", () => {
     await waitFor(() => {
       expect(screen.queryByText("Bob")).not.toBeInTheDocument()
       const aliceButton = screen.getByRole("button", { name: /Alice/i })
-      expect(aliceButton).toHaveClass("bg-sidebar-accent/80")
+      expect(aliceButton).toHaveClass("bg-sidebar-accent")
     })
   })
 })

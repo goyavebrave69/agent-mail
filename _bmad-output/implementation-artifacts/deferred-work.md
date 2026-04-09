@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: spec-ai-draft-streaming-animation (2026-04-09)
+
+- `handleDraftUpdate` (Realtime path in `draft-section.tsx`) bypasses the typewriter animation and writes content directly to the store. If the Realtime subscription fires before `handleCreateDraft`'s fetch resolves, content appears instantly without animation. Pre-existing architectural decision; not introduced by this change.
+
 ## Deferred from: code review of 1-2-user-registration-and-email-verification (2026-03-28)
 
 - `public.users.email` non synchronisé sur UPDATE `auth.users` — pas de trigger `AFTER UPDATE`. À adresser dans story 1.4 (suppression compte) ou migration dédiée.

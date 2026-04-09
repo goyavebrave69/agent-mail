@@ -15,6 +15,7 @@ export interface EmailDetail {
   received_at: string
   is_read: boolean
   body_text: string | null
+  response_type: 'text_reply' | 'pdf_required' | 'unknown'
 }
 
 export interface RejectDraftResult {
@@ -39,7 +40,7 @@ export async function fetchEmail(emailId: string): Promise<EmailDetail | null> {
 
   const { data, error } = await supabase
     .from('emails')
-    .select('id, subject, from_email, from_name, received_at, is_read, body_text')
+    .select('id, subject, from_email, from_name, received_at, is_read, body_text, response_type')
     .eq('id', emailId)
     .eq('user_id', user.id)
     .single()
@@ -234,23 +235,6 @@ export async function regenerateDraft(
 
   const trimmedInstruction = instruction?.trim() || null
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const { data: refreshedSessionData } = await supabase.auth.refreshSession()
-  const accessToken =
-    refreshedSessionData.session?.access_token ?? session?.access_token
-  console.error('[generate-draft invoke][regenerate] preflight', {
-    userId: user.id,
-    hasSession: Boolean(session),
-    hasAccessToken: Boolean(session?.access_token),
-    hasRefreshedAccessToken: Boolean(refreshedSessionData.session?.access_token),
-    emailId: draft.email_id,
-  })
-  if (!accessToken) {
-    return { success: false, error: 'Missing access token for function invocation.' }
-  }
-
   await supabase
     .from('drafts')
     .update({
@@ -269,8 +253,7 @@ export async function regenerateDraft(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
       },
       body: JSON.stringify({
         emailId: draft.email_id,
@@ -360,14 +343,18 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
 
   const { data: existingDraft } = await supabase
     .from('drafts')
-    .select('id, status')
+    .select('id, status, regeneration_count')
     .eq('email_id', emailId)
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (existingDraft) {
-    if (existingDraft.status === 'generating' || existingDraft.status === 'ready') {
+    if (existingDraft.status === 'generating') {
       return { success: false, error: 'A draft is already being generated for this email.' }
+    }
+    const regenCount = (existingDraft.regeneration_count as number) ?? 0
+    if (regenCount >= 3) {
+      return { success: false, error: 'Maximum de 3 brouillons atteint pour cet email.' }
     }
     await supabase
       .from('drafts')
@@ -376,6 +363,7 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
         content: null,
         confidence_score: null,
         error_message: null,
+        regeneration_count: regenCount + 1,
         updated_at: new Date().toISOString(),
       })
       .eq('id', existingDraft.id)
@@ -388,31 +376,13 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
     })
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const { data: refreshedSessionData } = await supabase.auth.refreshSession()
-  const accessToken =
-    refreshedSessionData.session?.access_token ?? session?.access_token
-  console.error('[generate-draft invoke][create-on-demand] preflight', {
-    userId: user.id,
-    hasSession: Boolean(session),
-    hasAccessToken: Boolean(session?.access_token),
-    hasRefreshedAccessToken: Boolean(refreshedSessionData.session?.access_token),
-    emailId,
-  })
-  if (!accessToken) {
-    return { success: false, error: 'Missing access token for function invocation.' }
-  }
-
   const fnRes = await fetch(
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-draft`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
       },
       body: JSON.stringify({ emailId, userId: user.id }),
     }
@@ -447,6 +417,25 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
   revalidatePath('/inbox')
   revalidatePath(`/inbox/${emailId}`)
   return { success: true }
+}
+
+// ─── Mark email as read ───────────────────────────────────────────────────────
+
+export async function markEmailAsRead(
+  emailId: string
+): Promise<void> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return
+
+  await supabase
+    .from('emails')
+    .update({ is_read: true, updated_at: new Date().toISOString() })
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+    .eq('is_read', false) // no-op if already read
 }
 
 // ─── Archive email ────────────────────────────────────────────────────────────
@@ -595,12 +584,6 @@ export async function sendManualReply(
       sent_at: new Date().toISOString(),
     })
   }
-
-  await supabase
-    .from('emails')
-    .update({ is_archived: true, updated_at: new Date().toISOString() })
-    .eq('id', emailId)
-    .eq('user_id', user.id)
 
   revalidatePath('/inbox')
   revalidatePath(`/inbox/${emailId}`)

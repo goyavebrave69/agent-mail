@@ -649,13 +649,40 @@ describe('createDraftOnDemand', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('prevents duplicate generation when draft is already ready', async () => {
+  it('allows regeneration when draft is already ready (regeneration_count < 3)', async () => {
+    const mockUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    })
     draftQuerySequence.push({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
-              data: { id: 'draft-1', status: 'ready' },
+              data: { id: 'draft-1', status: 'ready', regeneration_count: 1 },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    })
+    draftQuerySequence.push({ update: mockUpdate })
+
+    const { createDraftOnDemand } = await import('./actions')
+    const result = await createDraftOnDemand('email-1')
+
+    expect(result.success).toBe(true)
+    expect(mockFetch).toHaveBeenCalled()
+  })
+
+  it('blocks regeneration when regeneration_count reaches 3', async () => {
+    draftQuerySequence.push({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { id: 'draft-1', status: 'ready', regeneration_count: 3 },
               error: null,
             }),
           }),
@@ -668,7 +695,7 @@ describe('createDraftOnDemand', () => {
 
     expect(result).toEqual({
       success: false,
-      error: 'A draft is already being generated for this email.',
+      error: 'Maximum de 3 brouillons atteint pour cet email.',
     })
     expect(mockFetch).not.toHaveBeenCalled()
   })

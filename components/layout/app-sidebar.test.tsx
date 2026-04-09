@@ -108,7 +108,7 @@ describe("AppSidebar — category section on /inbox", () => {
   it("renders separator and All filter on inbox route", () => {
     render(<AppSidebar {...defaultProps} />)
     expect(screen.getByTestId("nav-separator")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /^all$/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^toutes$/i })).toBeInTheDocument()
   })
 
   it("renders custom categories in the sidebar", () => {

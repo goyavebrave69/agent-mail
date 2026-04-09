@@ -29,7 +29,21 @@
       "Bash(supabase secrets:*)",
       "Bash(python:*)",
       "Bash(python3:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx shadcn@latest add alert --yes)",
+      "Bash(git rm:*)",
+      "Bash(npx shadcn@latest add context-menu alert-dialog --yes)",
+      "Bash(npx shadcn@latest add context-menu alert-dialog --overwrite)",
+      "Bash(git merge:*)",
+      "Bash(sed -i '' 's/body_text: \"This is the body preview text\",/body_text: \"This is the body preview text\",\\\\n  body_html: null,/' /Users/goyave/Dev/mail-agent/components/inbox/inbox-shell.test.tsx)",
+      "Bash(sed -i '' 's/body_text: \"Body text\",/body_text: \"Body text\",\\\\n  body_html: null,/' /Users/goyave/Dev/mail-agent/components/inbox/inbox-actions.test.tsx)",
+      "Bash(node:*)",
+      "Bash(grep -n \"body_text\" /Users/goyave/Dev/mail-agent/supabase/migrations/*.sql)",
+      "Bash(grep:*)",
+      "Bash(git:*)",
+      "Bash(sed -n '50,70p' /Users/goyave/Dev/mail-agent/components/inbox/inbox-actions.test.tsx)",
+      "Bash(sed -n '47,60p' /Users/goyave/Dev/mail-agent/components/inbox/inbox-shell.test.tsx)",
+      "Bash(code:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

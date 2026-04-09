@@ -16,6 +16,7 @@ import { DraftSection } from "@/components/draft/draft-section"
 import {
   archiveEmail,
   fetchDraftForEmail,
+  markEmailAsRead,
   trashEmail,
 } from "@/app/(app)/inbox/[emailId]/actions"
 import type { Draft } from "@/types/draft"
@@ -111,6 +112,7 @@ function getSenderInitials(sender: string): string {
 export function InboxShell({
   emails,
   userId,
+  activeCategory,
   customCategories,
 }: InboxShellProps) {
   const router = useRouter()
@@ -121,10 +123,26 @@ export function InboxShell({
   const [customCategoriesState, setCustomCategoriesState] = useState<CustomCategory[]>(customCategories)
   const resetDraftStore = useDraftStore((s) => s.reset)
   const startComposing = useDraftStore((s) => s.startComposing)
+  const updateManualContent = useDraftStore((s) => s.updateManualContent)
   const isComposing = useDraftStore((s) => s.isComposing)
+  const emailsRef = useRef(emails)
   const [actionError, setActionError] = useState<string | null>(null)
   const [isActioning, setIsActioning] = useState(false)
   const [sentDraft, setSentDraft] = useState<Draft | null>(null)
+  const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set())
+  const [draftConfidenceScore, setDraftConfidenceScore] = useState<number | null>(null)
+
+  const handleSelectEmail = (emailId: string) => {
+    setSelectedEmailId(emailId)
+    setLocalReadIds((prev) => {
+      if (prev.has(emailId)) return prev
+      const next = new Set(prev)
+      next.add(emailId)
+      return next
+    })
+    markEmailAsRead(emailId).catch(() => { /* non-critical */ })
+  }
+
   const handleReply = () => {
     if (!selectedEmail) return
     startComposing('reply', {
@@ -229,18 +247,40 @@ export function InboxShell({
   }, [customCategories])
 
   useEffect(() => {
+    emailsRef.current = emails
+  }, [emails])
+
+  useEffect(() => {
     resetDraftStore()
     setSentDraft(null)
+    setDraftConfidenceScore(null)
     if (!selectedEmailId) return
     fetchDraftForEmail(selectedEmailId)
-      .then((draft) => { if (draft?.status === 'sent') setSentDraft(draft) })
+      .then((draft) => {
+        if (!draft) return
+        if (draft.status === 'sent') {
+          setSentDraft(draft)
+          return
+        }
+        if ((draft.status === 'ready' || draft.status === 'generating') && draft.content) {
+          const email = emailsRef.current.find((e) => e.id === selectedEmailId)
+          startComposing('reply', {
+            to: email?.from_email ?? '',
+            subject: email?.subject ? `Re: ${email.subject}` : '',
+            quotedBody: '',
+          })
+          updateManualContent(draft.content)
+          setDraftConfidenceScore(draft.confidence_score ?? null)
+        }
+      })
       .catch(() => { /* non-critical */ })
-  }, [selectedEmailId, resetDraftStore])
+  }, [selectedEmailId, resetDraftStore, startComposing, updateManualContent])
 
   const filteredEmails = useMemo(() => {
     const searchQuery = search.trim().toLowerCase()
     return emails.filter((email) => {
-      if (showUnreadOnly && email.is_read) return false
+      const isRead = email.is_read || localReadIds.has(email.id)
+      if (showUnreadOnly && isRead) return false
       if (!searchQuery) return true
 
       const senderName = (email.from_name ?? "").toLowerCase()
@@ -254,7 +294,7 @@ export function InboxShell({
         bodyPreview.includes(searchQuery)
       )
     })
-  }, [emails, search, showUnreadOnly])
+  }, [emails, search, showUnreadOnly, localReadIds])
 
   useEffect(() => {
     if (filteredEmails.length === 0) {
@@ -330,31 +370,36 @@ export function InboxShell({
                     </span>
                     <span className="text-xs text-muted-foreground">{group.emails.length}</span>
                   </div>
-                  {group.emails.map((email) => (
+                  {group.emails.map((email) => {
+                    const isUnread = !email.is_read && !localReadIds.has(email.id)
+                    return (
                     <button
                       type="button"
                       key={email.id}
-                      onClick={() => setSelectedEmailId(email.id)}
-                      className={`flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 hover:bg-sidebar-accent/70 ${
-                        email.id === selectedEmailId ? "bg-sidebar-accent/80" : ""
+                      onClick={() => handleSelectEmail(email.id)}
+                      className={`flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-sidebar-accent/70 ${
+                        email.id === selectedEmailId ? "bg-sidebar-accent border-l-2 border-l-blue-500" : ""
                       }`}
                     >
-                      <div className="flex w-full items-start gap-2">
-                        <span className="truncate font-semibold text-foreground">
+                      <div className="flex w-full items-center gap-2">
+                        {isUnread && (
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Unread" />
+                        )}
+                        <span className={`truncate ${isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"}`}>
                           {email.from_name ?? email.from_email ?? "Unknown sender"}
                         </span>
                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                           {formatRelativeDate(email.received_at)}
                         </span>
                       </div>
-                      <span className="line-clamp-1 font-medium text-foreground/90">
+                      <span className={`line-clamp-1 ${isUnread ? "font-semibold text-foreground" : "font-normal text-foreground/70"}`}>
                         {email.subject ?? "(no subject)"}
                       </span>
                       <span className="line-clamp-2 text-xs text-muted-foreground">
                         {email.body_text?.trim() ?? email.from_email ?? "No preview available"}
                       </span>
                     </button>
-                  ))}
+                  )})}
                 </div>
               ))
             )}
@@ -366,13 +411,23 @@ export function InboxShell({
           <header className="flex h-[49px] shrink-0 items-center gap-2 border-b bg-background px-4">
             <Breadcrumb>
               <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/inbox">All Inboxes</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Inbox</BreadcrumbPage>
-                </BreadcrumbItem>
+                {activeCategory ? (
+                  <>
+                    <BreadcrumbItem className="hidden md:block">
+                      <BreadcrumbLink href="/inbox">Inbox</BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="hidden md:block" />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>
+                        {customCategoriesState.find((c) => c.slug === activeCategory)?.name ?? activeCategory}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </>
+                ) : (
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>Inbox</BreadcrumbPage>
+                  </BreadcrumbItem>
+                )}
               </BreadcrumbList>
             </Breadcrumb>
           </header>
@@ -386,50 +441,24 @@ export function InboxShell({
               ))}
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col bg-[#f6f6f7] p-4">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e6e6e8] bg-white">
-                <div className="flex h-12 items-center justify-between border-b border-[#ececef] px-4">
+            <div className="flex-1 overflow-auto bg-[#f6f6f7]">
+              <div className="p-4 space-y-3">
+              <div className="flex flex-col rounded-xl border border-[#e6e6e8] bg-white">
+                <div className="sticky top-0 z-10 flex h-12 items-center justify-between rounded-t-xl border-b border-[#ececef] bg-white px-4">
                   <div className="flex items-center gap-2 text-[#3b3b44]">
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Reply"
-                      onClick={handleReply}
-                    >
+                    <button type="button" title="Répondre" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Reply" onClick={handleReply}>
                       <Reply className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Reply all"
-                      onClick={handleReplyAll}
-                    >
+                    <button type="button" title="Répondre à tous" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Reply all" onClick={handleReplyAll}>
                       <ReplyAll className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Forward"
-                      onClick={handleForward}
-                    >
+                    <button type="button" title="Transférer" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Forward" onClick={handleForward}>
                       <Forward className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Archive"
-                      disabled={isActioning}
-                      onClick={handleArchive}
-                    >
+                    <button type="button" title="Archiver" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Archive" disabled={isActioning} onClick={handleArchive}>
                       <Archive className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Trash"
-                      disabled={isActioning}
-                      onClick={handleTrash}
-                    >
+                    <button type="button" title="Supprimer" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Trash" disabled={isActioning} onClick={handleTrash}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -463,7 +492,7 @@ export function InboxShell({
                         {selectedSenderName}
                       </p>
                       <p className="truncate text-sm text-[#6c6c77]">
-                        Reply-To: {selectedSenderEmail}
+                        {selectedSenderEmail}
                       </p>
                     </div>
                     <p className="whitespace-nowrap text-sm text-[#6c6c77]">
@@ -472,7 +501,7 @@ export function InboxShell({
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-auto px-6 py-5 space-y-6">
+                <div className="px-6 py-5 space-y-6">
                   <EmailBodyRenderer
                     html={selectedEmail.body_html ?? null}
                     text={selectedEmail.body_text}
@@ -503,13 +532,16 @@ export function InboxShell({
               </div>
 
               {isComposing && (
-                <div className="mt-3 rounded-xl border border-[#e6e6e8] bg-white p-4">
+                <div className="rounded-xl border border-[#e6e6e8] bg-white p-4">
                   <DraftSection
                     emailId={selectedEmailId!}
                     userId={userId}
+                    responseType={selectedEmail?.response_type}
+                    confidenceScore={draftConfidenceScore}
                   />
                 </div>
               )}
+              </div>
             </div>
           )}
         </div>
