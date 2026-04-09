@@ -343,14 +343,18 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
 
   const { data: existingDraft } = await supabase
     .from('drafts')
-    .select('id, status')
+    .select('id, status, regeneration_count')
     .eq('email_id', emailId)
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (existingDraft) {
-    if (existingDraft.status === 'generating' || existingDraft.status === 'ready') {
+    if (existingDraft.status === 'generating') {
       return { success: false, error: 'A draft is already being generated for this email.' }
+    }
+    const regenCount = (existingDraft.regeneration_count as number) ?? 0
+    if (regenCount >= 3) {
+      return { success: false, error: 'Maximum de 3 brouillons atteint pour cet email.' }
     }
     await supabase
       .from('drafts')
@@ -359,6 +363,7 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
         content: null,
         confidence_score: null,
         error_message: null,
+        regeneration_count: regenCount + 1,
         updated_at: new Date().toISOString(),
       })
       .eq('id', existingDraft.id)
