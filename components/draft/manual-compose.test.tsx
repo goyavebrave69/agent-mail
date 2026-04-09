@@ -62,11 +62,34 @@ describe('ManualCompose', () => {
     expect(onSend).toHaveBeenCalledWith('My reply')
   })
 
-  it('calls onCancel when Cancel is clicked', () => {
+  it('calls onCancel directly when Cancel is clicked with empty content', () => {
+    const onCancel = vi.fn()
+    render(<ManualCompose {...defaultProps} onCancel={onCancel} manualContent="" />)
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  it('shows confirmation warning when Cancel is clicked with non-empty content', () => {
     const onCancel = vi.fn()
     render(<ManualCompose {...defaultProps} onCancel={onCancel} manualContent="Some text" />)
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.getByText(/perdre le brouillon/i)).toBeInTheDocument()
+  })
+
+  it('calls onCancel after confirming cancellation', () => {
+    const onCancel = vi.fn()
+    render(<ManualCompose {...defaultProps} onCancel={onCancel} manualContent="Some text" />)
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /oui, annuler/i }))
     expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  it('dismisses confirmation warning when Non is clicked', () => {
+    render(<ManualCompose {...defaultProps} manualContent="Some text" />)
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^non$/i }))
+    expect(screen.queryByText(/perdre le brouillon/i)).not.toBeInTheDocument()
   })
 
   it('disables textarea while sending', () => {
@@ -74,9 +97,9 @@ describe('ManualCompose', () => {
     expect(screen.getByRole('textbox', { name: /message body/i })).toBeDisabled()
   })
 
-  it('shows Sending… label on Send button while sending', () => {
+  it('shows Envoi… label on Send button while sending', () => {
     render(<ManualCompose {...defaultProps} isSending manualContent="Hello" />)
-    expect(screen.getByRole('button', { name: /send reply/i })).toHaveTextContent('Sending…')
+    expect(screen.getByRole('button', { name: /send reply/i })).toHaveTextContent('Envoi…')
   })
 
   it('shows error alert when sendError is provided', () => {
@@ -90,7 +113,7 @@ describe('ManualCompose', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('shows Forward button label in forward mode', () => {
+  it('shows Transférer button label in forward mode', () => {
     render(<ManualCompose {...defaultProps} mode="forward" manualContent="Fwd text" />)
     expect(screen.getByRole('button', { name: /forward/i })).toBeInTheDocument()
   })
@@ -99,36 +122,36 @@ describe('ManualCompose', () => {
 describe('ManualCompose — Create Draft button', () => {
   it('does not render draft button when onCreateDraft is not provided', () => {
     render(<ManualCompose {...defaultProps} />)
-    expect(screen.queryByRole('button', { name: /réponse|generate draft/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /brouillon ia/i })).not.toBeInTheDocument()
   })
 
   it('renders draft button when onCreateDraft is provided', () => {
     render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /réponse/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /brouillon ia/i })).toBeInTheDocument()
   })
 
   it('draft button is enabled initially', () => {
     render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /réponse/i })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: /brouillon ia/i })).not.toBeDisabled()
   })
 
   it('calls onCreateDraft when draft button is clicked', () => {
     const onCreateDraft = vi.fn()
     render(<ManualCompose {...defaultProps} onCreateDraft={onCreateDraft} />)
-    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
+    fireEvent.click(screen.getByRole('button', { name: /brouillon ia/i }))
     expect(onCreateDraft).toHaveBeenCalledOnce()
   })
 
-  it('draft button shows Generating… and is disabled when isCreating is true', () => {
+  it('draft button shows Génération… and is disabled when isCreating is true', () => {
     render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} isCreating />)
-    const btn = screen.getByRole('button', { name: /generating/i })
+    const btn = screen.getByRole('button', { name: /génération/i })
     expect(btn).toBeDisabled()
-    expect(btn).toHaveTextContent('Generating…')
+    expect(btn).toHaveTextContent('Génération…')
   })
 
   it('draft button is disabled while isSending is true', () => {
     render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} isSending manualContent="Hello" />)
-    expect(screen.getByRole('button', { name: /generating|réponse/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /brouillon ia|génération/i })).toBeDisabled()
   })
 
   it('Cancel button is disabled when isCreating is true', () => {
@@ -138,7 +161,6 @@ describe('ManualCompose — Create Draft button', () => {
 
   it('does not render draft button in forward mode', () => {
     render(<ManualCompose {...defaultProps} mode="forward" onCreateDraft={vi.fn()} />)
-    expect(screen.queryByRole('button', { name: /réponse/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /brouillon ia/i })).not.toBeInTheDocument()
   })
 })
-

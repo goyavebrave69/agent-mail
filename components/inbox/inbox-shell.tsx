@@ -129,6 +129,7 @@ export function InboxShell({
   const [isActioning, setIsActioning] = useState(false)
   const [sentDraft, setSentDraft] = useState<Draft | null>(null)
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set())
+  const [draftConfidenceScore, setDraftConfidenceScore] = useState<number | null>(null)
 
   const handleSelectEmail = (emailId: string) => {
     setSelectedEmailId(emailId)
@@ -251,6 +252,7 @@ export function InboxShell({
   useEffect(() => {
     resetDraftStore()
     setSentDraft(null)
+    setDraftConfidenceScore(null)
     if (!selectedEmailId) return
     fetchDraftForEmail(selectedEmailId)
       .then((draft) => {
@@ -260,7 +262,6 @@ export function InboxShell({
           return
         }
         if ((draft.status === 'ready' || draft.status === 'generating') && draft.content) {
-          // Auto-restore draft into compose area
           const email = emailsRef.current.find((e) => e.id === selectedEmailId)
           startComposing('reply', {
             to: email?.from_email ?? '',
@@ -268,6 +269,7 @@ export function InboxShell({
             quotedBody: '',
           })
           updateManualContent(draft.content)
+          setDraftConfidenceScore(draft.confidence_score ?? null)
         }
       })
       .catch(() => { /* non-critical */ })
@@ -374,8 +376,8 @@ export function InboxShell({
                       type="button"
                       key={email.id}
                       onClick={() => handleSelectEmail(email.id)}
-                      className={`flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 hover:bg-sidebar-accent/70 ${
-                        email.id === selectedEmailId ? "bg-sidebar-accent/80" : ""
+                      className={`flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-sidebar-accent/70 ${
+                        email.id === selectedEmailId ? "bg-sidebar-accent border-l-2 border-l-blue-500" : ""
                       }`}
                     >
                       <div className="flex w-full items-center gap-2">
@@ -433,46 +435,19 @@ export function InboxShell({
               <div className="flex flex-col rounded-xl border border-[#e6e6e8] bg-white">
                 <div className="sticky top-0 z-10 flex h-12 items-center justify-between rounded-t-xl border-b border-[#ececef] bg-white px-4">
                   <div className="flex items-center gap-2 text-[#3b3b44]">
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Reply"
-                      onClick={handleReply}
-                    >
+                    <button type="button" title="Répondre" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Reply" onClick={handleReply}>
                       <Reply className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Reply all"
-                      onClick={handleReplyAll}
-                    >
+                    <button type="button" title="Répondre à tous" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Reply all" onClick={handleReplyAll}>
                       <ReplyAll className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Forward"
-                      onClick={handleForward}
-                    >
+                    <button type="button" title="Transférer" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Forward" onClick={handleForward}>
                       <Forward className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Archive"
-                      disabled={isActioning}
-                      onClick={handleArchive}
-                    >
+                    <button type="button" title="Archiver" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Archive" disabled={isActioning} onClick={handleArchive}>
                       <Archive className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
-                      aria-label="Trash"
-                      disabled={isActioning}
-                      onClick={handleTrash}
-                    >
+                    <button type="button" title="Supprimer" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Trash" disabled={isActioning} onClick={handleTrash}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -506,7 +481,7 @@ export function InboxShell({
                         {selectedSenderName}
                       </p>
                       <p className="truncate text-sm text-[#6c6c77]">
-                        Reply-To: {selectedSenderEmail}
+                        {selectedSenderEmail}
                       </p>
                     </div>
                     <p className="whitespace-nowrap text-sm text-[#6c6c77]">
@@ -551,6 +526,7 @@ export function InboxShell({
                     emailId={selectedEmailId!}
                     userId={userId}
                     responseType={selectedEmail?.response_type}
+                    confidenceScore={draftConfidenceScore}
                   />
                 </div>
               )}

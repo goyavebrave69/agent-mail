@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { ManualCompose } from './manual-compose'
 import { DraftRealtime } from './draft-realtime'
 import { PdfConfirmationBlock } from './pdf-confirmation-block'
+import { ConfidenceBadge } from './confidence-badge'
 import { useDraftStore } from '@/stores/draft-store'
 import {
   sendManualReply,
@@ -16,9 +17,10 @@ interface DraftSectionProps {
   emailId: string
   userId: string
   responseType?: 'text_reply' | 'pdf_required' | 'unknown'
+  confidenceScore?: number | null
 }
 
-export function DraftSection({ emailId, userId, responseType }: DraftSectionProps) {
+export function DraftSection({ emailId, userId, responseType, confidenceScore }: DraftSectionProps) {
   const [pdfIgnored, setPdfIgnored] = useState(false)
   const {
     isComposing,
@@ -95,6 +97,12 @@ export function DraftSection({ emailId, userId, responseType }: DraftSectionProp
 
   return (
     <div className="space-y-3">
+      {confidenceScore != null && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>✨ Brouillon généré par IA</span>
+          <ConfidenceBadge score={confidenceScore} size="sm" showLabel={false} />
+        </div>
+      )}
       {responseType === 'pdf_required' && !pdfIgnored && (
         <PdfConfirmationBlock
           onGenerate={() => {

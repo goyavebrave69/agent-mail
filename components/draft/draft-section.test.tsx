@@ -58,10 +58,10 @@ describe('DraftSection — compose mode', () => {
     return render(<DraftSection {...defaultProps} />)
   }
 
-  it('shows ManualCompose with Send and Réponse buttons when composing', () => {
+  it('shows ManualCompose with Send and Brouillon IA buttons when composing', () => {
     renderComposing()
     expect(screen.getByRole('button', { name: /send reply/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /réponse/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /brouillon ia/i })).toBeInTheDocument()
   })
 
   it('shows textarea for manual reply', () => {
@@ -69,34 +69,34 @@ describe('DraftSection — compose mode', () => {
     expect(screen.getByRole('textbox', { name: /message body/i })).toBeInTheDocument()
   })
 
-  it('clicking Réponse calls createDraftOnDemand with emailId', async () => {
+  it('clicking Brouillon IA calls createDraftOnDemand with emailId', async () => {
     vi.mocked(createDraftOnDemand).mockImplementation(() => new Promise(() => {}))
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
+    fireEvent.click(screen.getByRole('button', { name: /brouillon ia/i }))
     await waitFor(() => {
       expect(createDraftOnDemand).toHaveBeenCalledWith('email-1')
     })
   })
 
-  it('Réponse button shows Generating… and is disabled while creating', async () => {
+  it('Brouillon IA button shows Génération… and is disabled while creating', async () => {
     vi.mocked(createDraftOnDemand).mockImplementation(() => new Promise(() => {}))
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
+    fireEvent.click(screen.getByRole('button', { name: /brouillon ia/i }))
     await waitFor(() => {
-      const btn = screen.getByRole('button', { name: /generating/i })
+      const btn = screen.getByRole('button', { name: /génération/i })
       expect(btn).toBeDisabled()
-      expect(btn).toHaveTextContent('Generating…')
+      expect(btn).toHaveTextContent('Génération…')
     })
   })
 
   it('duplicate clicks are prevented once creating starts', async () => {
     vi.mocked(createDraftOnDemand).mockImplementation(() => new Promise(() => {}))
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
+    fireEvent.click(screen.getByRole('button', { name: /brouillon ia/i }))
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /generating/i })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /génération/i })).toBeDisabled()
     })
-    fireEvent.click(screen.getByRole('button', { name: /generating/i }))
+    fireEvent.click(screen.getByRole('button', { name: /génération/i }))
     expect(createDraftOnDemand).toHaveBeenCalledTimes(1)
   })
 
@@ -118,7 +118,7 @@ describe('DraftSection — compose mode', () => {
       retry_count: 0,
     })
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
+    fireEvent.click(screen.getByRole('button', { name: /brouillon ia/i }))
     await waitFor(() => {
       const textarea = screen.getByRole('textbox', { name: /message body/i }) as HTMLTextAreaElement
       expect(textarea.value).toBe('AI generated reply content.')
@@ -150,7 +150,7 @@ describe('DraftSection — compose mode', () => {
       error: 'Edge function unavailable.',
     })
     renderComposing()
-    fireEvent.click(screen.getByRole('button', { name: /réponse/i }))
+    fireEvent.click(screen.getByRole('button', { name: /brouillon ia/i }))
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
       expect(screen.getByText('Edge function unavailable.')).toBeInTheDocument()
