@@ -96,6 +96,7 @@ const PRIMARY_NAV: PrimaryNavItem[] = [
 
 interface AppSidebarProps {
   customCategories: CustomCategory[]
+  unreadCounts?: Record<string, number>
 }
 
 // ─── Sortable category row ────────────────────────────────────────────────────
@@ -106,6 +107,7 @@ interface SortableCategoryItemProps {
   collapsed: boolean
   renamingId: string | null
   renameValue: string
+  unreadCount?: number
   onSelect: (slug: string) => void
   onRenameStart: (id: string, name: string) => void
   onRenameChange: (value: string) => void
@@ -121,6 +123,7 @@ function SortableCategoryItem({
   collapsed,
   renamingId,
   renameValue,
+  unreadCount,
   onSelect,
   onRenameStart,
   onRenameChange,
@@ -199,6 +202,11 @@ function SortableCategoryItem({
             >
               <Circle className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="truncate">{category.name}</span>}
+              {!collapsed && unreadCount != null && unreadCount > 0 && (
+                <span className="ml-auto text-xs font-medium tabular-nums text-sidebar-foreground/60">
+                  {unreadCount}
+                </span>
+              )}
             </button>
           )}
         </div>
@@ -226,7 +234,7 @@ function SortableCategoryItem({
 
 // ─── Main sidebar ─────────────────────────────────────────────────────────────
 
-export function AppSidebar({ customCategories: initialCategories }: AppSidebarProps) {
+export function AppSidebar({ customCategories: initialCategories, unreadCounts = {} }: AppSidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -477,42 +485,32 @@ export function AppSidebar({ customCategories: initialCategories }: AppSidebarPr
           <>
             <Separator data-testid="nav-separator" />
             <div className="flex flex-col gap-0.5 px-2 py-2">
-              {/* Manage / Add row */}
+              {/* CATÉGORIES header + add button */}
               <div className={cn('mb-1 flex items-center gap-1', collapsed ? 'justify-center' : 'justify-between')}>
                 {!collapsed && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        data-testid="manage-categories-button"
-                        onClick={() => setIsAddOpen(true)}
-                        className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      >
-                        <Settings2 className="h-3.5 w-3.5 shrink-0" />
-                        <span>Manage Categories</span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">Manage Categories</TooltipContent>
-                  </Tooltip>
+                  <span className="px-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                    Catégories
+                  </span>
                 )}
-                {collapsed && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        data-testid="manage-categories-button"
-                        onClick={() => setIsAddOpen(true)}
-                        className="flex h-8 w-8 items-center justify-center rounded-md border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      >
-                        <Plus className="h-4 w-4 shrink-0" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">Add Category</TooltipContent>
-                  </Tooltip>
-                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      data-testid="manage-categories-button"
+                      onClick={() => setIsAddOpen(true)}
+                      className={cn(
+                        'flex items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                        collapsed ? 'h-8 w-8' : 'h-5 w-5'
+                      )}
+                    >
+                      <Plus className={cn('shrink-0', collapsed ? 'h-4 w-4' : 'h-3.5 w-3.5')} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Ajouter une catégorie</TooltipContent>
+                </Tooltip>
               </div>
 
-              {/* All */}
+              {/* Toutes */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -525,10 +523,15 @@ export function AppSidebar({ customCategories: initialCategories }: AppSidebarPr
                     )}
                   >
                     <InboxIcon className="h-4 w-4 shrink-0" />
-                    {!collapsed && <span>All</span>}
+                    {!collapsed && <span>Toutes</span>}
+                    {!collapsed && Object.values(unreadCounts).reduce((a, b) => a + b, 0) > 0 && (
+                      <span className="ml-auto text-xs font-medium tabular-nums text-sidebar-foreground/60">
+                        {Object.values(unreadCounts).reduce((a, b) => a + b, 0)}
+                      </span>
+                    )}
                   </button>
                 </TooltipTrigger>
-                {collapsed && <TooltipContent side="right">All</TooltipContent>}
+                {collapsed && <TooltipContent side="right">Toutes</TooltipContent>}
               </Tooltip>
 
               {/* Sortable custom categories */}
@@ -542,6 +545,7 @@ export function AppSidebar({ customCategories: initialCategories }: AppSidebarPr
                       collapsed={collapsed}
                       renamingId={renamingId}
                       renameValue={renameValue}
+                      unreadCount={unreadCounts[category.slug]}
                       onSelect={setCategory}
                       onRenameStart={handleRenameStart}
                       onRenameChange={setRenameValue}

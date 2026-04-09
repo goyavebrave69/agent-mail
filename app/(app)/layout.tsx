@@ -13,18 +13,31 @@ export default async function AppLayout({
   } = await supabase.auth.getUser()
 
   let customCategories: CustomCategory[] = []
+  const unreadCounts: Record<string, number> = {}
   if (user) {
-    const { data } = await supabase
-      .from("custom_categories")
-      .select("id, name, slug, description, sort_order")
-      .eq("user_id", user.id)
-      .order("sort_order", { ascending: true })
-    customCategories = (data as CustomCategory[] | null) ?? []
+    const [{ data: catData }, { data: unreadData }] = await Promise.all([
+      supabase
+        .from("custom_categories")
+        .select("id, name, slug, description, sort_order")
+        .eq("user_id", user.id)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("emails")
+        .select("category")
+        .eq("user_id", user.id)
+        .eq("is_read", false)
+        .eq("is_archived", false),
+    ])
+    customCategories = (catData as CustomCategory[] | null) ?? []
+    for (const row of (unreadData ?? []) as { category: string | null }[]) {
+      const cat = row.category ?? "inbox"
+      unreadCounts[cat] = (unreadCounts[cat] ?? 0) + 1
+    }
   }
 
   return (
     <div className="flex h-svh overflow-hidden">
-      <AppSidebar customCategories={customCategories} />
+      <AppSidebar customCategories={customCategories} unreadCounts={unreadCounts} />
       <main className="flex-1 min-h-0 overflow-hidden">
         {children}
       </main>

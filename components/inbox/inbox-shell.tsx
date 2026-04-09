@@ -112,6 +112,7 @@ function getSenderInitials(sender: string): string {
 export function InboxShell({
   emails,
   userId,
+  activeCategory,
   customCategories,
 }: InboxShellProps) {
   const router = useRouter()
@@ -410,13 +411,23 @@ export function InboxShell({
           <header className="flex h-[49px] shrink-0 items-center gap-2 border-b bg-background px-4">
             <Breadcrumb>
               <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/inbox">All Inboxes</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Inbox</BreadcrumbPage>
-                </BreadcrumbItem>
+                {activeCategory ? (
+                  <>
+                    <BreadcrumbItem className="hidden md:block">
+                      <BreadcrumbLink href="/inbox">Inbox</BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="hidden md:block" />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>
+                        {customCategoriesState.find((c) => c.slug === activeCategory)?.name ?? activeCategory}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </>
+                ) : (
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>Inbox</BreadcrumbPage>
+                  </BreadcrumbItem>
+                )}
               </BreadcrumbList>
             </Breadcrumb>
           </header>
