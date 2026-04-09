@@ -25,7 +25,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ lineItems: fallbackItems(), debug: 'body-parse-error' })
   }
 
-  console.log('[extract-quote-items] subject length:', emailSubject.length, '| body length:', emailBody.length)
+  console.log('[extract-quote-items] subject:', JSON.stringify(emailSubject))
+  console.log('[extract-quote-items] body preview:', JSON.stringify(emailBody.slice(0, 200)))
 
   // ── API key ───────────────────────────────────────────────────────────────
   const openAiApiKey = process.env.OPENAI_API_KEY
