@@ -1,9 +1,6 @@
 import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
-import { KbUploadZone } from "@/components/kb/kb-upload-zone"
-import { KbFileList } from "@/components/kb/kb-file-list"
-import { UserProfileForm } from "@/components/kb/user-profile-form"
-import { InvoiceSettingsSection } from "@/components/knowledge-base/invoice-settings-section"
+import { KbTabs } from "@/components/knowledge-base/kb-tabs"
 import type { InvoiceSettings } from "@/lib/quotes/types"
 
 export interface KbFile {
@@ -16,6 +13,16 @@ export interface KbFile {
   created_at: string
 }
 
+function PageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="h-10 w-64 animate-pulse rounded-lg bg-muted" />
+      <div className="h-48 animate-pulse rounded-xl bg-muted" />
+      <div className="h-64 animate-pulse rounded-xl bg-muted" />
+    </div>
+  )
+}
+
 async function KbContent() {
   const supabase = await createClient()
   const [{ data: files }, { data: profile }, { data: invoiceSettings }] = await Promise.all([
@@ -23,42 +30,34 @@ async function KbContent() {
       .from("kb_files")
       .select("id, filename, file_size, mime_type, status, error_message, created_at")
       .order("created_at", { ascending: false }),
-    supabase
-      .from("user_profile")
-      .select("description")
-      .maybeSingle(),
-    supabase
-      .from("invoice_settings")
-      .select("*")
-      .maybeSingle(),
+    supabase.from("user_profile").select("description").maybeSingle(),
+    supabase.from("invoice_settings").select("*").maybeSingle(),
   ])
 
   return (
-    <>
-      <UserProfileForm initialDescription={profile?.description ?? ""} />
-      <KbUploadZone />
-      <KbFileList files={(files as KbFile[]) ?? []} />
-      <InvoiceSettingsSection initialSettings={(invoiceSettings as InvoiceSettings | null) ?? null} />
-    </>
+    <KbTabs
+      files={(files as KbFile[]) ?? []}
+      profileDescription={profile?.description ?? ""}
+      invoiceSettings={(invoiceSettings as InvoiceSettings | null) ?? null}
+    />
   )
 }
 
 export default function KnowledgeBasePage() {
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="mb-2 text-2xl font-bold">Knowledge Base</h1>
-      <p className="mb-8 text-sm text-muted-foreground">
-        Configure your business profile and upload reference files. The AI uses this context to
-        generate accurate, personalised draft replies.
-      </p>
+    <main className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-3xl px-6 py-10 sm:px-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold tracking-tight">Base de connaissances</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Configurez le contexte de l&apos;IA et vos paramètres de facturation.
+          </p>
+        </div>
 
-      <Suspense
-        fallback={
-          <div className="h-64 rounded-lg border p-6 animate-pulse bg-muted" />
-        }
-      >
-        <KbContent />
-      </Suspense>
+        <Suspense fallback={<PageSkeleton />}>
+          <KbContent />
+        </Suspense>
+      </div>
     </main>
   )
 }

@@ -6,7 +6,7 @@ import { InvoiceSettingsSection } from './invoice-settings-section'
 describe('InvoiceSettingsSection', () => {
   it('renders with null initial settings', () => {
     render(<InvoiceSettingsSection initialSettings={null} />)
-    expect(screen.getByText(/devis & facturation/i)).toBeInTheDocument()
+    expect(screen.getByText(/informations commerciales/i)).toBeInTheDocument()
   })
 
   it('does NOT show template upload zone when mode is Automatique', () => {

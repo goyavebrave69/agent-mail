@@ -112,7 +112,7 @@ export function KbUploadZone() {
   const isUploading = isPending || uploadingFiles.length > 0
 
   return (
-    <div className="mb-8">
+    <div className="mb-5">
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}

@@ -60,12 +60,13 @@ export function InvoiceSettingsSection({ initialSettings }: InvoiceSettingsSecti
   }
 
   return (
-    <section id="invoice" className="mb-8 rounded-lg border p-6">
-      <h2 className="mb-1 text-lg font-semibold">Devis &amp; Facturation</h2>
-      <p className="mb-4 text-sm text-muted-foreground">
-        Ces informations seront utilisées pour générer des devis PDF professionnels directement
-        depuis votre boîte mail.
-      </p>
+    <section id="invoice" className="p-6">
+      <div className="mb-5">
+        <h2 className="text-base font-semibold">Informations commerciales</h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Ces informations apparaissent sur vos devis PDF générés depuis la boîte mail.
+        </p>
+      </div>
 
       {/* Mini-preview */}
       <div className="mb-5 rounded-md border bg-muted/30 px-4 py-3 text-sm">
