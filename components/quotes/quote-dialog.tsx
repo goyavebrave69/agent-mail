@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { QuoteForm } from './quote-form'
 import { sendQuoteAction } from '@/app/(app)/inbox/[emailId]/send-quote-action'
+import { extractQuoteItemsAction } from '@/app/(app)/inbox/[emailId]/extract-quote-items-action'
 import { extractClientInfo } from '@/lib/quotes/extract-client-info'
 import { todayIso } from '@/lib/quotes/generate-quote-number'
 import type { QuoteData, QuoteTotals, InvoiceSettings } from '@/lib/quotes/types'
@@ -85,9 +86,10 @@ export function QuoteDialog({
 
     void (async () => {
       try {
-        const [settingsRes, seqRes] = await Promise.all([
+        const [settingsRes, seqRes, extracted] = await Promise.all([
           fetch('/api/invoice-settings'),
           fetch('/api/invoice-settings', { method: 'PATCH' }),
+          extractQuoteItemsAction(emailSubject, emailBody),
         ])
         const { settings: s } = await settingsRes.json() as { settings: InvoiceSettings | null }
         setSettings(s)
@@ -95,6 +97,10 @@ export function QuoteDialog({
         if (s) {
           const { quoteNumber } = await seqRes.json() as { quoteNumber: string }
           const clientInfo = extractClientInfo({ from: emailFrom, body: emailBody })
+          // Override client name with AI-extracted one if available and not already found
+          const client = extracted.clientName && !clientInfo.name
+            ? { ...clientInfo, name: extracted.clientName }
+            : clientInfo
           setQuoteData({
             quoteNumber,
             date: todayIso(),
@@ -108,8 +114,8 @@ export function QuoteDialog({
               currency: s.currency,
               taxRate: s.tax_rate,
             },
-            client: clientInfo,
-            lineItems: [{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }],
+            client,
+            lineItems: extracted.lineItems,
           })
         }
       } finally {
