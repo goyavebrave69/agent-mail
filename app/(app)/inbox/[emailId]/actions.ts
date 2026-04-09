@@ -414,6 +414,25 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
   return { success: true }
 }
 
+// ─── Mark email as read ───────────────────────────────────────────────────────
+
+export async function markEmailAsRead(
+  emailId: string
+): Promise<void> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return
+
+  await supabase
+    .from('emails')
+    .update({ is_read: true, updated_at: new Date().toISOString() })
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+    .eq('is_read', false) // no-op if already read
+}
+
 // ─── Archive email ────────────────────────────────────────────────────────────
 
 export async function archiveEmail(

@@ -16,6 +16,7 @@ import { DraftSection } from "@/components/draft/draft-section"
 import {
   archiveEmail,
   fetchDraftForEmail,
+  markEmailAsRead,
   trashEmail,
 } from "@/app/(app)/inbox/[emailId]/actions"
 import type { Draft } from "@/types/draft"
@@ -127,6 +128,19 @@ export function InboxShell({
   const [actionError, setActionError] = useState<string | null>(null)
   const [isActioning, setIsActioning] = useState(false)
   const [sentDraft, setSentDraft] = useState<Draft | null>(null)
+  const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set())
+
+  const handleSelectEmail = (emailId: string) => {
+    setSelectedEmailId(emailId)
+    setLocalReadIds((prev) => {
+      if (prev.has(emailId)) return prev
+      const next = new Set(prev)
+      next.add(emailId)
+      return next
+    })
+    markEmailAsRead(emailId).catch(() => { /* non-critical */ })
+  }
+
   const handleReply = () => {
     if (!selectedEmail) return
     startComposing('reply', {
@@ -352,17 +366,19 @@ export function InboxShell({
                     </span>
                     <span className="text-xs text-muted-foreground">{group.emails.length}</span>
                   </div>
-                  {group.emails.map((email) => (
+                  {group.emails.map((email) => {
+                    const isUnread = !email.is_read && !localReadIds.has(email.id)
+                    return (
                     <button
                       type="button"
                       key={email.id}
-                      onClick={() => setSelectedEmailId(email.id)}
+                      onClick={() => handleSelectEmail(email.id)}
                       className={`flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 hover:bg-sidebar-accent/70 ${
                         email.id === selectedEmailId ? "bg-sidebar-accent/80" : ""
                       }`}
                     >
                       <div className="flex w-full items-start gap-2">
-                        <span className="truncate font-semibold text-foreground">
+                        <span className={`truncate text-foreground ${isUnread ? "font-bold" : "font-semibold"}`}>
                           {email.from_name ?? email.from_email ?? "Unknown sender"}
                         </span>
                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
@@ -376,7 +392,7 @@ export function InboxShell({
                         {email.body_text?.trim() ?? email.from_email ?? "No preview available"}
                       </span>
                     </button>
-                  ))}
+                  )})}
                 </div>
               ))
             )}

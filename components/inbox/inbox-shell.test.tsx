@@ -26,6 +26,7 @@ vi.mock("@/lib/supabase/client", () => ({
 
 vi.mock("@/app/(app)/inbox/[emailId]/actions", () => ({
   fetchDraftForEmail: vi.fn().mockResolvedValue(null),
+  markEmailAsRead: vi.fn().mockResolvedValue(undefined),
   archiveEmail: vi.fn().mockResolvedValue({ success: true }),
   trashEmail: vi.fn().mockResolvedValue({ success: true }),
   createDraftOnDemand: vi.fn(),
