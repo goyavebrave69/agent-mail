@@ -1,21 +1,23 @@
-'use server'
-
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import type { QuoteLineItem } from '@/lib/quotes/types'
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
 
-interface ExtractResult {
-  lineItems: QuoteLineItem[]
-  clientName?: string
-  error?: string
-}
+export async function POST(req: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-export async function extractQuoteItemsAction(
-  emailSubject: string,
-  emailBody: string
-): Promise<ExtractResult> {
+  const { emailSubject, emailBody } = await req.json() as {
+    emailSubject: string
+    emailBody: string
+  }
+
   const openAiApiKey = process.env.OPENAI_API_KEY
-  if (!openAiApiKey) return { lineItems: [], error: 'OpenAI API key not configured.' }
+  if (!openAiApiKey) {
+    return NextResponse.json({ lineItems: fallbackItems() })
+  }
 
   const systemPrompt = `Tu es un assistant qui analyse des emails de demande de devis.
 À partir du contenu de l'email, extrais les prestations ou produits demandés par le client.
@@ -36,7 +38,7 @@ Règles :
 - Si le client mentionne une quantité, utilise-la ; sinon mets 1
 - Si le client mentionne un prix, utilise-le ; sinon mets 0
 - Regroupe logiquement les éléments (ne crée pas de doublon)
-- Si rien de précis n'est demandé, crée une ligne générique avec la prestation implicite
+- Si rien de précis n'est demandé, crée une ligne générique décrivant la prestation principale implicite
 - Ne mets jamais plus de 10 lignes
 - Descriptions en français`
 
@@ -60,10 +62,17 @@ Règles :
       }),
     })
 
-    if (!response.ok) return { lineItems: [] }
+    if (!response.ok) {
+      const text = await response.text()
+      console.error('[extract-quote-items] OpenAI error', response.status, text)
+      return NextResponse.json({ lineItems: fallbackItems() })
+    }
 
-    const json = (await response.json()) as { choices: { message: { content: string } }[] }
-    const raw = JSON.parse(json.choices?.[0]?.message?.content ?? '{}') as {
+    const json = (await response.json()) as {
+      choices: { message: { content: string } }[]
+    }
+    const content = json.choices?.[0]?.message?.content ?? '{}'
+    const raw = JSON.parse(content) as {
       lineItems?: { description?: string; quantity?: number; unitPrice?: number }[]
       clientName?: string
     }
@@ -75,13 +84,16 @@ Règles :
       unitPrice: typeof item.unitPrice === 'number' ? item.unitPrice : 0,
     }))
 
-    return {
-      lineItems: lineItems.length > 0
-        ? lineItems
-        : [{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }],
-      clientName: raw.clientName ?? undefined,
-    }
-  } catch {
-    return { lineItems: [{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }] }
+    return NextResponse.json({
+      lineItems: lineItems.length > 0 ? lineItems : fallbackItems(),
+      clientName: raw.clientName ?? null,
+    })
+  } catch (err) {
+    console.error('[extract-quote-items] unexpected error', err)
+    return NextResponse.json({ lineItems: fallbackItems() })
   }
+}
+
+function fallbackItems(): QuoteLineItem[] {
+  return [{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }]
 }

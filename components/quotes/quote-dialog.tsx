@@ -6,7 +6,6 @@ import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { QuoteForm } from './quote-form'
 import { sendQuoteAction } from '@/app/(app)/inbox/[emailId]/send-quote-action'
-import { extractQuoteItemsAction } from '@/app/(app)/inbox/[emailId]/extract-quote-items-action'
 import { extractClientInfo } from '@/lib/quotes/extract-client-info'
 import { todayIso } from '@/lib/quotes/generate-quote-number'
 import type { QuoteData, QuoteTotals, InvoiceSettings } from '@/lib/quotes/types'
@@ -86,18 +85,25 @@ export function QuoteDialog({
 
     void (async () => {
       try {
-        const [settingsRes, seqRes, extracted] = await Promise.all([
+        const [settingsRes, seqRes, extractedRes] = await Promise.all([
           fetch('/api/invoice-settings'),
           fetch('/api/invoice-settings', { method: 'PATCH' }),
-          extractQuoteItemsAction(emailSubject, emailBody),
+          fetch('/api/extract-quote-items', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emailSubject, emailBody }),
+          }),
         ])
         const { settings: s } = await settingsRes.json() as { settings: InvoiceSettings | null }
         setSettings(s)
 
         if (s) {
           const { quoteNumber } = await seqRes.json() as { quoteNumber: string }
+          const extracted = await extractedRes.json() as {
+            lineItems: import('@/lib/quotes/types').QuoteLineItem[]
+            clientName?: string | null
+          }
           const clientInfo = extractClientInfo({ from: emailFrom, body: emailBody })
-          // Override client name with AI-extracted one if available and not already found
           const client = extracted.clientName && !clientInfo.name
             ? { ...clientInfo, name: extracted.clientName }
             : clientInfo
