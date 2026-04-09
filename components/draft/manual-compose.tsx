@@ -20,6 +20,8 @@ interface ManualComposeProps {
   onContentChange: (content: string) => void
   onCreateDraft?: () => void
   isCreating?: boolean
+  isStreaming?: boolean
+  streamingContent?: string
 }
 
 const MAX_LENGTH = 10_000
@@ -38,13 +40,17 @@ export function ManualCompose({
   onContentChange,
   onCreateDraft,
   isCreating = false,
+  isStreaming = false,
+  streamingContent = '',
 }: ManualComposeProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [pendingCancel, setPendingCancel] = useState(false)
 
   useEffect(() => {
-    textareaRef.current?.focus()
-  }, [])
+    if (!isStreaming) {
+      textareaRef.current?.focus()
+    }
+  }, [isStreaming])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Tab') return
@@ -99,19 +105,31 @@ export function ManualCompose({
         )}
       </div>
 
-      {/* Body textarea */}
-      <textarea
-        ref={textareaRef}
-        value={manualContent}
-        onChange={(e) => onContentChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Write your message..."
-        className="w-full resize-none rounded-lg border p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        rows={8}
-        maxLength={MAX_LENGTH}
-        aria-label="Message body"
-        disabled={isSending}
-      />
+      {/* Body — streaming overlay or editable textarea */}
+      {isStreaming ? (
+        <div
+          role="textbox"
+          aria-live="off"
+          aria-label="Message body"
+          className="w-full min-h-[12rem] rounded-lg border p-3 text-sm whitespace-pre-wrap font-[inherit] bg-background"
+        >
+          {streamingContent}
+          <span className="animate-pulse inline-block ml-0.5 text-muted-foreground">▋</span>
+        </div>
+      ) : (
+        <textarea
+          ref={textareaRef}
+          value={manualContent}
+          onChange={(e) => onContentChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Write your message..."
+          className="w-full resize-none rounded-lg border p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          rows={8}
+          maxLength={MAX_LENGTH}
+          aria-label="Message body"
+          disabled={isSending}
+        />
+      )}
 
       {/* Quoted original email */}
       
@@ -158,7 +176,7 @@ export function ManualCompose({
         {onCreateDraft && mode !== 'forward' && (
           <button
             onClick={onCreateDraft}
-            disabled={isCreating || isSending}
+            disabled={isCreating || isSending || isStreaming}
             className="inline-flex items-center gap-2 rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Sparkles className="h-3.5 w-3.5" />

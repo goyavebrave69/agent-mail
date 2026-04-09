@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ManualCompose } from './manual-compose'
 import { DraftRealtime } from './draft-realtime'
 import { PdfConfirmationBlock } from './pdf-confirmation-block'
@@ -22,6 +22,16 @@ interface DraftSectionProps {
 
 export function DraftSection({ emailId, userId, responseType, confidenceScore }: DraftSectionProps) {
   const [pdfIgnored, setPdfIgnored] = useState(false)
+  const [streamingContent, setStreamingContent] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (streamIntervalRef.current) clearInterval(streamIntervalRef.current)
+    }
+  }, [])
+
   const {
     isComposing,
     composeMode,
@@ -44,6 +54,28 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
     failCreating,
     clearCreating,
   } = useDraftStore()
+
+  const startTypewriter = useCallback(
+    (fullContent: string) => {
+      if (streamIntervalRef.current) clearInterval(streamIntervalRef.current)
+      setIsStreaming(true)
+      setStreamingContent('')
+      let idx = 0
+      const CHUNK = 4
+      const TICK_MS = 25
+      streamIntervalRef.current = setInterval(() => {
+        idx = Math.min(idx + CHUNK, fullContent.length)
+        setStreamingContent(fullContent.slice(0, idx))
+        if (idx >= fullContent.length) {
+          clearInterval(streamIntervalRef.current!)
+          streamIntervalRef.current = null
+          updateManualContent(fullContent)
+          setIsStreaming(false)
+        }
+      }, TICK_MS)
+    },
+    [updateManualContent]
+  )
 
   const handleDraftUpdate = useCallback(
     (updated: Draft) => {
@@ -86,12 +118,12 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
     try {
       const draft = await fetchDraftForEmail(emailId)
       if (draft?.status === 'ready' && draft.content) {
-        updateManualContent(draft.content)
+        startTypewriter(draft.content)
       }
     } finally {
       clearCreating()
     }
-  }, [emailId, startCreating, failCreating, clearCreating, updateManualContent])
+  }, [emailId, startCreating, failCreating, clearCreating, startTypewriter])
 
   if (!isComposing) return null
 
@@ -127,6 +159,8 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
         onContentChange={updateManualContent}
         onCreateDraft={handleCreateDraft}
         isCreating={isCreating}
+        isStreaming={isStreaming}
+        streamingContent={streamingContent}
       />
       {createError && (
         <div
