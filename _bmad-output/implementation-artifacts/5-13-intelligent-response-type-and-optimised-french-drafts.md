@@ -1,6 +1,6 @@
 # Story 5.13: Intelligent Response-Type Detection & Optimised French Drafts
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -43,65 +43,65 @@ Status: ready-for-dev
 
 ## Tasks / Subtasks
 
-- [ ] **Migration 024** — add `response_type` to `emails` table (AC: 1)
-  - [ ] Create `supabase/migrations/024_emails_response_type.sql`
-  - [ ] `ALTER TABLE emails ADD COLUMN response_type TEXT NOT NULL DEFAULT 'unknown' CHECK (response_type IN ('text_reply', 'pdf_required', 'unknown'))`
-  - [ ] Add index: `CREATE INDEX idx_emails_response_type ON emails(user_id, response_type)`
-  - [ ] Apply migration via MCP or `supabase db push`
+- [x] **Migration 024** — add `response_type` to `emails` table (AC: 1)
+  - [x] Create `supabase/migrations/024_emails_response_type.sql`
+  - [x] `ALTER TABLE emails ADD COLUMN response_type TEXT NOT NULL DEFAULT 'unknown' CHECK (response_type IN ('text_reply', 'pdf_required', 'unknown'))`
+  - [x] Add index: `CREATE INDEX idx_emails_response_type ON emails(user_id, response_type)`
+  - [x] Apply migration via MCP or `supabase db push`
 
-- [ ] **Triage enhancement** — detect `response_type` during triage (AC: 1)
-  - [ ] In `supabase/functions/sync-emails/triage.ts`:
-    - [ ] Extend `TriageResult` interface: add `responseType: 'text_reply' | 'pdf_required'`
-    - [ ] Update `FALLBACK` constant: `{ category: 'inbox', priorityRank: 0, responseType: 'text_reply' }`
-    - [ ] Update `buildSystemPrompt()` to request `response_type` in JSON output
-    - [ ] Update response JSON schema in prompt: `{"category": "<slug>", "response_type": "text_reply" | "pdf_required"}`
-    - [ ] Increase `max_tokens` from 32 to 64 to accommodate larger JSON response
-    - [ ] Validate `responseType` value; fallback to `'text_reply'` if missing/invalid
-  - [ ] In `supabase/functions/sync-emails/index.ts`:
-    - [ ] Pass `triageResult.responseType` to the emails upsert payload as `response_type`
+- [x] **Triage enhancement** — detect `response_type` during triage (AC: 1)
+  - [x] In `supabase/functions/sync-emails/triage.ts`:
+    - [x] Extend `TriageResult` interface: add `responseType: 'text_reply' | 'pdf_required'`
+    - [x] Update `FALLBACK` constant: `{ category: 'inbox', priorityRank: 0, responseType: 'text_reply' }`
+    - [x] Update `buildSystemPrompt()` to request `response_type` in JSON output
+    - [x] Update response JSON schema in prompt: `{"category": "<slug>", "response_type": "text_reply" | "pdf_required"}`
+    - [x] Increase `max_tokens` from 32 to 64 to accommodate larger JSON response
+    - [x] Validate `responseType` value; fallback to `'text_reply'` if missing/invalid
+  - [x] In `supabase/functions/sync-emails/index.ts`:
+    - [x] Pass `triageResult.responseType` to the emails upsert payload as `response_type`
 
-- [ ] **Draft generation improvements** — French + profile context (AC: 2)
-  - [ ] In `lib/ai/draft.ts`:
-    - [ ] Add `userProfile: string | null` parameter to `generateDraft()` signature
-    - [ ] Replace `language: options?.language ?? 'English'` with `'Français'` (hardcoded)
-    - [ ] Completely rewrite `buildSystemPrompt()` following GPT best practices (see Dev Notes below)
-    - [ ] Inject `userProfile` into system prompt when present
-  - [ ] In `supabase/functions/generate-draft/index.ts`:
-    - [ ] After fetching email metadata, also fetch `user_profile.description` for the user
-    - [ ] Pass `userProfile` to `generateDraft()` call
+- [x] **Draft generation improvements** — French + profile context (AC: 2)
+  - [x] In `lib/ai/draft.ts`:
+    - [x] Add `userProfile: string | null` parameter to `generateDraft()` signature
+    - [x] Replace `language: options?.language ?? 'English'` with `'Français'` (hardcoded)
+    - [x] Completely rewrite `buildSystemPrompt()` following GPT best practices (see Dev Notes below)
+    - [x] Inject `userProfile` into system prompt when present
+  - [x] In `supabase/functions/generate-draft/index.ts`:
+    - [x] After fetching email metadata, also fetch `user_profile.description` for the user
+    - [x] Pass `userProfile` to `generateDraft()` call
 
-- [ ] **UI — PDF confirmation block** (AC: 3, 4)
-  - [ ] Create `components/draft/pdf-confirmation-block.tsx`
-    - [ ] Props: `onIgnore: () => void`, `onGenerate: () => void`
-    - [ ] Renders explanation text + "Générer le devis" button + "Ignorer" link
-    - [ ] No external state — fully controlled via props
-  - [ ] In `components/draft/draft-section.tsx`:
-    - [ ] Add `responseType: 'text_reply' | 'pdf_required' | 'unknown'` prop
-    - [ ] Add local state: `pdfIgnored: boolean` (default `false`)
-    - [ ] Render `<PdfConfirmationBlock>` when `responseType === 'pdf_required' && !pdfIgnored`
-    - [ ] On "Ignorer": set `pdfIgnored = true`
-    - [ ] On "Générer le devis": `console.log('PDF generation — future story')` (no-op)
-  - [ ] In `app/(app)/inbox/[emailId]/page.tsx`:
-    - [ ] Include `response_type` in the email select query
-    - [ ] Pass `responseType={email.response_type}` to `<DraftSection>`
+- [x] **UI — PDF confirmation block** (AC: 3, 4)
+  - [x] Create `components/draft/pdf-confirmation-block.tsx`
+    - [x] Props: `onIgnore: () => void`, `onGenerate: () => void`
+    - [x] Renders explanation text + "Générer le devis" button + "Ignorer" link
+    - [x] No external state — fully controlled via props
+  - [x] In `components/draft/draft-section.tsx`:
+    - [x] Add `responseType: 'text_reply' | 'pdf_required' | 'unknown'` prop
+    - [x] Add local state: `pdfIgnored: boolean` (default `false`)
+    - [x] Render `<PdfConfirmationBlock>` when `responseType === 'pdf_required' && !pdfIgnored`
+    - [x] On "Ignorer": set `pdfIgnored = true`
+    - [x] On "Générer le devis": no-op (placeholder for future story)
+  - [x] In `app/(app)/inbox/[emailId]/page.tsx`:
+    - [x] Include `response_type` in the email select query
+    - [x] Pass `responseType={email.response_type}` to `<DraftSection>`
 
-- [ ] **Tests** (AC: 1, 2, 3, 4)
-  - [ ] Add/update unit tests for `triageEmail()` in `supabase/functions/sync-emails/triage.test.ts` (if exists, otherwise create):
-    - [ ] Returns `responseType: 'pdf_required'` for quote/devis/tarif request emails
-    - [ ] Returns `responseType: 'text_reply'` for regular inquiry emails
-    - [ ] Falls back to `responseType: 'text_reply'` on invalid LLM response
-  - [ ] Add unit tests for updated `generateDraft()` in `lib/ai/draft.test.ts` (if exists):
-    - [ ] System prompt contains French language instruction
-    - [ ] System prompt includes `userProfile` when provided
-    - [ ] System prompt omits profile section when `userProfile` is null/empty
-  - [ ] Add component tests for `PdfConfirmationBlock`:
-    - [ ] Renders correctly with both buttons
-    - [ ] `onIgnore` called on "Ignorer" click
-    - [ ] `onGenerate` called on "Générer le devis" click
-  - [ ] Update `DraftSection` tests:
-    - [ ] Shows `PdfConfirmationBlock` when `responseType='pdf_required'`
-    - [ ] Hides block after "Ignorer" click
-    - [ ] Does NOT show block when `responseType='text_reply'`
+- [x] **Tests** (AC: 1, 2, 3, 4)
+  - [x] Add/update unit tests for `triageEmail()` in `supabase/functions/sync-emails/triage.test.ts` (if exists, otherwise create):
+    - [x] Returns `responseType: 'pdf_required'` for quote/devis/tarif request emails
+    - [x] Returns `responseType: 'text_reply'` for regular inquiry emails
+    - [x] Falls back to `responseType: 'text_reply'` on invalid LLM response
+  - [x] Add unit tests for updated `generateDraft()` in `lib/ai/draft.test.ts` (if exists):
+    - [x] System prompt contains French language instruction
+    - [x] System prompt includes `userProfile` when provided
+    - [x] System prompt omits profile section when `userProfile` is null/empty
+  - [x] Add component tests for `PdfConfirmationBlock`:
+    - [x] Renders correctly with both buttons
+    - [x] `onIgnore` called on "Ignorer" click
+    - [x] `onGenerate` called on "Générer le devis" click
+  - [x] Update `DraftSection` tests:
+    - [x] Shows `PdfConfirmationBlock` when `responseType='pdf_required'`
+    - [x] Hides block after "Ignorer" click
+    - [x] Does NOT show block when `responseType='text_reply'`
 
 ---
 
@@ -251,13 +251,33 @@ Use `maybeSingle()` (not `single()`) — profile row may not exist for new users
 ## Dev Agent Record
 
 ### Agent Model Used
-_to be filled_
+claude-sonnet-4-6
 
 ### Completion Notes List
-_to be filled_
+- Migration 024 created and applied to Supabase (agent-mail project): adds `response_type TEXT NOT NULL DEFAULT 'unknown'` with CHECK constraint and index on `(user_id, response_type)`
+- `triage.ts` updated: `TriageResult` extended with `responseType`, prompt updated to Task 1/Task 2 format requesting JSON with `response_type`, `max_tokens` raised to 64, fallback to `text_reply` on invalid LLM output
+- `sync-emails/index.ts` updated: `response_type` included in emails upsert payload for both Gmail and Outlook sync paths
+- `lib/ai/draft.ts` rewritten: `buildSystemPrompt()` now uses structured French-only prompt with `# Rôle`, `# Contexte métier`, `# Base de connaissances`, `# Format de réponse OBLIGATOIRE` sections; `userProfile` injected as optional param in `options`
+- `generate-draft/index.ts` updated: fetches `user_profile.description` via `maybeSingle()` after email metadata, passes `userProfile` to `generateDraft()`
+- `pdf-confirmation-block.tsx` created: amber-tinted bordered card with FileText icon, "Générer le devis" button, and "Ignorer" link; fully controlled via props
+- `draft-section.tsx` updated: `responseType` prop added, `pdfIgnored` local state, `<PdfConfirmationBlock>` conditionally rendered
+- `app/(app)/inbox/[emailId]/page.tsx` updated: `response_type` included in select query, passed to `<DraftSection>`
+- All 278 tests pass (typecheck + lint + test green)
 
 ### File List
-_to be filled_
+- `supabase/migrations/024_emails_response_type.sql` (new)
+- `supabase/functions/sync-emails/triage.ts` (modified)
+- `supabase/functions/sync-emails/index.ts` (modified)
+- `lib/ai/draft.ts` (modified)
+- `supabase/functions/generate-draft/index.ts` (modified)
+- `components/draft/pdf-confirmation-block.tsx` (new)
+- `components/draft/draft-section.tsx` (modified)
+- `app/(app)/inbox/[emailId]/page.tsx` (modified)
+- `app/(app)/inbox/[emailId]/actions.ts` (modified — added `response_type` to `EmailDetail` interface and select query)
+- `supabase/functions/sync-emails/triage.test.ts` (new)
+- `lib/ai/draft.test.ts` (modified — added tests for French prompt, userProfile injection)
+- `components/draft/pdf-confirmation-block.test.tsx` (new)
+- `components/draft/draft-section.test.tsx` (modified — added PDF block tests)
 
 ### Change Log
-_to be filled_
+- 2026-04-09: Implemented Story 5.13 — intelligent response-type detection, optimised French drafts, PDF confirmation UI block. All ACs satisfied, 278 tests pass.
