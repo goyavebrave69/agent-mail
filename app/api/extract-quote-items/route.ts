@@ -5,19 +5,35 @@ import type { QuoteLineItem } from '@/lib/quotes/types'
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
 
 export async function POST(req: Request) {
+  // ── Auth ──────────────────────────────────────────────────────────────────
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { emailSubject, emailBody } = await req.json() as {
-    emailSubject: string
-    emailBody: string
+  if (!user) {
+    console.error('[extract-quote-items] ❌ not authenticated')
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // ── Parse body ────────────────────────────────────────────────────────────
+  let emailSubject = ''
+  let emailBody = ''
+  try {
+    const body = await req.json() as { emailSubject?: string; emailBody?: string }
+    emailSubject = body.emailSubject ?? ''
+    emailBody = body.emailBody ?? ''
+  } catch (e) {
+    console.error('[extract-quote-items] ❌ failed to parse request body', e)
+    return NextResponse.json({ lineItems: fallbackItems(), debug: 'body-parse-error' })
+  }
+
+  console.log('[extract-quote-items] subject length:', emailSubject.length, '| body length:', emailBody.length)
+
+  // ── API key ───────────────────────────────────────────────────────────────
   const openAiApiKey = process.env.OPENAI_API_KEY
   if (!openAiApiKey) {
-    return NextResponse.json({ lineItems: fallbackItems() })
+    console.error('[extract-quote-items] ❌ OPENAI_API_KEY is missing from env')
+    return NextResponse.json({ lineItems: fallbackItems(), debug: 'no-api-key' })
   }
+  console.log('[extract-quote-items] ✅ API key present, calling OpenAI...')
 
   const systemPrompt = `Tu es un assistant qui analyse des emails de demande de devis.
 À partir du contenu de l'email, extrais les prestations ou produits demandés par le client.
@@ -37,7 +53,6 @@ Réponds UNIQUEMENT avec un objet JSON valide de cette forme :
 Règles :
 - Si le client mentionne une quantité, utilise-la ; sinon mets 1
 - Si le client mentionne un prix, utilise-le ; sinon mets 0
-- Regroupe logiquement les éléments (ne crée pas de doublon)
 - Si rien de précis n'est demandé, crée une ligne générique décrivant la prestation principale implicite
 - Ne mets jamais plus de 10 lignes
 - Descriptions en français`
@@ -64,14 +79,16 @@ Règles :
 
     if (!response.ok) {
       const text = await response.text()
-      console.error('[extract-quote-items] OpenAI error', response.status, text)
-      return NextResponse.json({ lineItems: fallbackItems() })
+      console.error('[extract-quote-items] ❌ OpenAI HTTP error', response.status, text)
+      return NextResponse.json({ lineItems: fallbackItems(), debug: `openai-${response.status}` })
     }
 
     const json = (await response.json()) as {
       choices: { message: { content: string } }[]
     }
     const content = json.choices?.[0]?.message?.content ?? '{}'
+    console.log('[extract-quote-items] ✅ OpenAI raw response:', content.slice(0, 300))
+
     const raw = JSON.parse(content) as {
       lineItems?: { description?: string; quantity?: number; unitPrice?: number }[]
       clientName?: string
@@ -84,13 +101,15 @@ Règles :
       unitPrice: typeof item.unitPrice === 'number' ? item.unitPrice : 0,
     }))
 
+    console.log('[extract-quote-items] ✅ extracted', lineItems.length, 'line items')
+
     return NextResponse.json({
       lineItems: lineItems.length > 0 ? lineItems : fallbackItems(),
       clientName: raw.clientName ?? null,
     })
   } catch (err) {
-    console.error('[extract-quote-items] unexpected error', err)
-    return NextResponse.json({ lineItems: fallbackItems() })
+    console.error('[extract-quote-items] ❌ unexpected error', err)
+    return NextResponse.json({ lineItems: fallbackItems(), debug: String(err) })
   }
 }
 

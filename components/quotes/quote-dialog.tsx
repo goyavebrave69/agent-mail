@@ -102,7 +102,9 @@ export function QuoteDialog({
           const extracted = await extractedRes.json() as {
             lineItems: import('@/lib/quotes/types').QuoteLineItem[]
             clientName?: string | null
+            debug?: string
           }
+          console.log('[QuoteDialog] extract response status:', extractedRes.status, '| debug:', extracted.debug, '| items:', extracted.lineItems?.length, extracted.lineItems)
           const clientInfo = extractClientInfo({ from: emailFrom, body: emailBody })
           const client = extracted.clientName && !clientInfo.name
             ? { ...clientInfo, name: extracted.clientName }
