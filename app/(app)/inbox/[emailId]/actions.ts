@@ -585,12 +585,6 @@ export async function sendManualReply(
     })
   }
 
-  await supabase
-    .from('emails')
-    .update({ is_archived: true, updated_at: new Date().toISOString() })
-    .eq('id', emailId)
-    .eq('user_id', user.id)
-
   revalidatePath('/inbox')
   revalidatePath(`/inbox/${emailId}`)
   return { success: true }
