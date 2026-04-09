@@ -428,9 +428,10 @@ export function InboxShell({
               ))}
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col bg-[#f6f6f7] p-4">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e6e6e8] bg-white">
-                <div className="flex h-12 items-center justify-between border-b border-[#ececef] px-4">
+            <div className="flex-1 overflow-auto bg-[#f6f6f7]">
+              <div className="p-4 space-y-3">
+              <div className="flex flex-col rounded-xl border border-[#e6e6e8] bg-white">
+                <div className="sticky top-0 z-10 flex h-12 items-center justify-between rounded-t-xl border-b border-[#ececef] bg-white px-4">
                   <div className="flex items-center gap-2 text-[#3b3b44]">
                     <button
                       type="button"
@@ -514,7 +515,7 @@ export function InboxShell({
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-auto px-6 py-5 space-y-6">
+                <div className="px-6 py-5 space-y-6">
                   <EmailBodyRenderer
                     html={selectedEmail.body_html ?? null}
                     text={selectedEmail.body_text}
@@ -545,7 +546,7 @@ export function InboxShell({
               </div>
 
               {isComposing && (
-                <div className="mt-3 rounded-xl border border-[#e6e6e8] bg-white p-4">
+                <div className="rounded-xl border border-[#e6e6e8] bg-white p-4">
                   <DraftSection
                     emailId={selectedEmailId!}
                     userId={userId}
@@ -553,6 +554,7 @@ export function InboxShell({
                   />
                 </div>
               )}
+              </div>
             </div>
           )}
         </div>
