@@ -44,42 +44,43 @@ export async function POST(req: Request) {
       p_user_id: user.id,
     })
     kbChunks = (rpcData as Array<{ content: string; similarity: number }> | null) ?? []
-    console.log('[extract-quote-items] KB chunks found:', kbChunks.length)
+    console.log('[extract-quote-items] subject:', JSON.stringify(emailSubject))
+  console.log('[extract-quote-items] body preview:', JSON.stringify(emailBody.slice(0, 300)))
+  console.log('[extract-quote-items] KB chunks found:', kbChunks.length)
   } catch (e) {
     console.warn('[extract-quote-items] KB search failed (continuing without):', e)
   }
 
   // ── Build prompt ──────────────────────────────────────────────────────────
   const kbSection = kbChunks.length > 0
-    ? `\n\n=== Catalogue / tarifs ===\n${kbChunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n')}`
+    ? `\n\n=== Catalogue de référence (prix) ===\n${kbChunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n')}\n=== Fin du catalogue ===`
     : ''
 
-  const systemPrompt = `Tu es un assistant qui prépare des devis à partir d'emails clients.${kbSection}
+  const systemPrompt = `Tu es un assistant qui extrait des lignes de devis depuis un email client.
 
-Ta tâche : analyser l'email et produire des lignes de devis prêtes à envoyer.
+PRIORITÉ ABSOLUE : le contenu de l'email prime toujours. Lis l'email avec attention et extrais exactement ce que le client demande.
+${kbSection}
 
-RÈGLE ABSOLUE : tu dois TOUJOURS retourner au moins une ligne dans "lineItems". Ne retourne JAMAIS un tableau vide.
+RÈGLE : tu dois TOUJOURS retourner au moins une ligne dans "lineItems", jamais un tableau vide.
 
-Stratégie d'extraction (dans l'ordre) :
-1. Si le client cite des produits/prestations précis → crée une ligne par élément
-2. Si le catalogue contient des éléments correspondant à la demande → utilise leurs descriptions et prix
-3. Si la demande est vague → crée une ligne avec la prestation principale déduite du contexte (objet du mail, ton, secteur)
+Stratégie (dans l'ordre de priorité) :
+1. Le client liste des produits/prestations avec ou sans quantités → crée une ligne par élément cité
+2. Complète les prix unitaires manquants grâce au catalogue si les produits correspondent
+3. Si la demande est vague → une ligne déduite du contexte de l'email
 
-Format de réponse JSON strict :
+Format JSON strict :
 {
-  "clientName": "nom du client si identifiable dans l'email, sinon null",
+  "clientName": "nom/prénom du client si présent dans l'email, sinon null",
   "lineItems": [
-    { "description": "libellé professionnel de la prestation", "quantity": 1, "unitPrice": 0 }
+    { "description": "libellé exact repris de l'email", "quantity": 1, "unitPrice": 0 }
   ]
 }
 
-Autres règles :
-- Quantité : utilise ce que le client mentionne, sinon 1
-- Prix unitaire : utilise le catalogue si disponible, sinon 0
-- Descriptions en français, claires et professionnelles
-- Maximum 10 lignes`
+- Quantité : utilise l'unité mentionnée (m², unités, jours…), sinon 1
+- Prix : utilise le catalogue si correspondance, sinon 0
+- Maximum 10 lignes, descriptions en français`
 
-  const userMessage = `Objet : ${emailSubject}\n\n${emailBody.slice(0, 3000)}`
+  const userMessage = `=== Email client ===\nObjet : ${emailSubject}\n\n${emailBody.slice(0, 3000)}`
 
   try {
     const response = await fetch(OPENAI_CHAT_URL, {
