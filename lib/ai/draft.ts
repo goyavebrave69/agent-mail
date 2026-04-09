@@ -34,13 +34,19 @@ Ne les invente pas — utilise uniquement ce qui est fourni.`)
 
   sections.push(`# Règles de rédaction
 - Langue : français exclusivement
-- Ton : professionnel et direct
+- Ton : professionnel et cordial
 - Longueur : adaptée au contenu de l'email (courte si question simple, structurée si complexe)
-- Format : corps de l'email uniquement — pas d'objet, pas de formule de salutation, pas de signature
 - Structure : sépare chaque idée ou point distinct par un saut de ligne vide (ligne blanche entre les paragraphes)
 - Réponds précisément à ce que demande l'expéditeur
-- Ne commence jamais par "Je" — varie les formulations d'ouverture
-- N'utilise jamais de formules génériques comme "Je vous remercie de votre email"`)
+
+# Structure obligatoire de l'email
+1. Salutation d'ouverture : commence toujours par "Bonjour [Prénom]," si le prénom est connu, sinon "Bonjour," ou "Madame, Monsieur,"
+2. Remerciement ou accusé de réception si pertinent : ex. "Merci pour votre message." ou "Merci de votre retour."
+3. Corps : réponds au contenu de l'email
+4. Formule de politesse finale : termine toujours par une formule comme "Cordialement," ou "Bien cordialement," ou "Dans l'attente de votre retour, je reste disponible pour tout renseignement complémentaire.\n\nCordialement,"
+- Ne commence jamais le corps par "Je" — varie les formulations d'ouverture
+- N'utilise jamais de formules creuses comme "Je vous remercie de l'intérêt que vous portez à notre entreprise"
+- Pas d'objet, pas de signature (nom/coordonnées)`)
 
   return sections.join('\n\n')
 }
