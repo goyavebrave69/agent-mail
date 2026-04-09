@@ -51,29 +51,32 @@ export async function POST(req: Request) {
 
   // ── Build prompt ──────────────────────────────────────────────────────────
   const kbSection = kbChunks.length > 0
-    ? `\n\n=== Catalogue / tarifs disponibles ===\n${kbChunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n')}\n\nUtilise ces informations pour remplir les descriptions et prix unitaires.`
+    ? `\n\n=== Catalogue / tarifs ===\n${kbChunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n')}`
     : ''
 
-  const systemPrompt = `Tu es un assistant qui prépare des devis à partir d'emails clients.
-Analyse l'email et les informations du catalogue pour extraire les lignes de devis.${kbSection}
+  const systemPrompt = `Tu es un assistant qui prépare des devis à partir d'emails clients.${kbSection}
 
-Réponds UNIQUEMENT avec un objet JSON valide de cette forme :
+Ta tâche : analyser l'email et produire des lignes de devis prêtes à envoyer.
+
+RÈGLE ABSOLUE : tu dois TOUJOURS retourner au moins une ligne dans "lineItems". Ne retourne JAMAIS un tableau vide.
+
+Stratégie d'extraction (dans l'ordre) :
+1. Si le client cite des produits/prestations précis → crée une ligne par élément
+2. Si le catalogue contient des éléments correspondant à la demande → utilise leurs descriptions et prix
+3. Si la demande est vague → crée une ligne avec la prestation principale déduite du contexte (objet du mail, ton, secteur)
+
+Format de réponse JSON strict :
 {
-  "clientName": "prénom et/ou nom du client si identifiable, sinon null",
+  "clientName": "nom du client si identifiable dans l'email, sinon null",
   "lineItems": [
-    {
-      "description": "description précise de la prestation ou du produit",
-      "quantity": 1,
-      "unitPrice": 150
-    }
+    { "description": "libellé professionnel de la prestation", "quantity": 1, "unitPrice": 0 }
   ]
 }
 
-Règles :
-- Utilise les prestations et prix du catalogue quand ils correspondent à la demande
-- Si le client mentionne une quantité, utilise-la ; sinon mets 1
-- Si aucun prix n'est connu, mets 0
-- Descriptions claires et professionnelles, en français
+Autres règles :
+- Quantité : utilise ce que le client mentionne, sinon 1
+- Prix unitaire : utilise le catalogue si disponible, sinon 0
+- Descriptions en français, claires et professionnelles
 - Maximum 10 lignes`
 
   const userMessage = `Objet : ${emailSubject}\n\n${emailBody.slice(0, 3000)}`
