@@ -507,6 +507,7 @@ export function InboxShell({
                   <DraftSection
                     emailId={selectedEmailId!}
                     userId={userId}
+                    responseType={selectedEmail?.response_type}
                   />
                 </div>
               )}

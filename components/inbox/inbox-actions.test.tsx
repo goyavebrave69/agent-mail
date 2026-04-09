@@ -63,6 +63,7 @@ const baseEmail: InboxEmail = {
   priority_rank: 1,
   body_text: "Body text",
   body_html: null,
+  response_type: 'text_reply' as const,
 }
 
 const defaultProps = {

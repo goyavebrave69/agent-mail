@@ -16,6 +16,7 @@ export interface InboxEmail {
   priority_rank: number
   body_text: string | null
   body_html: string | null
+  response_type: 'text_reply' | 'pdf_required' | 'unknown'
 }
 
 interface InboxPageProps {
@@ -52,7 +53,7 @@ async function InboxContent({ categoryParam }: { categoryParam?: string }) {
   const { data: allEmails } = await supabase
     .from("emails")
     .select(
-      "id, subject, from_email, from_name, received_at, is_read, is_archived, category, priority_rank, body_text, body_html"
+      "id, subject, from_email, from_name, received_at, is_read, is_archived, category, priority_rank, body_text, body_html, response_type"
     )
     .eq("user_id", user.id)
     .eq("is_archived", false)
