@@ -19,22 +19,54 @@ function encodeBase64Url(input: string): string {
     .replace(/=+$/g, '')
 }
 
+const BOUNDARY = '==MailAgentBoundary=='
+
 function buildRfc2822Message(credentials: GmailCredentials, params: SendEmailParams): string {
-  const lines = [
+  const hasAttachments = params.attachments && params.attachments.length > 0
+
+  const headers = [
     `To: ${params.to}`,
     `From: ${params.from ?? credentials.email ?? 'me'}`,
     `Subject: ${params.subject}`,
-    'Content-Type: text/plain; charset=UTF-8',
     'MIME-Version: 1.0',
   ]
 
   if (params.replyToMessageId) {
-    lines.push(`In-Reply-To: ${params.replyToMessageId}`)
-    lines.push(`References: ${params.replyToMessageId}`)
+    headers.push(`In-Reply-To: ${params.replyToMessageId}`)
+    headers.push(`References: ${params.replyToMessageId}`)
   }
 
-  lines.push('', params.body)
-  return lines.join('\r\n')
+  if (!hasAttachments) {
+    headers.push('Content-Type: text/plain; charset=UTF-8')
+    return [...headers, '', params.body].join('\r\n')
+  }
+
+  // Multipart message with attachments
+  headers.push(`Content-Type: multipart/mixed; boundary="${BOUNDARY}"`)
+  const parts: string[] = [
+    ...headers,
+    '',
+    `--${BOUNDARY}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    '',
+    params.body,
+  ]
+
+  for (const att of params.attachments!) {
+    parts.push(`--${BOUNDARY}`)
+    parts.push(`Content-Type: ${att.contentType}`)
+    parts.push(`Content-Disposition: attachment; filename="${att.filename}"`)
+    parts.push('Content-Transfer-Encoding: base64')
+    parts.push('')
+    // Chunk base64 at 76 chars per line (RFC 2045)
+    const b64 = att.contentBase64
+    for (let i = 0; i < b64.length; i += 76) {
+      parts.push(b64.slice(i, i + 76))
+    }
+  }
+
+  parts.push(`--${BOUNDARY}--`)
+  return parts.join('\r\n')
 }
 
 /**

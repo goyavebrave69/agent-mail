@@ -5,6 +5,12 @@ import { ManualCompose } from './manual-compose'
 import { DraftRealtime } from './draft-realtime'
 import { PdfConfirmationBlock } from './pdf-confirmation-block'
 import { ConfidenceBadge } from './confidence-badge'
+import dynamic from 'next/dynamic'
+
+const QuoteDialog = dynamic(
+  () => import('@/components/quotes/quote-dialog').then((m) => m.QuoteDialog),
+  { ssr: false }
+)
 import { useDraftStore } from '@/stores/draft-store'
 import {
   sendManualReply,
@@ -18,10 +24,14 @@ interface DraftSectionProps {
   userId: string
   responseType?: 'text_reply' | 'pdf_required' | 'unknown'
   confidenceScore?: number | null
+  emailFrom?: string
+  emailBody?: string
+  emailSubject?: string
 }
 
-export function DraftSection({ emailId, userId, responseType, confidenceScore }: DraftSectionProps) {
+export function DraftSection({ emailId, userId, responseType, confidenceScore, emailFrom = '', emailBody = '', emailSubject = '' }: DraftSectionProps) {
   const [pdfIgnored, setPdfIgnored] = useState(false)
+  const [quoteDialogOpen, setQuoteDialogOpen] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -156,12 +166,18 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
       )}
       {responseType === 'pdf_required' && !pdfIgnored && (
         <PdfConfirmationBlock
-          onGenerate={() => {
-            // TODO: trigger PDF generation flow (Story 6.x)
-          }}
+          onGenerate={() => setQuoteDialogOpen(true)}
           onIgnore={() => setPdfIgnored(true)}
         />
       )}
+      <QuoteDialog
+        open={quoteDialogOpen}
+        onClose={() => setQuoteDialogOpen(false)}
+        emailId={emailId}
+        emailFrom={emailFrom}
+        emailBody={emailBody}
+        emailSubject={emailSubject}
+      />
       <ManualCompose
         emailId={emailId}
         mode={composeMode}

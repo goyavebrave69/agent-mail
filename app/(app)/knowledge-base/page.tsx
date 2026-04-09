@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server"
 import { KbUploadZone } from "@/components/kb/kb-upload-zone"
 import { KbFileList } from "@/components/kb/kb-file-list"
 import { UserProfileForm } from "@/components/kb/user-profile-form"
+import { InvoiceSettingsSection } from "@/components/knowledge-base/invoice-settings-section"
+import type { InvoiceSettings } from "@/lib/quotes/types"
 
 export interface KbFile {
   id: string
@@ -16,7 +18,7 @@ export interface KbFile {
 
 async function KbContent() {
   const supabase = await createClient()
-  const [{ data: files }, { data: profile }] = await Promise.all([
+  const [{ data: files }, { data: profile }, { data: invoiceSettings }] = await Promise.all([
     supabase
       .from("kb_files")
       .select("id, filename, file_size, mime_type, status, error_message, created_at")
@@ -25,6 +27,10 @@ async function KbContent() {
       .from("user_profile")
       .select("description")
       .maybeSingle(),
+    supabase
+      .from("invoice_settings")
+      .select("*")
+      .maybeSingle(),
   ])
 
   return (
@@ -32,6 +38,7 @@ async function KbContent() {
       <UserProfileForm initialDescription={profile?.description ?? ""} />
       <KbUploadZone />
       <KbFileList files={(files as KbFile[]) ?? []} />
+      <InvoiceSettingsSection initialSettings={(invoiceSettings as InvoiceSettings | null) ?? null} />
     </>
   )
 }

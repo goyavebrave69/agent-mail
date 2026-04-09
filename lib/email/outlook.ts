@@ -112,10 +112,17 @@ export async function sendViaOutlook(
     }
 
     // New compose or forward
+    const attachments = (params.attachments ?? []).map((att) => ({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: att.filename,
+      contentType: att.contentType,
+      contentBytes: att.contentBase64,
+    }))
     const message = {
       subject: params.subject,
       body: { contentType: 'Text', content: params.body },
       toRecipients: [{ emailAddress: { address: params.to } }],
+      ...(attachments.length > 0 && { attachments }),
     }
     const { response } = await withTokenRefresh(credentials, (token) =>
       outlookFetch('https://graph.microsoft.com/v1.0/me/sendMail', token, { message })
