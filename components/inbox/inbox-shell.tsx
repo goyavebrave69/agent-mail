@@ -377,15 +377,18 @@ export function InboxShell({
                         email.id === selectedEmailId ? "bg-sidebar-accent/80" : ""
                       }`}
                     >
-                      <div className="flex w-full items-start gap-2">
-                        <span className={`truncate text-foreground ${isUnread ? "font-bold" : "font-semibold"}`}>
+                      <div className="flex w-full items-center gap-2">
+                        {isUnread && (
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Unread" />
+                        )}
+                        <span className={`truncate ${isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"}`}>
                           {email.from_name ?? email.from_email ?? "Unknown sender"}
                         </span>
                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                           {formatRelativeDate(email.received_at)}
                         </span>
                       </div>
-                      <span className="line-clamp-1 font-medium text-foreground/90">
+                      <span className={`line-clamp-1 ${isUnread ? "font-semibold text-foreground" : "font-normal text-foreground/70"}`}>
                         {email.subject ?? "(no subject)"}
                       </span>
                       <span className="line-clamp-2 text-xs text-muted-foreground">
