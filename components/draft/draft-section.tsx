@@ -24,11 +24,11 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
   const [pdfIgnored, setPdfIgnored] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     return () => {
-      if (streamIntervalRef.current) clearInterval(streamIntervalRef.current)
+      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
     }
   }, [])
 
@@ -57,22 +57,41 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
 
   const startTypewriter = useCallback(
     (fullContent: string) => {
-      if (streamIntervalRef.current) clearInterval(streamIntervalRef.current)
+      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
       setIsStreaming(true)
       setStreamingContent('')
       let idx = 0
-      const CHUNK = 4
-      const TICK_MS = 25
-      streamIntervalRef.current = setInterval(() => {
-        idx = Math.min(idx + CHUNK, fullContent.length)
-        setStreamingContent(fullContent.slice(0, idx))
+
+      const tick = () => {
         if (idx >= fullContent.length) {
-          clearInterval(streamIntervalRef.current!)
-          streamIntervalRef.current = null
           updateManualContent(fullContent)
           setIsStreaming(false)
+          return
         }
-      }, TICK_MS)
+
+        const char = fullContent[idx]
+        // Vary chunk: 1 char at pauses, 1-3 chars normally
+        const isNewline = char === '\n'
+        const isSentenceEnd = '.!?'.includes(char) && (idx + 1 >= fullContent.length || fullContent[idx + 1] === ' ' || fullContent[idx + 1] === '\n')
+        const isComma = char === ','
+
+        const chunk = isNewline || isSentenceEnd || isComma ? 1 : Math.random() < 0.4 ? 3 : Math.random() < 0.6 ? 2 : 1
+        idx = Math.min(idx + chunk, fullContent.length)
+        setStreamingContent(fullContent.slice(0, idx))
+
+        // Delay: long pause after sentence end / newline, medium after comma, fast otherwise
+        const delay = isSentenceEnd
+          ? 120 + Math.random() * 180
+          : isNewline
+            ? 80 + Math.random() * 120
+            : isComma
+              ? 50 + Math.random() * 60
+              : 18 + Math.random() * 22
+
+        streamTimeoutRef.current = setTimeout(tick, delay)
+      }
+
+      streamTimeoutRef.current = setTimeout(tick, 0)
     },
     [updateManualContent]
   )

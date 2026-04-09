@@ -105,8 +105,23 @@ export function ManualCompose({
         )}
       </div>
 
-      {/* Body — streaming overlay or editable textarea */}
-      {isStreaming ? (
+      {/* Body — skeleton while generating, streaming overlay during animation, textarea otherwise */}
+      {isCreating ? (
+        <div className="w-full min-h-[12rem] rounded-lg border p-3 space-y-3 overflow-hidden" aria-label="Génération en cours…" aria-busy="true">
+          {[85, 72, 90, 60, 78, 45].map((w, i) => (
+            <div
+              key={i}
+              className="h-3.5 rounded-sm animate-shimmer"
+              style={{
+                width: `${w}%`,
+                background: 'linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.15) 50%, hsl(var(--muted)) 75%)',
+                backgroundSize: '400% 100%',
+                animationDelay: `${i * 0.12}s`,
+              }}
+            />
+          ))}
+        </div>
+      ) : isStreaming ? (
         <div
           role="textbox"
           aria-live="off"
