@@ -276,7 +276,8 @@ export function InboxShell({
   const filteredEmails = useMemo(() => {
     const searchQuery = search.trim().toLowerCase()
     return emails.filter((email) => {
-      if (showUnreadOnly && email.is_read) return false
+      const isRead = email.is_read || localReadIds.has(email.id)
+      if (showUnreadOnly && isRead) return false
       if (!searchQuery) return true
 
       const senderName = (email.from_name ?? "").toLowerCase()
@@ -290,7 +291,7 @@ export function InboxShell({
         bodyPreview.includes(searchQuery)
       )
     })
-  }, [emails, search, showUnreadOnly])
+  }, [emails, search, showUnreadOnly, localReadIds])
 
   useEffect(() => {
     if (filteredEmails.length === 0) {
