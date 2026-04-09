@@ -47,10 +47,10 @@ function formatRelativeDate(iso: string): string {
   const date = new Date(iso).getTime()
   const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
 
-  if (diffDays <= 0) return "Today"
-  if (diffDays === 1) return "Yesterday"
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 14) return "1 week ago"
+  if (diffDays <= 0) return "Aujourd'hui"
+  if (diffDays === 1) return "Hier"
+  if (diffDays < 7) return `Il y a ${diffDays} jours`
+  if (diffDays < 14) return "Il y a 1 semaine"
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })
 }
 
@@ -96,7 +96,7 @@ function EmailBodyRenderer({ html, text }: { html: string | null; text: string |
       </div>
     )
   }
-  return <p className="text-sm text-[#6c6c77]">Body not available for this email yet.</p>
+  return <p className="text-sm text-[#6c6c77]">Corps non disponible pour cet email.</p>
 }
 
 function getSenderInitials(sender: string): string {
@@ -177,7 +177,7 @@ export function InboxShell({
     const result = await archiveEmail(selectedEmailId)
     setIsActioning(false)
     if (!result.success) {
-      setActionError(result.error ?? "Archive failed. Please try again.")
+      setActionError(result.error ?? "Échec de l'archivage. Veuillez réessayer.")
     } else {
       setSelectedEmailId(null)
       router.refresh()
@@ -191,7 +191,7 @@ export function InboxShell({
     const result = await trashEmail(selectedEmailId)
     setIsActioning(false)
     if (!result.success) {
-      setActionError(result.error ?? "Trash failed. Please try again.")
+      setActionError(result.error ?? "Échec de la suppression. Veuillez réessayer.")
     } else {
       setSelectedEmailId(null)
       router.refresh()
@@ -309,8 +309,8 @@ export function InboxShell({
   }, [filteredEmails, selectedEmailId])
 
   const selectedEmail = filteredEmails.find((email) => email.id === selectedEmailId) ?? null
-  const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Unknown sender"
-  const selectedSenderEmail = selectedEmail?.from_email ?? "No sender email"
+  const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Expéditeur inconnu"
+  const selectedSenderEmail = selectedEmail?.from_email ?? "Pas d'adresse email"
   const groupedEmails = useMemo(() => {
     const slugToName = new Map(customCategoriesState.map((c) => [c.slug, c.name]))
     const groups = new Map<string, { label: string; emails: InboxEmail[] }>()
@@ -320,7 +320,7 @@ export function InboxShell({
       groups.set(cat.slug, { label: cat.name, emails: [] })
     }
     // Ensure fallback bucket exists
-    groups.set("inbox", { label: "Inbox", emails: [] })
+    groups.set("inbox", { label: "Boîte de réception", emails: [] })
 
     for (const email of filteredEmails) {
       const key = slugToName.has(email.category) ? email.category : "inbox"
@@ -338,9 +338,9 @@ export function InboxShell({
         {/* Email list panel */}
         <div className="hidden w-[460px] shrink-0 flex-col border-r bg-sidebar md:flex overflow-hidden">
           <div className="flex h-[49px] shrink-0 items-center justify-between border-b px-4">
-            <span className="text-base font-medium text-foreground">Inbox</span>
+            <span className="text-base font-medium text-foreground">Boîte de réception</span>
             <Label className="flex items-center gap-2 text-sm">
-              <span>Unreads</span>
+              <span>Non lus</span>
               <Switch
                 checked={showUnreadOnly}
                 onCheckedChange={setShowUnreadOnly}
@@ -350,7 +350,7 @@ export function InboxShell({
           </div>
           <div className="border-b px-3 py-2">
             <Input
-              placeholder="Type to search..."
+              placeholder="Rechercher..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-8"
@@ -359,7 +359,7 @@ export function InboxShell({
           <div className="flex-1 overflow-y-auto">
             {filteredEmails.length === 0 ? (
               <div className="px-4 py-6 text-sm text-muted-foreground">
-                No emails match this view.
+                Aucun email ne correspond à cette vue.
               </div>
             ) : (
               groupedEmails.map((group) => (
@@ -386,17 +386,17 @@ export function InboxShell({
                           <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Unread" />
                         )}
                         <span className={`truncate ${isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"}`}>
-                          {email.from_name ?? email.from_email ?? "Unknown sender"}
+                          {email.from_name ?? email.from_email ?? "Expéditeur inconnu"}
                         </span>
                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                           {formatRelativeDate(email.received_at)}
                         </span>
                       </div>
                       <span className={`line-clamp-1 ${isUnread ? "font-semibold text-foreground" : "font-normal text-foreground/70"}`}>
-                        {email.subject ?? "(no subject)"}
+                        {email.subject ?? "(sans objet)"}
                       </span>
                       <span className="line-clamp-2 text-xs text-muted-foreground">
-                        {email.body_text?.trim() ?? email.from_email ?? "No preview available"}
+                        {email.body_text?.trim() ?? email.from_email ?? "Aucun aperçu disponible"}
                       </span>
                     </button>
                   )})}
@@ -414,7 +414,7 @@ export function InboxShell({
                 {activeCategory ? (
                   <>
                     <BreadcrumbItem className="hidden md:block">
-                      <BreadcrumbLink href="/inbox">Inbox</BreadcrumbLink>
+                      <BreadcrumbLink href="/inbox">Boîte de réception</BreadcrumbLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator className="hidden md:block" />
                     <BreadcrumbItem>
@@ -425,7 +425,7 @@ export function InboxShell({
                   </>
                 ) : (
                   <BreadcrumbItem>
-                    <BreadcrumbPage>Inbox</BreadcrumbPage>
+                    <BreadcrumbPage>Boîte de réception</BreadcrumbPage>
                   </BreadcrumbItem>
                 )}
               </BreadcrumbList>
@@ -478,7 +478,7 @@ export function InboxShell({
 
                 <div className="border-b border-[#ececef] px-6 py-4">
                   <h2 className="text-[22px] font-semibold leading-tight text-[#24242a]">
-                    {selectedEmail.subject ?? "(no subject)"}
+                    {selectedEmail.subject ?? "(sans objet)"}
                   </h2>
                 </div>
 
@@ -514,7 +514,7 @@ export function InboxShell({
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-semibold text-[#24242a]">You</span>
+                            <span className="text-sm font-semibold text-[#24242a]">Moi</span>
                             {sentDraft.sent_at && (
                               <span className="text-xs text-[#6c6c77]">
                                 {formatDateTime(sentDraft.sent_at)}
@@ -538,6 +538,9 @@ export function InboxShell({
                     userId={userId}
                     responseType={selectedEmail?.response_type}
                     confidenceScore={draftConfidenceScore}
+                    emailFrom={selectedEmail?.from_email ?? ''}
+                    emailBody={selectedEmail?.body_text ?? ''}
+                    emailSubject={selectedEmail?.subject ?? ''}
                   />
                 </div>
               )}
