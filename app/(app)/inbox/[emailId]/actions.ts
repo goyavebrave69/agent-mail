@@ -235,23 +235,6 @@ export async function regenerateDraft(
 
   const trimmedInstruction = instruction?.trim() || null
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const { data: refreshedSessionData } = await supabase.auth.refreshSession()
-  const accessToken =
-    refreshedSessionData.session?.access_token ?? session?.access_token
-  console.error('[generate-draft invoke][regenerate] preflight', {
-    userId: user.id,
-    hasSession: Boolean(session),
-    hasAccessToken: Boolean(session?.access_token),
-    hasRefreshedAccessToken: Boolean(refreshedSessionData.session?.access_token),
-    emailId: draft.email_id,
-  })
-  if (!accessToken) {
-    return { success: false, error: 'Missing access token for function invocation.' }
-  }
-
   await supabase
     .from('drafts')
     .update({
@@ -270,8 +253,7 @@ export async function regenerateDraft(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
       },
       body: JSON.stringify({
         emailId: draft.email_id,
@@ -389,31 +371,13 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
     })
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const { data: refreshedSessionData } = await supabase.auth.refreshSession()
-  const accessToken =
-    refreshedSessionData.session?.access_token ?? session?.access_token
-  console.error('[generate-draft invoke][create-on-demand] preflight', {
-    userId: user.id,
-    hasSession: Boolean(session),
-    hasAccessToken: Boolean(session?.access_token),
-    hasRefreshedAccessToken: Boolean(refreshedSessionData.session?.access_token),
-    emailId,
-  })
-  if (!accessToken) {
-    return { success: false, error: 'Missing access token for function invocation.' }
-  }
-
   const fnRes = await fetch(
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-draft`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
       },
       body: JSON.stringify({ emailId, userId: user.id }),
     }
