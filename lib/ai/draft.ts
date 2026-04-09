@@ -37,6 +37,7 @@ Ne les invente pas — utilise uniquement ce qui est fourni.`)
 - Ton : professionnel et direct
 - Longueur : adaptée au contenu de l'email (courte si question simple, structurée si complexe)
 - Format : corps de l'email uniquement — pas d'objet, pas de formule de salutation, pas de signature
+- Structure : sépare chaque idée ou point distinct par un saut de ligne vide (ligne blanche entre les paragraphes)
 - Réponds précisément à ce que demande l'expéditeur
 - Ne commence jamais par "Je" — varie les formulations d'ouverture
 - N'utilise jamais de formules génériques comme "Je vous remercie de votre email"`)
