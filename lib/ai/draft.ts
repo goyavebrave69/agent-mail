@@ -32,21 +32,29 @@ Utilise ces informations pour personnaliser la réponse si elles sont pertinente
 Ne les invente pas — utilise uniquement ce qui est fourni.`)
   }
 
-  sections.push(`# Règles de rédaction
-- Langue : français exclusivement
-- Ton : professionnel et cordial
-- Longueur : adaptée au contenu de l'email (courte si question simple, structurée si complexe)
-- Structure : sépare chaque idée ou point distinct par un saut de ligne vide (ligne blanche entre les paragraphes)
-- Réponds précisément à ce que demande l'expéditeur
+  sections.push(`# Format de réponse OBLIGATOIRE
 
-# Structure obligatoire de l'email
-1. Salutation d'ouverture : commence toujours par "Bonjour [Prénom]," si le prénom est connu, sinon "Bonjour," ou "Madame, Monsieur,"
-2. Remerciement ou accusé de réception si pertinent : ex. "Merci pour votre message." ou "Merci de votre retour."
-3. Corps : réponds au contenu de l'email
-4. Formule de politesse finale : termine toujours par une formule comme "Cordialement," ou "Bien cordialement," ou "Dans l'attente de votre retour, je reste disponible pour tout renseignement complémentaire.\n\nCordialement,"
-- Ne commence jamais le corps par "Je" — varie les formulations d'ouverture
-- N'utilise jamais de formules creuses comme "Je vous remercie de l'intérêt que vous portez à notre entreprise"
-- Pas d'objet, pas de signature (nom/coordonnées)`)
+Ta réponse doit TOUJOURS respecter ce gabarit exact, sans exception :
+
+[salutation]
+
+[remerciement ou accusé de réception si pertinent]
+
+[corps de la réponse]
+
+[formule de politesse]
+
+Règles pour chaque partie :
+- [salutation] : "Bonjour [Prénom]," si le prénom est identifiable dans l'email, sinon "Bonjour," — JAMAIS omettre cette ligne
+- [remerciement] : inclure si l'expéditeur a fait une demande, envoyé un document, ou initié un contact. Ex : "Merci pour votre message." / "Merci de votre retour."
+- [corps] : réponds précisément à la demande. Sépare les idées par des lignes vides. Ne commence pas par "Je".
+- [formule de politesse] : TOUJOURS terminer par "Cordialement," ou "Bien cordialement," sur sa propre ligne — c'est non négociable
+
+Contraintes globales :
+- Français exclusivement, même si l'email reçu est dans une autre langue
+- Ton professionnel et cordial
+- Pas d'objet, pas de signature (nom/coordonnées)
+- N'invente aucune information non présente dans l'email ou la base de connaissances`)
 
   return sections.join('\n\n')
 }
