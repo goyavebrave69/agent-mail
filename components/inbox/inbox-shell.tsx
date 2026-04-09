@@ -121,7 +121,9 @@ export function InboxShell({
   const [customCategoriesState, setCustomCategoriesState] = useState<CustomCategory[]>(customCategories)
   const resetDraftStore = useDraftStore((s) => s.reset)
   const startComposing = useDraftStore((s) => s.startComposing)
+  const updateManualContent = useDraftStore((s) => s.updateManualContent)
   const isComposing = useDraftStore((s) => s.isComposing)
+  const emailsRef = useRef(emails)
   const [actionError, setActionError] = useState<string | null>(null)
   const [isActioning, setIsActioning] = useState(false)
   const [sentDraft, setSentDraft] = useState<Draft | null>(null)
@@ -229,13 +231,33 @@ export function InboxShell({
   }, [customCategories])
 
   useEffect(() => {
+    emailsRef.current = emails
+  }, [emails])
+
+  useEffect(() => {
     resetDraftStore()
     setSentDraft(null)
     if (!selectedEmailId) return
     fetchDraftForEmail(selectedEmailId)
-      .then((draft) => { if (draft?.status === 'sent') setSentDraft(draft) })
+      .then((draft) => {
+        if (!draft) return
+        if (draft.status === 'sent') {
+          setSentDraft(draft)
+          return
+        }
+        if ((draft.status === 'ready' || draft.status === 'generating') && draft.content) {
+          // Auto-restore draft into compose area
+          const email = emailsRef.current.find((e) => e.id === selectedEmailId)
+          startComposing('reply', {
+            to: email?.from_email ?? '',
+            subject: email?.subject ? `Re: ${email.subject}` : '',
+            quotedBody: '',
+          })
+          updateManualContent(draft.content)
+        }
+      })
       .catch(() => { /* non-critical */ })
-  }, [selectedEmailId, resetDraftStore])
+  }, [selectedEmailId, resetDraftStore, startComposing, updateManualContent])
 
   const filteredEmails = useMemo(() => {
     const searchQuery = search.trim().toLowerCase()
