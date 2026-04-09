@@ -3,15 +3,11 @@
 import dynamic from 'next/dynamic'
 import type { QuoteData } from '@/lib/quotes/types'
 
-// PDFViewer must be dynamically imported (no SSR) — it renders an iframe
-const PDFViewer = dynamic(
-  () => import('@react-pdf/renderer').then((mod) => mod.PDFViewer),
+// Both PDFViewer and the template must live in the same dynamic chunk
+// so they share the same @react-pdf/renderer module instance.
+const PdfViewerInner = dynamic(
+  () => import('./pdf-viewer-inner').then((mod) => mod.PdfViewerInner),
   { ssr: false, loading: () => <PreviewSkeleton /> }
-)
-
-const QuotePDFTemplate = dynamic(
-  () => import('@/lib/quotes/pdf-template').then((mod) => mod.QuotePDFTemplate),
-  { ssr: false }
 )
 
 function PreviewSkeleton() {
@@ -32,9 +28,7 @@ interface QuotePdfPreviewProps {
 export function QuotePdfPreview({ quoteData }: QuotePdfPreviewProps) {
   return (
     <div className="h-full">
-      <PDFViewer width="100%" height="100%" showToolbar={false}>
-        <QuotePDFTemplate data={quoteData} />
-      </PDFViewer>
+      <PdfViewerInner quoteData={quoteData} />
     </div>
   )
 }
