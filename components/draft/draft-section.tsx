@@ -121,7 +121,13 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
   const handleSendManual = useCallback(
     async (content: string) => {
       optimisticSendManual()
-      const result = await sendManualReply(emailId, content, {
+      const separator = composeMode === 'forward'
+        ? '\n\n---------- Message transféré ----------\n\n'
+        : '\n\n---------- Message original ----------\n\n'
+      const fullContent = composeQuotedBody
+        ? `${content}${separator}${composeQuotedBody}`
+        : content
+      const result = await sendManualReply(emailId, fullContent, {
         to: composeTo,
         subject: composeSubject,
         isForward: composeMode === 'forward',
@@ -132,7 +138,7 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
         failSendManual(result.error ?? 'Failed to send reply.')
       }
     },
-    [emailId, composeTo, composeSubject, composeMode, optimisticSendManual, confirmSendManual, failSendManual]
+    [emailId, composeTo, composeSubject, composeMode, composeQuotedBody, optimisticSendManual, confirmSendManual, failSendManual]
   )
 
   const handleCreateDraft = useCallback(async () => {
@@ -177,6 +183,10 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
         emailFrom={emailFrom}
         emailBody={emailBody}
         emailSubject={emailSubject}
+        onNotifyClient={() => {
+          setQuoteDialogOpen(false)
+          void handleCreateDraft()
+        }}
       />
       <ManualCompose
         emailId={emailId}

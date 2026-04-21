@@ -15,14 +15,14 @@ describe('ConfidenceBadge', () => {
   it('renders with correct aria-label for high score', () => {
     render(<ConfidenceBadge score={95} />)
     const badge = screen.getByRole('status')
-    expect(badge).toHaveAttribute('aria-label', 'Confidence score: 95%. High confidence')
+    expect(badge).toHaveAttribute('aria-label', 'Score de confiance : 95%. Haute confiance')
   })
 
   it('renders with correct aria-label for good score', () => {
     render(<ConfidenceBadge score={75} />)
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Confidence score: 75%. Good confidence'
+      'Score de confiance : 75%. Bonne confiance'
     )
   })
 
@@ -30,7 +30,7 @@ describe('ConfidenceBadge', () => {
     render(<ConfidenceBadge score={55} />)
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Confidence score: 55%. Moderate confidence'
+      'Score de confiance : 55%. Confiance modérée'
     )
   })
 
@@ -38,7 +38,7 @@ describe('ConfidenceBadge', () => {
     render(<ConfidenceBadge score={30} />)
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Confidence score: 30%. Low confidence — review recommended'
+      'Score de confiance : 30%. Faible confiance — révision recommandée'
     )
   })
 

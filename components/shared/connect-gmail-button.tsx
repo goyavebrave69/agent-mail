@@ -24,7 +24,7 @@ export function ConnectGmailButton() {
   return (
     <div className="flex flex-col items-end gap-2">
       <Button onClick={handleConnect} disabled={isPending} variant="outline">
-        {isPending ? "Redirecting to Google..." : "Connect Gmail"}
+        {isPending ? "Redirection vers Google..." : "Connecter Gmail"}
       </Button>
       {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
     </div>

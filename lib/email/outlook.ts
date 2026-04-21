@@ -120,7 +120,7 @@ export async function sendViaOutlook(
     }))
     const message = {
       subject: params.subject,
-      body: { contentType: 'Text', content: params.body },
+      body: { contentType: params.isHtml ? 'HTML' : 'Text', content: params.body },
       toRecipients: [{ emailAddress: { address: params.to } }],
       ...(attachments.length > 0 && { attachments }),
     }

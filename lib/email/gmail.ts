@@ -21,23 +21,30 @@ function encodeBase64Url(input: string): string {
 
 const BOUNDARY = '==MailAgentBoundary=='
 
+/** Strip CR and LF to prevent email header injection (CRLF injection) */
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]/g, '')
+}
+
 function buildRfc2822Message(credentials: GmailCredentials, params: SendEmailParams): string {
   const hasAttachments = params.attachments && params.attachments.length > 0
 
   const headers = [
-    `To: ${params.to}`,
-    `From: ${params.from ?? credentials.email ?? 'me'}`,
-    `Subject: ${params.subject}`,
+    `To: ${sanitizeHeader(params.to)}`,
+    `From: ${sanitizeHeader(params.from ?? credentials.email ?? 'me')}`,
+    `Subject: ${sanitizeHeader(params.subject)}`,
     'MIME-Version: 1.0',
   ]
 
   if (params.replyToMessageId) {
-    headers.push(`In-Reply-To: ${params.replyToMessageId}`)
-    headers.push(`References: ${params.replyToMessageId}`)
+    headers.push(`In-Reply-To: ${sanitizeHeader(params.replyToMessageId)}`)
+    headers.push(`References: ${sanitizeHeader(params.replyToMessageId)}`)
   }
 
+  const bodyContentType = params.isHtml ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8'
+
   if (!hasAttachments) {
-    headers.push('Content-Type: text/plain; charset=UTF-8')
+    headers.push(`Content-Type: ${bodyContentType}`)
     return [...headers, '', params.body].join('\r\n')
   }
 
@@ -47,15 +54,15 @@ function buildRfc2822Message(credentials: GmailCredentials, params: SendEmailPar
     ...headers,
     '',
     `--${BOUNDARY}`,
-    'Content-Type: text/plain; charset=UTF-8',
+    `Content-Type: ${bodyContentType}`,
     '',
     params.body,
   ]
 
   for (const att of params.attachments!) {
     parts.push(`--${BOUNDARY}`)
-    parts.push(`Content-Type: ${att.contentType}`)
-    parts.push(`Content-Disposition: attachment; filename="${att.filename}"`)
+    parts.push(`Content-Type: ${sanitizeHeader(att.contentType)}`)
+    parts.push(`Content-Disposition: attachment; filename="${sanitizeHeader(att.filename)}"`)
     parts.push('Content-Transfer-Encoding: base64')
     parts.push('')
     // Chunk base64 at 76 chars per line (RFC 2045)

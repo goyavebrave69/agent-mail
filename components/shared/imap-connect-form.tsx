@@ -29,13 +29,13 @@ export function ImapConnectForm() {
 
   const errorMessage =
     result?.error === "IMAP_AUTH_FAILED"
-      ? "Invalid username or password"
+      ? "Identifiant ou mot de passe incorrect"
       : result?.error === "IMAP_UNREACHABLE"
-        ? "Server unreachable — check host and port"
+        ? "Serveur inaccessible — vérifiez l'hôte et le port"
         : result?.error === "IMAP_STORAGE_FAILED"
-          ? "Unable to save connection. Please try again."
+          ? "Impossible d'enregistrer la connexion. Veuillez réessayer."
         : result?.error === "IMAP_INVALID_INPUT"
-          ? "Please fill all fields"
+          ? "Veuillez remplir tous les champs"
           : result?.error
             ? result.error
             : null
@@ -43,7 +43,7 @@ export function ImapConnectForm() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div className="grid gap-1.5">
-        <Label htmlFor="imap-host">IMAP Server</Label>
+        <Label htmlFor="imap-host">Serveur IMAP</Label>
         <Input
           id="imap-host"
           type="text"
@@ -55,7 +55,7 @@ export function ImapConnectForm() {
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="imap-port">Port</Label>
+        <Label htmlFor="imap-port">Port IMAP</Label>
         <Input
           id="imap-port"
           type="number"
@@ -66,11 +66,11 @@ export function ImapConnectForm() {
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="imap-username">Username / Email</Label>
+        <Label htmlFor="imap-username">Nom d&apos;utilisateur / Email</Label>
         <Input
           id="imap-username"
           type="text"
-          placeholder="you@example.com"
+          placeholder="vous@example.com"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           disabled={isPending}
@@ -78,7 +78,7 @@ export function ImapConnectForm() {
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="imap-password">Password</Label>
+        <Label htmlFor="imap-password">Mot de passe</Label>
         <Input
           id="imap-password"
           type="password"
@@ -90,14 +90,14 @@ export function ImapConnectForm() {
       </div>
 
       {result?.success && (
-        <p className="text-sm text-green-700">IMAP account connected successfully.</p>
+        <p className="text-sm text-green-700">Compte IMAP connecté avec succès.</p>
       )}
       {errorMessage && (
         <p className="text-sm text-red-600">{errorMessage}</p>
       )}
 
       <Button type="submit" disabled={isPending} variant="outline">
-        {isPending ? "Connecting..." : "Connect IMAP"}
+        {isPending ? "Connexion en cours..." : "Connecter IMAP"}
       </Button>
     </form>
   )

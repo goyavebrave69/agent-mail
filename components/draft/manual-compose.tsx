@@ -30,6 +30,7 @@ export function ManualCompose({
   mode,
   composeTo,
   composeSubject,
+  composeQuotedBody,
   onToChange,
   onSubjectChange,
   onSend,
@@ -70,18 +71,18 @@ export function ManualCompose({
   const toTrimmed = composeTo.trim()
   const isDisabled = !trimmed || !toTrimmed || isSending
 
-  const modeLabel = mode === 'forward' ? 'Forward' : mode === 'replyAll' ? 'Reply All' : 'Reply'
+  const modeLabel = mode === 'forward' ? 'Transférer' : mode === 'replyAll' ? 'Répondre à tous' : 'Répondre'
 
   return (
     <div className="space-y-3" role="region" aria-label={`${modeLabel} compose`}>
       {/* To field */}
       <div className="flex items-center gap-2 border-b pb-2">
-        <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">To</span>
+        <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">À</span>
         <input
           type="email"
           value={composeTo}
           onChange={(e) => onToChange(e.target.value)}
-          placeholder="recipient@example.com"
+          placeholder="destinataire@example.com"
           disabled={isSending}
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
           aria-label="To"
@@ -90,7 +91,7 @@ export function ManualCompose({
 
       {/* Subject field — editable for forward, read-only for reply */}
       <div className="flex items-center gap-2 border-b pb-2">
-        <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">Subject</span>
+        <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">Objet</span>
         {mode === 'forward' ? (
           <input
             type="text"
@@ -137,7 +138,7 @@ export function ManualCompose({
           value={manualContent}
           onChange={(e) => onContentChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Write your message..."
+          placeholder="Rédigez votre message..."
           className="w-full resize-none rounded-lg border p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           rows={8}
           maxLength={MAX_LENGTH}
@@ -147,7 +148,16 @@ export function ManualCompose({
       )}
 
       {/* Quoted original email */}
-      
+      {composeQuotedBody && (
+        <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-3 text-sm">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            {mode === 'forward' ? '---------- Message transféré ----------' : '---------- Message original ----------'}
+          </p>
+          <div className="whitespace-pre-wrap break-words text-muted-foreground leading-relaxed">
+            {composeQuotedBody}
+          </div>
+        </div>
+      )}
 
       {sendError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3" role="alert">
@@ -184,9 +194,9 @@ export function ManualCompose({
           }}
           disabled={isSending || isCreating}
           className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Cancel"
+          aria-label="Annuler"
         >
-          Cancel
+          Annuler
         </button>
         {onCreateDraft && mode !== 'forward' && (
           <button
@@ -204,7 +214,7 @@ export function ManualCompose({
           className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label={`Send ${modeLabel.toLowerCase()}`}
         >
-          {isSending ? 'Envoi…' : modeLabel === 'Forward' ? 'Transférer' : 'Envoyer'}
+          {isSending ? 'Envoi…' : modeLabel}
         </button>
       </div>
     </div>

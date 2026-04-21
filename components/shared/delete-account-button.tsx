@@ -34,24 +34,23 @@ export function DeleteAccountButton() {
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button variant="destructive" disabled={isPending}>
-            {isPending ? "Deleting account..." : "Delete my account"}
+            {isPending ? "Suppression en cours..." : "Supprimer mon compte"}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>Êtes-vous absolument sûr ?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action is permanent and cannot be undone. All your data will
-              be deleted.
+              Cette action est permanente et irréversible. Toutes vos données seront supprimées.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Yes, delete my account
+              Oui, supprimer mon compte
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

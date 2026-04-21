@@ -55,7 +55,7 @@ describe('DraftEditor — ready state', () => {
 describe('DraftEditor — generating state', () => {
   it('shows loading skeleton when status is generating', () => {
     render(<DraftEditor {...defaultProps} status="generating" />)
-    expect(screen.getByText(/generating draft/i)).toBeInTheDocument()
+    expect(screen.getByText(/génération du brouillon/i)).toBeInTheDocument()
   })
 
   it('does not show draft content when generating', () => {
@@ -75,12 +75,12 @@ describe('DraftEditor — error state', () => {
     )
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(screen.getByText('API timeout')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /retry generation/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /réessayer/i })).toBeInTheDocument()
   })
 
   it('shows fallback error message when errorMessage is null', () => {
     render(<DraftEditor {...defaultProps} status="error" errorMessage={null} />)
-    expect(screen.getAllByText(/draft generation failed/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/échec de la génération/i).length).toBeGreaterThan(0)
   })
 })
 
@@ -88,13 +88,13 @@ describe('DraftEditor — editing state', () => {
   it('enters editing mode when Edit button clicked', () => {
     render(<DraftEditor {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /edit draft/i }))
-    expect(screen.getByRole('textbox', { name: /edit draft content/i })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /modifier le brouillon/i })).toBeInTheDocument()
   })
 
   it('tracks edited content in textarea', () => {
     render(<DraftEditor {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /edit draft/i }))
-    const textarea = screen.getByRole('textbox', { name: /edit draft content/i })
+    const textarea = screen.getByRole('textbox', { name: /modifier le brouillon/i })
     fireEvent.change(textarea, { target: { value: 'Updated content' } })
     expect(useDraftStore.getState().editedContent).toBe('Updated content')
   })
@@ -102,13 +102,13 @@ describe('DraftEditor — editing state', () => {
   it('shows character count in editing mode', () => {
     render(<DraftEditor {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /edit draft/i }))
-    expect(screen.getByText(/characters/i)).toBeInTheDocument()
+    expect(screen.getByText(/caractères/i)).toBeInTheDocument()
   })
 
   it('exits editing mode on Cancel', () => {
     render(<DraftEditor {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /edit draft/i }))
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
-    expect(screen.queryByRole('textbox', { name: /edit draft content/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /annuler/i }))
+    expect(screen.queryByRole('textbox', { name: /modifier le brouillon/i })).not.toBeInTheDocument()
   })
 })

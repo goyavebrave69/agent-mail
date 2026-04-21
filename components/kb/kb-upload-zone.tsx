@@ -37,10 +37,10 @@ export function KbUploadZone() {
     const hasAcceptedExtension = ACCEPTED_FILE_EXTENSIONS.includes(getFileExtension(file.name))
 
     if (!hasAcceptedMimeType && !hasAcceptedExtension) {
-      return `"${file.name}": unsupported format. Please upload a CSV or Excel file.`
+      return `"${file.name}" : format non supporté. Veuillez importer un fichier CSV ou Excel.`
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      return `"${file.name}": file too large (max 10 MB).`
+      return `"${file.name}" : fichier trop volumineux (max 10 Mo).`
     }
     return null
   }
@@ -71,7 +71,7 @@ export function KbUploadZone() {
             router.refresh()
           }
         } catch {
-          setErrors((prev) => [...prev, `Failed to upload "${file.name}". Please try again.`])
+          setErrors((prev) => [...prev, `Échec de l'import de "${file.name}". Veuillez réessayer.`])
         } finally {
           setUploadingFiles((prev) => prev.filter((uploadingFile) => uploadingFile.id !== uploadId))
         }
@@ -141,17 +141,17 @@ export function KbUploadZone() {
         {isUploading ? (
           <>
             <p className="text-sm font-medium text-muted-foreground">
-              Uploading {uploadingFiles[0]?.name ?? "file"}…
+              Import de {uploadingFiles[0]?.name ?? "fichier"}…
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">Indexing will start automatically.</p>
+            <p className="mt-1 text-xs text-muted-foreground">L&apos;indexation démarrera automatiquement.</p>
           </>
         ) : (
           <>
             <p className="text-sm font-medium">
-              Drag &amp; drop files here, or{" "}
-              <span className="text-primary underline underline-offset-2">browse</span>
+              Glissez-déposez des fichiers ici, ou{" "}
+              <span className="text-primary underline underline-offset-2">parcourir</span>
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">CSV, XLS, XLSX — max 10 MB each</p>
+            <p className="mt-1 text-xs text-muted-foreground">CSV, XLS, XLSX — max 10 Mo chacun</p>
           </>
         )}
       </div>

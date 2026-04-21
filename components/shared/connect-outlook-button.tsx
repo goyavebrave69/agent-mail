@@ -18,7 +18,7 @@ export function ConnectOutlookButton() {
 
   return (
     <Button onClick={handleConnect} disabled={isPending} variant="outline">
-      {isPending ? "Redirecting to Microsoft..." : "Connect Outlook"}
+      {isPending ? "Redirection vers Microsoft..." : "Connecter Outlook"}
     </Button>
   )
 }

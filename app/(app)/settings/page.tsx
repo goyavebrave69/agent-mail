@@ -23,7 +23,7 @@ async function ConnectedAccounts() {
 
   return (
     <section className="mb-8 rounded-lg border p-6">
-      <h2 className="mb-4 text-lg font-semibold">Connected Accounts</h2>
+      <h2 className="mb-4 text-lg font-semibold">Comptes connectés</h2>
 
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -32,7 +32,7 @@ async function ConnectedAccounts() {
             {gmailConnection ? (
               <p className="text-sm text-muted-foreground">{gmailConnection.email}</p>
             ) : (
-              <p className="text-sm text-muted-foreground">Not connected</p>
+              <p className="text-sm text-muted-foreground">Non connecté</p>
             )}
           </div>
           {gmailConnection ? (
@@ -48,7 +48,7 @@ async function ConnectedAccounts() {
             {outlookConnection ? (
               <p className="text-sm text-muted-foreground">{outlookConnection.email}</p>
             ) : (
-              <p className="text-sm text-muted-foreground">Not connected</p>
+              <p className="text-sm text-muted-foreground">Non connecté</p>
             )}
           </div>
           {outlookConnection ? (
@@ -60,6 +60,7 @@ async function ConnectedAccounts() {
 
         <div>
           <p className="font-medium">IMAP / SMTP</p>
+
           {imapConnection ? (
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">{imapConnection.email}</p>
@@ -80,27 +81,27 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const resolvedParams = await searchParams
   const successMessage =
     resolvedParams.connected === "gmail"
-      ? "Gmail account connected successfully."
+      ? "Compte Gmail connecté avec succès."
       : resolvedParams.connected === "outlook"
-        ? "Outlook account connected successfully."
+        ? "Compte Outlook connecté avec succès."
         : null
 
   const errorMessage =
     resolvedParams.error === "gmail_denied"
-      ? "Gmail connection was denied."
+      ? "Connexion Gmail refusée."
       : resolvedParams.error === "gmail_failed"
-        ? "Gmail connection failed. Please try again."
+        ? "Échec de la connexion Gmail. Veuillez réessayer."
         : resolvedParams.error === "outlook_denied"
-          ? "Outlook connection was denied."
+          ? "Connexion Outlook refusée."
           : resolvedParams.error === "outlook_failed"
-            ? "Outlook connection failed. Please try again."
+            ? "Échec de la connexion Outlook. Veuillez réessayer."
             : resolvedParams.error === "unknown_provider"
-              ? "Mailbox connection failed: unknown provider callback. Please retry from settings."
+              ? "Échec de la connexion : fournisseur inconnu. Veuillez réessayer depuis les paramètres."
             : null
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="mb-8 text-2xl font-bold">Account Settings</h1>
+      <h1 className="mb-8 text-2xl font-bold">Paramètres du compte</h1>
 
       {successMessage && (
         <p className="mb-6 rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -130,9 +131,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       </Suspense>
 
       <section className="rounded-lg border border-destructive/30 p-6">
-        <h2 className="mb-1 text-lg font-semibold text-destructive">Danger Zone</h2>
+        <h2 className="mb-1 text-lg font-semibold text-destructive">Zone dangereuse</h2>
         <p className="mb-4 text-sm text-muted-foreground">
-          Permanently delete your account and all associated data. This action cannot be undone.
+          Supprimer définitivement votre compte et toutes les données associées. Cette action est irréversible.
         </p>
         <DeleteAccountButton />
       </section>

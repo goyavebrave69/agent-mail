@@ -16,32 +16,61 @@ export async function GET() {
   return NextResponse.json({ settings: data ?? null })
 }
 
+const ALLOWED_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD']
+const ALLOWED_MODES = ['auto', 'manual']
+
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json() as Partial<InvoiceSettings>
+  let body: Partial<InvoiceSettings>
+  try {
+    body = await req.json() as Partial<InvoiceSettings>
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
+  }
+
+  // Validate enums and numeric ranges
+  const mode = body.mode ?? 'auto'
+  if (!ALLOWED_MODES.includes(mode)) {
+    return NextResponse.json({ error: 'Invalid mode.' }, { status: 400 })
+  }
+  const currency = body.currency ?? 'EUR'
+  if (!ALLOWED_CURRENCIES.includes(currency)) {
+    return NextResponse.json({ error: 'Invalid currency.' }, { status: 400 })
+  }
+  const taxRate = body.tax_rate ?? 20
+  if (typeof taxRate !== 'number' || taxRate < 0 || taxRate > 100) {
+    return NextResponse.json({ error: 'Invalid tax rate.' }, { status: 400 })
+  }
+  // Reject non-HTTPS logo URLs to prevent mixed-content and SSRF
+  if (body.logo_url && !/^https:\/\//i.test(body.logo_url)) {
+    return NextResponse.json({ error: 'logo_url must be an HTTPS URL.' }, { status: 400 })
+  }
+  if (body.template_file_url && !/^https:\/\//i.test(body.template_file_url)) {
+    return NextResponse.json({ error: 'template_file_url must be an HTTPS URL.' }, { status: 400 })
+  }
 
   const { error } = await supabase
     .from('invoice_settings')
     .upsert({
       user_id: user.id,
-      mode: body.mode ?? 'auto',
+      mode,
       business_name: body.business_name ?? null,
       address: body.address ?? null,
       siret: body.siret ?? null,
       vat_number: body.vat_number ?? null,
       logo_url: body.logo_url ?? null,
       payment_terms: body.payment_terms ?? '30 jours net',
-      currency: body.currency ?? 'EUR',
-      tax_rate: body.tax_rate ?? 20,
+      currency,
+      tax_rate: taxRate,
       template_file_url: body.template_file_url ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', user.id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Failed to save settings.' }, { status: 500 })
   return NextResponse.json({ success: true })
 }
 

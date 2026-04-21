@@ -12,6 +12,7 @@ export interface SendEmailParams {
   to: string
   subject: string
   body: string
+  isHtml?: boolean
   from?: string
   replyToMessageId?: string
   attachments?: EmailAttachment[]

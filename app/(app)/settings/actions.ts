@@ -7,6 +7,36 @@ import { redirect } from "next/navigation"
 import { randomUUID } from "crypto"
 import { ImapFlow } from "imapflow"
 
+// Block SSRF: reject localhost, loopback, link-local, and private IP ranges
+const BLOCKED_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\.\d+\.\d+\.\d+$/,
+  /^::1$/,
+  /^0\.0\.0\.0$/,
+  /^10\.\d+\.\d+\.\d+$/,
+  /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
+  /^192\.168\.\d+\.\d+$/,
+  /^169\.254\.\d+\.\d+$/, // link-local
+  /^fc[0-9a-f]{2}:/i,     // IPv6 unique local
+  /^fe80:/i,               // IPv6 link-local
+]
+
+function isValidImapHost(host: string): boolean {
+  if (!host || host.length > 253) return false
+  // Reject any blocked pattern
+  if (BLOCKED_HOST_PATTERNS.some((re) => re.test(host))) return false
+  // Validate IPv4: all four octets must be 0–255
+  const ipv4Re = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+  const ipv4Match = host.match(ipv4Re)
+  if (ipv4Match) {
+    const octets = [ipv4Match[1], ipv4Match[2], ipv4Match[3], ipv4Match[4]].map(Number)
+    return octets.every((o) => o >= 0 && o <= 255)
+  }
+  // Validate hostname: labels separated by dots, each label alphanum/hyphen, no leading/trailing hyphen
+  const hostnameRe = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/
+  return hostnameRe.test(host)
+}
+
 export async function connectGmailAction(): Promise<{ error: string } | { url: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase.auth.getUser()
@@ -29,7 +59,7 @@ export async function connectGmailAction(): Promise<{ error: string } | { url: s
   const cookieStore = await cookies()
   cookieStore.set("oauth_state_gmail", stateToken, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 10 * 60,
@@ -72,7 +102,7 @@ export async function connectOutlookAction(): Promise<{ error: string } | { url:
   const cookieStore = await cookies()
   cookieStore.set("oauth_state_outlook", stateToken, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 10 * 60,
@@ -122,6 +152,9 @@ export async function connectImapAction(params: {
   const { host, port, username, password } = params
 
   if (!host || !username || !password) {
+    return { error: "IMAP_INVALID_INPUT" }
+  }
+  if (!isValidImapHost(host)) {
     return { error: "IMAP_INVALID_INPUT" }
   }
   if (port !== 993 && port !== 143) {

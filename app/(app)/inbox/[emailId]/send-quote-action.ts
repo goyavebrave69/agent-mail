@@ -43,7 +43,12 @@ export async function sendQuoteAction(
   const { data: secretData } = await adminClient.rpc('read_vault_secret', {
     secret_id: connection.vault_secret_id,
   })
-  const credentials = JSON.parse(secretData as string) as unknown
+  let credentials: unknown
+  try {
+    credentials = JSON.parse(secretData as string)
+  } catch {
+    return { success: false, error: 'Failed to read mailbox credentials.' }
+  }
 
   const result = await sendEmailViaProvider(
     connection.provider as 'gmail' | 'outlook' | 'imap',

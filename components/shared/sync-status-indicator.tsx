@@ -9,9 +9,9 @@ interface SyncJob {
 }
 
 function formatLastSynced(ts: string | null): string {
-  if (!ts) return "Never"
+  if (!ts) return "Jamais"
   const d = new Date(ts)
-  return d.toLocaleString("en-GB", {
+  return d.toLocaleString("fr-FR", {
     dateStyle: "short",
     timeStyle: "short",
   })
@@ -26,8 +26,8 @@ export async function SyncStatusIndicator() {
   if (error) {
     return (
       <section className="mb-8 rounded-lg border border-destructive/30 p-6">
-        <h2 className="mb-2 text-lg font-semibold">Email Sync Status</h2>
-        <p className="text-sm text-destructive">Unable to load sync status right now. Please retry.</p>
+        <h2 className="mb-2 text-lg font-semibold">Statut de synchronisation</h2>
+        <p className="text-sm text-destructive">Impossible de charger le statut de synchronisation. Veuillez réessayer.</p>
       </section>
     )
   }
@@ -36,19 +36,19 @@ export async function SyncStatusIndicator() {
 
   return (
     <section className="mb-8 rounded-lg border p-6">
-      <h2 className="mb-4 text-lg font-semibold">Email Sync Status</h2>
+      <h2 className="mb-4 text-lg font-semibold">Statut de synchronisation</h2>
       <div className="flex flex-col gap-3">
         {(jobs as SyncJob[]).map((job) => (
           <div key={job.provider} className="flex items-start justify-between gap-4">
             <div>
               <p className="font-medium capitalize">{job.provider}</p>
               <p className="text-sm text-muted-foreground">
-                Last sync: {formatLastSynced(job.last_synced_at)}
+                Dernière sync : {formatLastSynced(job.last_synced_at)}
               </p>
               {job.status === "error" && job.last_error && (
                 <p className="mt-1 text-sm text-destructive">
-                  Sync failed: {job.last_error}
-                  {job.retry_count >= 3 && " — manual reconnection may be required"}
+                  Sync échouée : {job.last_error}
+                  {job.retry_count >= 3 && " — reconnexion manuelle peut être requise"}
                 </p>
               )}
             </div>

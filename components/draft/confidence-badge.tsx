@@ -12,27 +12,27 @@ function getScoreConfig(score: number) {
   if (score >= 90) {
     return {
       className: 'bg-green-100 text-green-800',
-      label: 'High confidence',
+      label: 'Haute confiance',
       pulse: false,
     }
   }
   if (score >= 70) {
     return {
       className: 'bg-blue-100 text-blue-800',
-      label: 'Good confidence',
+      label: 'Bonne confiance',
       pulse: false,
     }
   }
   if (score >= 50) {
     return {
       className: 'bg-amber-100 text-amber-800',
-      label: 'Moderate confidence',
+      label: 'Confiance modérée',
       pulse: false,
     }
   }
   return {
     className: 'bg-rose-100 text-rose-800',
-    label: 'Low confidence — review recommended',
+    label: 'Faible confiance — révision recommandée',
     pulse: true,
   }
 }
@@ -84,7 +84,7 @@ export function ConfidenceBadge({ score, size = 'md', showLabel = true }: Confid
         .filter(Boolean)
         .join(' ')}
       role="status"
-      aria-label={`Confidence score: ${score}%. ${label}`}
+      aria-label={`Score de confiance : ${score}%. ${label}`}
     >
       <span aria-hidden="true" data-testid="confidence-score">
         {displayScore}%

@@ -62,9 +62,39 @@ export default {
           '0%': { backgroundPosition: '-400% 0' },
           '100%': { backgroundPosition: '400% 0' },
         },
+        'fade-up': {
+          '0%': { opacity: '0', transform: 'translateY(24px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'gradient-x': {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        beam: {
+          '0%': { transform: 'translateX(-100%) rotate(-45deg)' },
+          '100%': { transform: 'translateX(400%) rotate(-45deg)' },
+        },
+        'spin-slow': {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        },
       },
       animation: {
         shimmer: 'shimmer 2s infinite linear',
+        'fade-up': 'fade-up 0.6s ease-out forwards',
+        'fade-in': 'fade-in 0.5s ease-out forwards',
+        'gradient-x': 'gradient-x 4s ease infinite',
+        float: 'float 4s ease-in-out infinite',
+        beam: 'beam 2.5s ease-in-out infinite',
+        'spin-slow': 'spin-slow 8s linear infinite',
       },
     },
   },

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { X, FileText, CheckCircle, Download } from 'lucide-react'
+import { X, FileText, CheckCircle, Download, PackageX } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { QuoteForm } from './quote-form'
@@ -23,6 +23,7 @@ interface QuoteDialogProps {
   emailFrom: string
   emailBody: string
   emailSubject: string
+  onNotifyClient?: () => void
 }
 
 function computeTotals(quoteData: QuoteData): QuoteTotals {
@@ -51,6 +52,60 @@ function BlockedState({ onConfigure }: { onConfigure: () => void }) {
   )
 }
 
+function NoKbMatchState({ onNotifyClient }: { onNotifyClient?: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+        <PackageX className="h-8 w-8 text-muted-foreground" />
+      </div>
+      <div>
+        <p className="text-base font-semibold">Produits introuvables dans le catalogue</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Aucun produit correspondant à cette demande n&apos;a été trouvé dans votre base de connaissances.
+          Ajoutez vos produits et tarifs pour pouvoir générer un devis.
+        </p>
+      </div>
+      <div className="flex flex-col items-center gap-2 sm:flex-row">
+        {onNotifyClient && (
+          <Button onClick={onNotifyClient}>
+            Prévenir le client par email
+          </Button>
+        )}
+        <Button variant="outline" onClick={() => { window.location.href = '/knowledge-base' }}>
+          Compléter le catalogue
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function OutOfScopeState({ onDecline }: { onDecline?: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50">
+        <PackageX className="h-8 w-8 text-amber-500" />
+      </div>
+      <div>
+        <p className="text-base font-semibold">Demande hors activité</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Les produits ou prestations demandés ne correspondent pas à votre catalogue.
+          Ce devis ne peut pas être généré automatiquement.
+        </p>
+      </div>
+      <div className="flex flex-col items-center gap-2 sm:flex-row">
+        {onDecline && (
+          <Button onClick={onDecline}>
+            Décliner par email
+          </Button>
+        )}
+        <Button variant="outline" onClick={() => { window.location.href = '/knowledge-base' }}>
+          Voir le catalogue
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function SuccessOverlay({ clientName }: { clientName: string }) {
   return (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-background/95">
@@ -67,10 +122,13 @@ export function QuoteDialog({
   emailFrom,
   emailBody,
   emailSubject,
+  onNotifyClient,
 }: QuoteDialogProps) {
   const [settings, setSettings] = useState<InvoiceSettings | null>(null)
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [quoteData, setQuoteData] = useState<QuoteData | null>(null)
+  const [noKbMatch, setNoKbMatch] = useState(false)
+  const [outOfScope, setOutOfScope] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -82,6 +140,8 @@ export function QuoteDialog({
     setLoadingSettings(true)
     setSendError(null)
     setShowSuccess(false)
+    setNoKbMatch(false)
+    setOutOfScope(false)
 
     void (async () => {
       try {
@@ -100,11 +160,24 @@ export function QuoteDialog({
         if (s) {
           const { quoteNumber } = await seqRes.json() as { quoteNumber: string }
           const extracted = await extractedRes.json() as {
-            lineItems: import('@/lib/quotes/types').QuoteLineItem[]
+            lineItems?: import('@/lib/quotes/types').QuoteLineItem[]
             clientName?: string | null
+            noKbMatch?: boolean
+            outOfScope?: boolean
             debug?: string
           }
-          console.log('[QuoteDialog] extract response status:', extractedRes.status, '| debug:', extracted.debug, '| items:', extracted.lineItems?.length, extracted.lineItems)
+          console.log('[QuoteDialog] extract response status:', extractedRes.status, '| debug:', extracted.debug, '| noKbMatch:', extracted.noKbMatch, '| outOfScope:', extracted.outOfScope, '| items:', extracted.lineItems?.length)
+
+          if (extracted.noKbMatch) {
+            setNoKbMatch(true)
+            return
+          }
+
+          if (extracted.outOfScope) {
+            setOutOfScope(true)
+            return
+          }
+
           const clientInfo = extractClientInfo({ from: emailFrom, body: emailBody })
           const client = extracted.clientName && !clientInfo.name
             ? { ...clientInfo, name: extracted.clientName }
@@ -123,14 +196,14 @@ export function QuoteDialog({
               taxRate: s.tax_rate,
             },
             client,
-            lineItems: extracted.lineItems,
+            lineItems: extracted.lineItems ?? [],
           })
         }
       } finally {
         setLoadingSettings(false)
       }
     })()
-  }, [open, emailFrom, emailBody])
+  }, [open, emailFrom, emailBody, emailSubject])
 
   // Escape key to close
   useEffect(() => {
@@ -273,6 +346,18 @@ export function QuoteDialog({
                   window.location.href = '/knowledge-base#invoice'
                 }}
               />
+            </div>
+          )}
+
+          {!loadingSettings && settings && noKbMatch && (
+            <div className="flex-1 px-6">
+              <NoKbMatchState onNotifyClient={onNotifyClient ? () => { onClose(); onNotifyClient() } : undefined} />
+            </div>
+          )}
+
+          {!loadingSettings && settings && outOfScope && (
+            <div className="flex-1 px-6">
+              <OutOfScopeState onDecline={onNotifyClient ? () => { onClose(); onNotifyClient() } : undefined} />
             </div>
           )}
 
