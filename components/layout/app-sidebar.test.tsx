@@ -38,22 +38,22 @@ describe("AppSidebar — collapse/expand", () => {
 
   it("collapses when toggle button is clicked", () => {
     render(<AppSidebar {...defaultProps} />)
-    fireEvent.click(screen.getByRole("button", { name: /collapse sidebar/i }))
+    fireEvent.click(screen.getByRole("button", { name: /réduire la barre latérale/i }))
     expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-collapsed", "true")
   })
 
   it("expands again when toggle is clicked a second time", () => {
     render(<AppSidebar {...defaultProps} />)
-    fireEvent.click(screen.getByRole("button", { name: /collapse sidebar/i }))
-    fireEvent.click(screen.getByRole("button", { name: /expand sidebar/i }))
+    fireEvent.click(screen.getByRole("button", { name: /réduire la barre latérale/i }))
+    fireEvent.click(screen.getByRole("button", { name: /développer la barre latérale/i }))
     expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-collapsed", "false")
   })
 
   it("hides nav labels when collapsed", () => {
     render(<AppSidebar {...defaultProps} />)
-    expect(screen.getByText("Knowledge Base")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /collapse sidebar/i }))
-    expect(screen.queryByText("Knowledge Base")).not.toBeInTheDocument()
+    expect(screen.getByText("Base de connaissances")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /réduire la barre latérale/i }))
+    expect(screen.queryByText("Base de connaissances")).not.toBeInTheDocument()
   })
 })
 
@@ -68,7 +68,7 @@ describe("AppSidebar — session persistence", () => {
 
   it("persists collapsed state to sessionStorage on toggle", () => {
     render(<AppSidebar {...defaultProps} />)
-    fireEvent.click(screen.getByRole("button", { name: /collapse sidebar/i }))
+    fireEvent.click(screen.getByRole("button", { name: /réduire la barre latérale/i }))
     expect(sessionStorage.getItem("app_sidebar_collapsed")).toBe("true")
   })
 })
@@ -78,19 +78,19 @@ describe("AppSidebar — session persistence", () => {
 describe("AppSidebar — primary navigation", () => {
   it("renders Inbox, Knowledge Base and Settings links", () => {
     render(<AppSidebar {...defaultProps} />)
-    expect(screen.getByRole("link", { name: /inbox/i })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /knowledge base/i })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /settings/i })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /boîte de réception/i })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /base de connaissances/i })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /paramètres/i })).toBeInTheDocument()
   })
 
   it("Inbox link points to /inbox", () => {
     render(<AppSidebar {...defaultProps} />)
-    expect(screen.getByRole("link", { name: /inbox/i })).toHaveAttribute("href", "/inbox")
+    expect(screen.getByRole("link", { name: /boîte de réception/i })).toHaveAttribute("href", "/inbox")
   })
 
   it("Knowledge Base link points to /knowledge-base", () => {
     render(<AppSidebar {...defaultProps} />)
-    expect(screen.getByRole("link", { name: /knowledge base/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /base de connaissances/i })).toHaveAttribute(
       "href",
       "/knowledge-base"
     )
@@ -98,7 +98,7 @@ describe("AppSidebar — primary navigation", () => {
 
   it("Settings link points to /settings", () => {
     render(<AppSidebar {...defaultProps} />)
-    expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute("href", "/settings")
+    expect(screen.getByRole("link", { name: /paramètres/i })).toHaveAttribute("href", "/settings")
   })
 })
 
@@ -128,15 +128,15 @@ describe("AppSidebar — manage categories modal", () => {
     render(<AppSidebar {...defaultProps} />)
     fireEvent.click(screen.getByTestId("manage-categories-button"))
     expect(screen.getByTestId("manage-categories-dialog")).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Manage Categories" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Gérer les catégories" })).toBeInTheDocument()
   })
 
   it("shows validation error for empty category name", () => {
     render(<AppSidebar {...defaultProps} />)
     fireEvent.click(screen.getByTestId("manage-categories-button"))
-    fireEvent.click(screen.getByRole("button", { name: /create category/i }))
+    fireEvent.click(screen.getByRole("button", { name: /créer la catégorie/i }))
     expect(screen.getByTestId("custom-category-error")).toHaveTextContent(
-      "Category name is required."
+      "Le nom de la catégorie est requis."
     )
     expect(mockCreateCustomCategoryAction).not.toHaveBeenCalled()
   })
@@ -151,8 +151,8 @@ describe("AppSidebar — manage categories modal", () => {
     fireEvent.change(screen.getByTestId("custom-category-input"), {
       target: { value: "VIP Clients" },
     })
-    fireEvent.click(screen.getByRole("button", { name: /create category/i }))
-    expect(screen.getByTestId("custom-category-error")).toHaveTextContent("Category already exists.")
+    fireEvent.click(screen.getByRole("button", { name: /créer la catégorie/i }))
+    expect(screen.getByTestId("custom-category-error")).toHaveTextContent("Cette catégorie existe déjà.")
     expect(mockCreateCustomCategoryAction).not.toHaveBeenCalled()
   })
 
@@ -166,7 +166,7 @@ describe("AppSidebar — manage categories modal", () => {
     fireEvent.change(screen.getByTestId("custom-category-input"), {
       target: { value: "Priority Clients" },
     })
-    fireEvent.click(screen.getByRole("button", { name: /create category/i }))
+    fireEvent.click(screen.getByRole("button", { name: /créer la catégorie/i }))
     await waitFor(() => {
       expect(mockCreateCustomCategoryAction).toHaveBeenCalledWith("Priority Clients", undefined)
     })

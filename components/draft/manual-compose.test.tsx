@@ -27,23 +27,23 @@ describe('ManualCompose', () => {
   it('renders textarea and Cancel/Send buttons', () => {
     render(<ManualCompose {...defaultProps} />)
     expect(screen.getByRole('textbox', { name: /message body/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /send reply/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /annuler/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send répondre/i })).toBeInTheDocument()
   })
 
   it('Send button is disabled when content is empty', () => {
     render(<ManualCompose {...defaultProps} manualContent="" />)
-    expect(screen.getByRole('button', { name: /send reply/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /send répondre/i })).toBeDisabled()
   })
 
   it('Send button is disabled when content is only whitespace', () => {
     render(<ManualCompose {...defaultProps} manualContent="   " />)
-    expect(screen.getByRole('button', { name: /send reply/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /send répondre/i })).toBeDisabled()
   })
 
   it('Send button is enabled when content has text', () => {
     render(<ManualCompose {...defaultProps} manualContent="Hello there" />)
-    expect(screen.getByRole('button', { name: /send reply/i })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: /send répondre/i })).not.toBeDisabled()
   })
 
   it('calls onContentChange when textarea value changes', () => {
@@ -58,21 +58,21 @@ describe('ManualCompose', () => {
   it('calls onSend with content when Send is clicked', () => {
     const onSend = vi.fn()
     render(<ManualCompose {...defaultProps} onSend={onSend} manualContent="My reply" />)
-    fireEvent.click(screen.getByRole('button', { name: /send reply/i }))
+    fireEvent.click(screen.getByRole('button', { name: /send répondre/i }))
     expect(onSend).toHaveBeenCalledWith('My reply')
   })
 
   it('calls onCancel directly when Cancel is clicked with empty content', () => {
     const onCancel = vi.fn()
     render(<ManualCompose {...defaultProps} onCancel={onCancel} manualContent="" />)
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /annuler/i }))
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
   it('shows confirmation warning when Cancel is clicked with non-empty content', () => {
     const onCancel = vi.fn()
     render(<ManualCompose {...defaultProps} onCancel={onCancel} manualContent="Some text" />)
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /annuler/i }))
     expect(onCancel).not.toHaveBeenCalled()
     expect(screen.getByText(/perdre le brouillon/i)).toBeInTheDocument()
   })
@@ -80,14 +80,14 @@ describe('ManualCompose', () => {
   it('calls onCancel after confirming cancellation', () => {
     const onCancel = vi.fn()
     render(<ManualCompose {...defaultProps} onCancel={onCancel} manualContent="Some text" />)
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /annuler/i }))
     fireEvent.click(screen.getByRole('button', { name: /oui, annuler/i }))
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
   it('dismisses confirmation warning when Non is clicked', () => {
     render(<ManualCompose {...defaultProps} manualContent="Some text" />)
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /annuler/i }))
     fireEvent.click(screen.getByRole('button', { name: /^non$/i }))
     expect(screen.queryByText(/perdre le brouillon/i)).not.toBeInTheDocument()
   })
@@ -99,7 +99,7 @@ describe('ManualCompose', () => {
 
   it('shows Envoi… label on Send button while sending', () => {
     render(<ManualCompose {...defaultProps} isSending manualContent="Hello" />)
-    expect(screen.getByRole('button', { name: /send reply/i })).toHaveTextContent('Envoi…')
+    expect(screen.getByRole('button', { name: /send répondre/i })).toHaveTextContent('Envoi…')
   })
 
   it('shows error alert when sendError is provided', () => {
@@ -115,7 +115,7 @@ describe('ManualCompose', () => {
 
   it('shows Transférer button label in forward mode', () => {
     render(<ManualCompose {...defaultProps} mode="forward" manualContent="Fwd text" />)
-    expect(screen.getByRole('button', { name: /forward/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send transférer/i })).toBeInTheDocument()
   })
 })
 
@@ -156,7 +156,7 @@ describe('ManualCompose — Create Draft button', () => {
 
   it('Cancel button is disabled when isCreating is true', () => {
     render(<ManualCompose {...defaultProps} onCreateDraft={vi.fn()} isCreating />)
-    expect(screen.getByRole('button', { name: /cancel/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /annuler/i })).toBeDisabled()
   })
 
   it('does not render draft button in forward mode', () => {

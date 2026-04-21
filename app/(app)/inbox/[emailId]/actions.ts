@@ -125,11 +125,16 @@ export async function validateAndSendDraft(
   const { data: secretData } = await adminClient.rpc('read_vault_secret', {
     secret_id: connection.vault_secret_id,
   })
-  const credentials = JSON.parse(secretData as string)
+  let credentials: unknown
+  try {
+    credentials = JSON.parse(secretData as string)
+  } catch {
+    return { success: false, error: 'Failed to read mailbox credentials.', errorCode: 'UNKNOWN' }
+  }
 
   const sendResult = await sendEmailViaProvider(
     connection.provider as 'gmail' | 'outlook' | 'imap',
-    credentials,
+    credentials as Parameters<typeof sendEmailViaProvider>[1],
     {
       to: email.from_email ?? '',
       from: connection.email,
@@ -461,6 +466,74 @@ export async function archiveEmail(
   return { success: true }
 }
 
+// ─── Unarchive email ──────────────────────────────────────────────────────────
+
+export async function unarchiveEmail(
+  emailId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('emails')
+    .update({ is_archived: false, updated_at: new Date().toISOString() })
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/inbox')
+  return { success: true }
+}
+
+// ─── Toggle star ──────────────────────────────────────────────────────────────
+
+export async function toggleStarEmail(
+  emailId: string,
+  starred: boolean
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('emails')
+    .update({ is_starred: starred, updated_at: new Date().toISOString() })
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
+// ─── Mark as unread ───────────────────────────────────────────────────────────
+
+export async function markEmailAsUnread(
+  emailId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('emails')
+    .update({ is_read: false, updated_at: new Date().toISOString() })
+    .eq('id', emailId)
+    .eq('user_id', user.id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/inbox')
+  return { success: true }
+}
+
 // ─── Trash email ──────────────────────────────────────────────────────────────
 
 export async function trashEmail(
@@ -535,15 +608,32 @@ export async function sendManualReply(
   const { data: secretData } = await adminClient.rpc('read_vault_secret', {
     secret_id: connection.vault_secret_id,
   })
-  const credentials = JSON.parse(secretData as string)
+  let credentials: unknown
+  try {
+    credentials = JSON.parse(secretData as string)
+  } catch {
+    return { success: false, error: 'Failed to read mailbox credentials.', errorCode: 'UNKNOWN' }
+  }
 
-  const toAddress = overrides?.to?.trim() || email.from_email || ''
-  const subject = overrides?.subject?.trim() || `Re: ${email.subject ?? ''}`
   const isForward = overrides?.isForward ?? false
+  // For replies, always use the original sender — ignore any `to` override to prevent IDOR.
+  // For forwards, validate the override is a plausible email address.
+  let toAddress: string
+  if (isForward && overrides?.to?.trim()) {
+    const overrideTo = overrides.to.trim()
+    // Basic email format validation to prevent header injection / misuse
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overrideTo)) {
+      return { success: false, error: 'Invalid recipient address.', errorCode: 'UNKNOWN' }
+    }
+    toAddress = overrideTo
+  } else {
+    toAddress = email.from_email || ''
+  }
+  const subject = overrides?.subject?.trim() || `Re: ${email.subject ?? ''}`
 
   const sendResult = await sendEmailViaProvider(
     connection.provider as 'gmail' | 'outlook' | 'imap',
-    credentials,
+    credentials as Parameters<typeof sendEmailViaProvider>[1],
     {
       to: toAddress,
       from: connection.email,

@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { sendEmailViaProvider } from "@/lib/email/send"
+import type { SendEmailResult } from "@/lib/email/send"
 import {
   MAX_CUSTOM_CATEGORY_NAME_LENGTH,
   isSystemInboxCategory,
@@ -194,6 +197,77 @@ export async function deleteCustomCategoryAction(
 
   revalidatePath("/inbox")
   return { success: true }
+}
+
+// ─── Send new email ───────────────────────────────────────────────────────────
+
+interface SendNewEmailParams {
+  to: string
+  subject: string
+  body: string
+  isHtml?: boolean
+  cc?: string
+  bcc?: string
+}
+
+export async function sendNewEmail(params: SendNewEmailParams): Promise<SendEmailResult> {
+  const { to, subject, body, isHtml } = params
+
+  const sanitizedBody = body.trim()
+  if (!sanitizedBody) {
+    return { success: false, error: 'Le corps du message est requis.', errorCode: 'UNKNOWN' }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Non authentifié.', errorCode: 'UNKNOWN' }
+
+  const { data: connection } = await supabase
+    .from('email_connections')
+    .select('provider, email, vault_secret_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .single()
+
+  if (!connection) {
+    return {
+      success: false,
+      error: 'Aucune connexion email trouvée. Veuillez reconnecter votre boîte mail.',
+      errorCode: 'NO_CONNECTION',
+    }
+  }
+
+  const adminClient = createAdminClient()
+  const { data: secretData } = await adminClient.rpc('read_vault_secret', {
+    secret_id: connection.vault_secret_id,
+  })
+
+  let credentials: unknown
+  try {
+    credentials = JSON.parse(secretData as string)
+  } catch {
+    return { success: false, error: 'Impossible de lire les identifiants de connexion.', errorCode: 'UNKNOWN' }
+  }
+
+  const result = await sendEmailViaProvider(
+    connection.provider as 'gmail' | 'outlook' | 'imap',
+    credentials as Parameters<typeof sendEmailViaProvider>[1],
+    {
+      to,
+      from: connection.email,
+      subject: subject || '(sans objet)',
+      body: sanitizedBody,
+      isHtml,
+    }
+  )
+
+  if (result.success) {
+    revalidatePath('/inbox')
+  }
+
+  return result
 }
 
 export async function reorderCustomCategoriesAction(

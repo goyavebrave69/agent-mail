@@ -60,7 +60,7 @@ describe('DraftSection — compose mode', () => {
 
   it('shows ManualCompose with Send and Brouillon IA buttons when composing', () => {
     renderComposing()
-    expect(screen.getByRole('button', { name: /send reply/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send répondre/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /brouillon ia/i })).toBeInTheDocument()
   })
 

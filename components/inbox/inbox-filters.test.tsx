@@ -22,18 +22,18 @@ describe("InboxFilters", () => {
 
     expect(screen.getAllByRole("button")).toHaveLength(7)
     expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Quote" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Inquiry" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Invoice" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Follow-up" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Devis" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Demande" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Facture" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Suivi" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Spam" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Other" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Autre" })).toBeInTheDocument()
   })
 
   it("highlights active category button", () => {
     render(<InboxFilters activeCategory="quote" />)
 
-    expect(screen.getByRole("button", { name: "Quote" })).toHaveClass("ring-2")
+    expect(screen.getByRole("button", { name: "Devis" })).toHaveClass("ring-2")
     expect(screen.getByRole("button", { name: "All" })).not.toHaveClass("bg-primary")
   })
 
@@ -41,7 +41,7 @@ describe("InboxFilters", () => {
     mockSearchParams.mockReturnValue(new URLSearchParams("view=compact"))
     render(<InboxFilters activeCategory={null} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "Quote" }))
+    fireEvent.click(screen.getByRole("button", { name: "Devis" }))
 
     expect(mockPush).toHaveBeenCalledWith("/inbox?view=compact&category=quote")
   })
@@ -50,7 +50,7 @@ describe("InboxFilters", () => {
     mockSearchParams.mockReturnValue(new URLSearchParams("category=quote&view=compact"))
     render(<InboxFilters activeCategory="quote" />)
 
-    fireEvent.click(screen.getByRole("button", { name: "Quote" }))
+    fireEvent.click(screen.getByRole("button", { name: "Devis" }))
 
     expect(mockPush).toHaveBeenCalledWith("/inbox?view=compact")
   })

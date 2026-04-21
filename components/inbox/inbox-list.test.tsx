@@ -30,7 +30,7 @@ describe("InboxList empty states", () => {
     render(<InboxList emails={[]} userId="user-1" activeCategory={null} />)
 
     expect(
-      screen.getByText("No emails yet. Connect a mailbox in Settings to start syncing.")
+      screen.getByText("Aucun email. Connectez une boîte mail dans les Paramètres pour démarrer la synchronisation.")
     ).toBeInTheDocument()
   })
 
@@ -38,7 +38,7 @@ describe("InboxList empty states", () => {
     render(<InboxList emails={[]} userId="user-1" activeCategory="quote" />)
 
     expect(
-      screen.getByText("No quote emails match this filter. Clear the filter to see all emails.")
+      screen.getByText((content) => content.includes("Aucun email") && content.includes("devis") && content.includes("filtre"))
     ).toBeInTheDocument()
   })
 })

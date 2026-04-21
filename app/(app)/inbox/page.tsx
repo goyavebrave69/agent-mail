@@ -12,6 +12,7 @@ export interface InboxEmail {
   received_at: string
   is_read: boolean
   is_archived: boolean
+  is_starred: boolean
   category: EmailCategory
   priority_rank: number
   body_text: string | null
@@ -32,7 +33,8 @@ function normalizeCategory(
   return customCategorySlugs.has(value) ? value : null
 }
 
-async function InboxContent({ categoryParam }: { categoryParam?: string }) {
+async function InboxContent({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
+  const { category: categoryParam } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -53,7 +55,7 @@ async function InboxContent({ categoryParam }: { categoryParam?: string }) {
   const { data: allEmails } = await supabase
     .from("emails")
     .select(
-      "id, subject, from_email, from_name, received_at, is_read, is_archived, category, priority_rank, body_text, body_html, response_type"
+      "id, subject, from_email, from_name, received_at, is_read, is_archived, is_starred, category, priority_rank, body_text, body_html, response_type"
     )
     .eq("user_id", user.id)
     .eq("is_archived", false)
@@ -85,12 +87,10 @@ function InboxSkeleton() {
   )
 }
 
-export default async function InboxPage({ searchParams }: InboxPageProps) {
-  const resolvedParams = await searchParams
-
+export default function InboxPage({ searchParams }: InboxPageProps) {
   return (
     <Suspense fallback={<InboxSkeleton />}>
-      <InboxContent categoryParam={resolvedParams.category} />
+      <InboxContent searchParams={searchParams} />
     </Suspense>
   )
 }
