@@ -679,3 +679,45 @@ export async function sendManualReply(
   revalidatePath(`/inbox/${emailId}`)
   return { success: true }
 }
+
+// ─── Bulk archive ─────────────────────────────────────────────────────────────
+
+export async function archiveManyEmails(
+  emailIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+  if (!emailIds.length) return { success: true }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('emails')
+    .update({ is_archived: true, updated_at: new Date().toISOString() })
+    .in('id', emailIds)
+    .eq('user_id', user.id)
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/inbox')
+  return { success: true }
+}
+
+// ─── Bulk trash ───────────────────────────────────────────────────────────────
+
+export async function trashManyEmails(
+  emailIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+  if (!emailIds.length) return { success: true }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('emails')
+    .update({ is_archived: true, updated_at: new Date().toISOString() })
+    .in('id', emailIds)
+    .eq('user_id', user.id)
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/inbox')
+  return { success: true }
+}

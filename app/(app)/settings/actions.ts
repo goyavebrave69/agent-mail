@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { revalidatePath } from "next/cache"
 import { randomUUID } from "crypto"
 import { ImapFlow } from "imapflow"
 
@@ -254,6 +255,33 @@ export async function disconnectMailboxAction(params: {
     return { error: 'DISCONNECT_FAILED' }
   }
 
+  return { success: true }
+}
+
+export async function getSignature(): Promise<string> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return ''
+  const { data } = await supabase
+    .from('user_settings')
+    .select('email_signature')
+    .eq('user_id', user.id)
+    .single()
+  return data?.email_signature ?? ''
+}
+
+export async function saveSignature(signature: string): Promise<{ success: true } | { error: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+  const { error } = await supabase
+    .from('user_settings')
+    .upsert(
+      { user_id: user.id, email_signature: signature, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
+  if (error) return { error: error.message }
+  revalidatePath('/settings')
   return { success: true }
 }
 

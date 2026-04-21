@@ -27,9 +27,10 @@ interface DraftSectionProps {
   emailFrom?: string
   emailBody?: string
   emailSubject?: string
+  signature?: string
 }
 
-export function DraftSection({ emailId, userId, responseType, confidenceScore, emailFrom = '', emailBody = '', emailSubject = '' }: DraftSectionProps) {
+export function DraftSection({ emailId, userId, responseType, confidenceScore, emailFrom = '', emailBody = '', emailSubject = '', signature }: DraftSectionProps) {
   const [pdfIgnored, setPdfIgnored] = useState(false)
   const [quoteDialogOpen, setQuoteDialogOpen] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
@@ -206,6 +207,7 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
         isCreating={isCreating}
         isStreaming={isStreaming}
         streamingContent={streamingContent}
+        signature={signature}
       />
       {createError && (
         <div

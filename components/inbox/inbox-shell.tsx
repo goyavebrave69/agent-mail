@@ -21,13 +21,18 @@ import { InboxZeroState } from "@/components/inbox/inbox-zero-state"
 import { ComposeSheet } from "@/components/inbox/compose-sheet"
 import {
   archiveEmail,
+  archiveManyEmails,
   fetchDraftForEmail,
   markEmailAsRead,
   markEmailAsUnread,
   toggleStarEmail,
   trashEmail,
+  trashManyEmails,
   unarchiveEmail,
 } from "@/app/(app)/inbox/[emailId]/actions"
+import { getSignature } from "@/app/(app)/settings/actions"
+import { BulkActionBar } from "@/components/inbox/bulk-action-bar"
+import { ShortcutOverlay } from "@/components/inbox/shortcut-overlay"
 import type { Draft } from "@/types/draft"
 import { useDraftStore } from "@/stores/draft-store"
 import {
@@ -151,6 +156,15 @@ export function InboxShell({
   const [draftConfidenceScore, setDraftConfidenceScore] = useState<number | null>(null)
   const [processedCount, setProcessedCount] = useState(0)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkActioning, setIsBulkActioning] = useState(false)
+  const [signature, setSignature] = useState("")
+  const [showShortcuts, setShowShortcuts] = useState(false)
+
+  // Fetch email signature once on mount
+  useEffect(() => {
+    getSignature().then(setSignature).catch(() => { /* non-critical */ })
+  }, [])
 
   // Open compose sheet when navigated here with ?compose=1 (e.g. from sidebar button or back/forward)
   useEffect(() => {
@@ -321,6 +335,86 @@ export function InboxShell({
     setSelectedEmailId(null)
   }
 
+  // Helper: true when the event target is an editable element
+  const isTypingTarget = (target: EventTarget | null): boolean => {
+    const el = target as HTMLElement
+    return el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable === true
+  }
+
+  const handleBulkArchive = async () => {
+    if (!selectedIds.size || isBulkActioning) return
+    const ids = Array.from(selectedIds)
+    setIsBulkActioning(true)
+    const result = await archiveManyEmails(ids)
+    setIsBulkActioning(false)
+    if (!result.success) {
+      toast.error("Échec de l'archivage groupé.")
+      return
+    }
+    // Optimistic remove
+    setLocalArchivedIds((prev) => new Set([...prev, ...ids]))
+    setSelectedIds(new Set())
+    setProcessedCount((c) => c + ids.length)
+    // Auto-advance if selected email was in the batch
+    if (selectedEmailId && ids.includes(selectedEmailId)) {
+      advanceAfterAction(selectedEmailId, filteredEmails.filter((e) => !ids.includes(e.id)))
+    }
+    let undoClicked = false
+    toast.success(`${ids.length} email${ids.length > 1 ? 's' : ''} archivé${ids.length > 1 ? 's' : ''}`, {
+      duration: 5000,
+      action: {
+        label: "Annuler",
+        onClick: async () => {
+          undoClicked = true
+          await Promise.all(ids.map((id) => unarchiveEmail(id)))
+          setLocalArchivedIds((prev) => {
+            const next = new Set(prev)
+            ids.forEach((id) => next.delete(id))
+            return next
+          })
+          setProcessedCount((c) => Math.max(0, c - ids.length))
+        },
+      },
+      onAutoClose: () => { if (!undoClicked) router.refresh() },
+    })
+  }
+
+  const handleBulkTrash = async () => {
+    if (!selectedIds.size || isBulkActioning) return
+    const ids = Array.from(selectedIds)
+    setIsBulkActioning(true)
+    const result = await trashManyEmails(ids)
+    setIsBulkActioning(false)
+    if (!result.success) {
+      toast.error("Échec de la suppression groupée.")
+      return
+    }
+    setLocalArchivedIds((prev) => new Set([...prev, ...ids]))
+    setSelectedIds(new Set())
+    setProcessedCount((c) => c + ids.length)
+    if (selectedEmailId && ids.includes(selectedEmailId)) {
+      advanceAfterAction(selectedEmailId, filteredEmails.filter((e) => !ids.includes(e.id)))
+    }
+    let undoClicked = false
+    toast.success(`${ids.length} email${ids.length > 1 ? 's' : ''} supprimé${ids.length > 1 ? 's' : ''}`, {
+      duration: 5000,
+      action: {
+        label: "Annuler",
+        onClick: async () => {
+          undoClicked = true
+          await Promise.all(ids.map((id) => unarchiveEmail(id)))
+          setLocalArchivedIds((prev) => {
+            const next = new Set(prev)
+            ids.forEach((id) => next.delete(id))
+            return next
+          })
+          setProcessedCount((c) => Math.max(0, c - ids.length))
+        },
+      },
+      onAutoClose: () => { if (!undoClicked) router.refresh() },
+    })
+  }
+
   useEffect(() => {
     const supabase = createClient()
     let isMounted = true
@@ -438,6 +532,33 @@ export function InboxShell({
     }
   }, [filteredEmails, selectedEmailId])
 
+  // Keyboard shortcuts (placed after filteredEmails declaration)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return
+      switch (e.key) {
+        case 'e': e.preventDefault(); handleArchive(); break
+        case '#': e.preventDefault(); handleTrash(); break
+        case 'u': e.preventDefault(); handleMarkUnread(); break
+        case 's':
+          e.preventDefault()
+          if (selectedEmailId) {
+            const email = filteredEmails.find((em) => em.id === selectedEmailId)
+            if (email) {
+              const isStarred = localStarred.has(email.id) ? localStarred.get(email.id)! : email.is_starred
+              handleToggleStar(email.id, isStarred)
+            }
+          }
+          break
+        case 'c': e.preventDefault(); setComposeOpen(true); break
+        case '?': e.preventDefault(); setShowShortcuts(true); break
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmailId, filteredEmails, localStarred])
+
   const selectedEmail = filteredEmails.find((email) => email.id === selectedEmailId) ?? null
   const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Expéditeur inconnu"
   const selectedSenderEmail = selectedEmail?.from_email ?? "Pas d'adresse email"
@@ -508,14 +629,40 @@ export function InboxShell({
               groupedEmails.map((group) => (
                 <div key={group.category} className="border-b last:border-b-0">
                   <div className="sticky top-0 z-10 flex items-center justify-between border-y bg-sidebar/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-sidebar/80">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {group.label}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        aria-label="Tout sélectionner"
+                        className="h-3.5 w-3.5 cursor-pointer rounded"
+                        checked={group.emails.every((e) => selectedIds.has(e.id))}
+                        ref={(el) => {
+                          if (el) {
+                            const someSelected = group.emails.some((e) => selectedIds.has(e.id))
+                            const allSelected = group.emails.every((e) => selectedIds.has(e.id))
+                            el.indeterminate = someSelected && !allSelected
+                          }
+                        }}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev)
+                            group.emails.forEach((em) => {
+                              if (e.target.checked) next.add(em.id)
+                              else next.delete(em.id)
+                            })
+                            return next
+                          })
+                        }}
+                      />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {group.label}
+                      </span>
+                    </div>
                     <span className="text-xs text-muted-foreground">{group.emails.length}</span>
                   </div>
                   {group.emails.map((email) => {
                     const isUnread = (!email.is_read || localUnreadIds.has(email.id)) && !localReadIds.has(email.id)
                     const isStarred = localStarred.has(email.id) ? localStarred.get(email.id)! : email.is_starred
+                    const isChecked = selectedIds.has(email.id)
                     return (
                       <button
                         type="button"
@@ -523,9 +670,25 @@ export function InboxShell({
                         onClick={() => handleSelectEmail(email.id)}
                         className={`group flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-sidebar-accent/70 ${
                           email.id === selectedEmailId ? "bg-sidebar-accent border-l-2 border-l-blue-500" : ""
-                        }`}
+                        } ${isChecked ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
                       >
                         <div className="flex w-full items-center gap-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`Sélectionner ${email.from_name ?? email.from_email ?? 'cet email'}`}
+                            className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            style={{ opacity: isChecked ? 1 : undefined }}
+                            checked={isChecked}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev)
+                                if (e.target.checked) next.add(email.id)
+                                else next.delete(email.id)
+                                return next
+                              })
+                            }}
+                          />
                           {isUnread && (
                             <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Non lu" />
                           )}
@@ -559,6 +722,13 @@ export function InboxShell({
               ))
             )}
           </div>
+          <BulkActionBar
+            selectedCount={selectedIds.size}
+            onArchive={handleBulkArchive}
+            onTrash={handleBulkTrash}
+            onDeselect={() => setSelectedIds(new Set())}
+            isProcessing={isBulkActioning}
+          />
         </div>
 
         {/* Main content area */}
@@ -786,6 +956,7 @@ export function InboxShell({
                       emailFrom={selectedEmail?.from_email ?? ''}
                       emailBody={selectedEmail?.body_text ?? ''}
                       emailSubject={selectedEmail?.subject ?? ''}
+                      signature={signature}
                     />
                   </div>
                 )}
@@ -795,7 +966,8 @@ export function InboxShell({
         </div>
 
         {/* Compose new email sheet */}
-        <ComposeSheet open={composeOpen} onClose={() => setComposeOpen(false)} />
+        <ComposeSheet open={composeOpen} onClose={() => setComposeOpen(false)} signature={signature} />
+        <ShortcutOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
       </div>
     </TooltipProvider>
   )

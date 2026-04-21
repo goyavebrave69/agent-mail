@@ -22,6 +22,7 @@ interface ManualComposeProps {
   isCreating?: boolean
   isStreaming?: boolean
   streamingContent?: string
+  signature?: string
 }
 
 const MAX_LENGTH = 10_000
@@ -43,15 +44,27 @@ export function ManualCompose({
   isCreating = false,
   isStreaming = false,
   streamingContent = '',
+  signature,
 }: ManualComposeProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [pendingCancel, setPendingCancel] = useState(false)
+  const signatureInjectedRef = useRef(false)
 
   useEffect(() => {
     if (!isStreaming) {
       textareaRef.current?.focus()
     }
   }, [isStreaming])
+
+  // Inject signature once on mount when content is empty
+  useEffect(() => {
+    if (signatureInjectedRef.current) return
+    if (signature && !manualContent) {
+      onContentChange(`\n\n-- \n${signature}`)
+      signatureInjectedRef.current = true
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Tab') return

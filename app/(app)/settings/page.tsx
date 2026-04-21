@@ -6,6 +6,8 @@ import { ConnectOutlookButton } from "@/components/shared/connect-outlook-button
 import { ImapConnectForm } from "@/components/shared/imap-connect-form"
 import { DisconnectMailboxButton } from "@/components/shared/disconnect-mailbox-button"
 import { SyncStatusIndicator } from "@/components/shared/sync-status-indicator"
+import { SignatureSettings } from "@/components/settings/signature-settings"
+import { getSignature } from "@/app/(app)/settings/actions"
 
 interface SettingsPageProps {
   searchParams: Promise<{ connected?: string; error?: string }>
@@ -77,6 +79,11 @@ async function ConnectedAccounts() {
   )
 }
 
+async function SignatureSettingsLoader() {
+  const signature = await getSignature()
+  return <SignatureSettings initialSignature={signature} />
+}
+
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const resolvedParams = await searchParams
   const successMessage =
@@ -128,6 +135,14 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         }
       >
         <SyncStatusIndicator />
+      </Suspense>
+
+      <Suspense
+        fallback={
+          <div className="mb-8 h-32 rounded-lg border p-6 animate-pulse bg-muted" />
+        }
+      >
+        <SignatureSettingsLoader />
       </Suspense>
 
       <section className="rounded-lg border border-destructive/30 p-6">

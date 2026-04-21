@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Bold,
   ChevronDown,
@@ -31,9 +31,19 @@ import {
 import { sendNewEmail } from "@/app/(app)/inbox/actions"
 import { toast } from "sonner"
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 interface ComposeSheetProps {
   open: boolean
   onClose: () => void
+  signature?: string
 }
 
 const TOOLBAR_ACTIONS = [
@@ -48,7 +58,7 @@ const LIST_ACTIONS = [
   { icon: ListOrdered, cmd: "insertOrderedList", label: "Liste numérotée" },
 ]
 
-export function ComposeSheet({ open, onClose }: ComposeSheetProps) {
+export function ComposeSheet({ open, onClose, signature }: ComposeSheetProps) {
   const [to, setTo] = useState("")
   const [subject, setSubject] = useState("")
   const [showCcBcc, setShowCcBcc] = useState(false)
@@ -57,6 +67,24 @@ export function ComposeSheet({ open, onClose }: ComposeSheetProps) {
   const [isSending, setIsSending] = useState(false)
   const [toError, setToError] = useState<string | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
+
+  // Inject signature when sheet opens
+  useEffect(() => {
+    if (!open || !editorRef.current) return
+    if (signature) {
+      const sep = `<br><br>-- <br>${escapeHtml(signature).replace(/\n/g, '<br>')}`
+      editorRef.current.innerHTML = sep
+      // Place cursor at the very start (before the separator)
+      const range = document.createRange()
+      const sel = window.getSelection()
+      range.setStart(editorRef.current, 0)
+      range.collapse(true)
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+    }
+  // Run only when the sheet opens or signature changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const getBodyHtml = () => editorRef.current?.innerHTML ?? ""
   const getBodyText = () => editorRef.current?.innerText?.trim() ?? ""
@@ -72,7 +100,11 @@ export function ComposeSheet({ open, onClose }: ComposeSheetProps) {
     setBcc("")
     setShowCcBcc(false)
     setToError(null)
-    if (editorRef.current) editorRef.current.innerHTML = ""
+    if (editorRef.current) {
+      editorRef.current.innerHTML = signature
+        ? `<br><br>-- <br>${escapeHtml(signature).replace(/\n/g, '<br>')}`
+        : ""
+    }
     onClose()
   }
 

@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: 5-16-sprint-2-efficiency review (2026-04-21)
+
+- **Select-all ne couvre pas les emails hors filtres** (`inbox-shell.tsx`) — Le header checkbox sélectionne `filteredEmails` uniquement ; si l'utilisateur change de filtre après une sélection partielle, les IDs sélectionnés peuvent ne plus correspondre à ce qui est visible. Comportement acceptable actuellement ; à revisiter si la navigation par filtre devient fluide (Sprint 3).
+- **`handleBulkArchive` / `handleBulkTrash` await bloquant** (`inbox-shell.tsx`) — L'action DB est attendue avant l'update optimiste. Pour N emails élevé (>50), la latence est perceptible. Inverser l'ordre (optimiste d'abord, rollback sur erreur) est une amélioration de perf future.
+- **Keyboard handler stale closure sur `localStarred`** (`inbox-shell.tsx`) — Le `useEffect` du keyboard handler dépend de `localStarred` dans ses deps, ce qui re-crée le handler à chaque toggle d'étoile. Acceptable mais peut être optimisé avec `useRef` pour `localStarred`.
+
 ## Deferred from: 5-15-sprint-1-inbox-fundamentals review (2026-04-21)
 
 - **`document.execCommand` deprecated** (`compose-sheet.tsx`) — Fonctionnel aujourd'hui mais déprécié. Remplacement par Tiptap/ProseMirror nécessite une décision sur les dépendances (contrainte "no new UI deps"). À adresser en Sprint 2 ou Sprint 3.
