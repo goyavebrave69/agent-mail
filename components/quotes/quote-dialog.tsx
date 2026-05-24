@@ -22,7 +22,7 @@ interface QuoteDialogProps {
   emailBody: string
   emailSubject: string
   onNotifyClient?: () => void
-  onQuoteReady?: (contentBase64: string, filename: string) => void
+  onQuoteReady?: (contentBase64: string, filename: string, quoteData: QuoteData, totals: QuoteTotals) => void
 }
 
 function computeTotals(quoteData: QuoteData): QuoteTotals {
@@ -216,8 +216,9 @@ export function QuoteDialog({
       for (const byte of uint8) binary += String.fromCharCode(byte)
       const contentBase64 = btoa(binary)
       const filename = `devis-${quoteData.quoteNumber}.pdf`
+      const totals = computeTotals(quoteData)
 
-      onQuoteReady?.(contentBase64, filename)
+      onQuoteReady?.(contentBase64, filename, quoteData, totals)
       onClose()
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : 'Erreur inattendue.')

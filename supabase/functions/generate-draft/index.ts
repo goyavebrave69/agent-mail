@@ -122,6 +122,16 @@ deno.serve(async (req: Request): Promise<Response> => {
   let userId: string
   let emailContent: string | null = null
   let instruction: string | null = null
+  let quoteContext: {
+    quoteData: {
+      quoteNumber: string
+      date: string
+      client: { name: string }
+      lineItems: Array<{ description: string; quantity: number; unitPrice: number }>
+      business: { currency: string; taxRate: number; paymentTerms: string }
+    }
+    totals: { subtotalHT: number; taxAmount: number; totalTTC: number }
+  } | null = null
 
   try {
     const body = (await req.json()) as {
@@ -130,6 +140,7 @@ deno.serve(async (req: Request): Promise<Response> => {
       emailContent?: string | null
       instruction?: string | null
       isRegeneration?: boolean
+      quoteContext?: typeof quoteContext
     }
     if (!body.emailId || !body.userId) {
       throw new Error('Missing emailId or userId in request body')
@@ -140,6 +151,7 @@ deno.serve(async (req: Request): Promise<Response> => {
     instruction = typeof body.instruction === 'string'
       ? body.instruction.trim().slice(0, 200) || null
       : null
+    quoteContext = body.quoteContext ?? null
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), { status: 400 })
   }
@@ -222,7 +234,7 @@ deno.serve(async (req: Request): Promise<Response> => {
       emailContent,
       kbChunks,
       openAiApiKey,
-      { instruction, userProfile }
+      { instruction, userProfile, quoteContext }
     )
 
     if ('error' in result) {

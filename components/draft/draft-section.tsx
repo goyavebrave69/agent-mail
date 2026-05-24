@@ -18,6 +18,7 @@ import {
   fetchDraftForEmail,
 } from '@/app/(app)/inbox/[emailId]/actions'
 import type { Draft } from '@/types/draft'
+import type { QuoteData, QuoteTotals } from '@/lib/quotes/types'
 
 interface DraftSectionProps {
   emailId: string
@@ -34,6 +35,8 @@ type PendingAttachment = {
   contentBase64: string
   filename: string
   contentType: string
+  quoteData: QuoteData
+  totals: QuoteTotals
 }
 
 export function DraftSection({ emailId, userId, responseType, confidenceScore, emailFrom = '', emailBody = '', emailSubject = '', signature }: DraftSectionProps) {
@@ -152,8 +155,8 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
   )
 
   const handleQuoteReady = useCallback(
-    (contentBase64: string, filename: string) => {
-      setPendingAttachment({ contentBase64, filename, contentType: 'application/pdf' })
+    (contentBase64: string, filename: string, quoteData: QuoteData, totals: QuoteTotals) => {
+      setPendingAttachment({ contentBase64, filename, contentType: 'application/pdf', quoteData, totals })
       if (!isComposing) {
         startComposing('reply', { to: emailFrom, subject: `Devis — ${emailSubject}`, quotedBody: '' })
       }
@@ -163,7 +166,10 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
 
   const handleCreateDraft = useCallback(async () => {
     startCreating()
-    const result = await createDraftOnDemand(emailId)
+    const result = await createDraftOnDemand(emailId, pendingAttachment
+      ? { quoteData: pendingAttachment.quoteData, totals: pendingAttachment.totals }
+      : undefined
+    )
     if (!result.success) {
       failCreating(result.error ?? 'Failed to start draft generation.')
       return
@@ -178,7 +184,7 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
     } finally {
       clearCreating()
     }
-  }, [emailId, startCreating, failCreating, clearCreating, startTypewriter])
+  }, [emailId, pendingAttachment, startCreating, failCreating, clearCreating, startTypewriter])
 
   if (!isComposing && !(responseType === 'pdf_required' && !pdfIgnored)) return null
 

@@ -330,7 +330,18 @@ export async function rejectDraft(draftId: string): Promise<RejectDraftResult> {
 
 // ─── Create draft on demand ───────────────────────────────────────────────────
 
-export async function createDraftOnDemand(emailId: string): Promise<CreateDraftResult> {
+export interface QuoteContext {
+  quoteData: {
+    quoteNumber: string
+    date: string
+    client: { name: string }
+    lineItems: Array<{ description: string; quantity: number; unitPrice: number }>
+    business: { currency: string; taxRate: number; paymentTerms: string }
+  }
+  totals: { subtotalHT: number; taxAmount: number; totalTTC: number }
+}
+
+export async function createDraftOnDemand(emailId: string, quoteContext?: QuoteContext): Promise<CreateDraftResult> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -389,7 +400,7 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
       },
-      body: JSON.stringify({ emailId, userId: user.id }),
+      body: JSON.stringify({ emailId, userId: user.id, quoteContext: quoteContext ?? null }),
     }
   )
 

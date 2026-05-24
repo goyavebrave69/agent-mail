@@ -14,7 +14,7 @@ export interface DraftGenerationError {
 const MAX_BODY_CHARS = 4000
 const OPENAI_TIMEOUT_MS = 30_000
 
-function buildSystemPrompt(userProfile: string | null, hasKbContext: boolean): string {
+function buildSystemPrompt(userProfile: string | null, hasKbContext: boolean, hasQuoteContext = false): string {
   const sections: string[] = []
 
   sections.push(`# Rôle
@@ -37,6 +37,17 @@ ${userProfile.trim()}
 Des extraits de la base de connaissances de l'utilisateur sont fournis dans les balises <base_connaissances>.
 Utilise ces informations pour personnaliser la réponse si elles sont pertinentes.
 Ne les invente pas — utilise uniquement ce qui est fourni.`)
+  }
+
+  if (hasQuoteContext) {
+    sections.push(`# Devis en pièce jointe
+Un devis PDF a été généré et sera envoyé en pièce jointe avec cet email.
+Les détails du devis sont fournis dans les balises <devis_joint>.
+Tu dois rédiger un email d'accompagnement professionnel qui :
+- Annonce que le devis est joint en pièce jointe
+- Fait référence au numéro de devis et aux produits/prestations demandés
+- NE PROMET JAMAIS d'envoyer un devis dans un second temps — il est déjà joint
+- Invite le destinataire à revenir en cas de questions`)
   }
 
   sections.push(`# Format de réponse OBLIGATOIRE
@@ -71,7 +82,8 @@ function buildUserMessage(
   emailFrom: string | null,
   emailBody: string | null,
   kbChunks: Array<{ content: string; similarity: number }>,
-  instruction: string | null | undefined
+  instruction: string | null | undefined,
+  quoteContext?: QuoteContextForDraft | null
 ): string {
   const parts: string[] = []
 
@@ -93,13 +105,42 @@ function buildUserMessage(
   }
   parts.push('</email_recu>')
 
+  if (quoteContext) {
+    const { quoteData, totals } = quoteContext
+    const currency = quoteData.business.currency ?? 'EUR'
+    const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const lines = quoteData.lineItems
+      .map((item) => `- ${item.description} : ${item.quantity} × ${fmt(item.unitPrice)} ${currency}`)
+      .join('\n')
+
+    parts.push('')
+    parts.push(`<devis_joint>
+Numéro de devis : ${quoteData.quoteNumber}
+Date : ${quoteData.date}
+Client : ${quoteData.client.name}
+
+Lignes :
+${lines}
+
+Sous-total HT : ${fmt(totals.subtotalHT)} ${currency}
+TVA (${quoteData.business.taxRate}%) : ${fmt(totals.taxAmount)} ${currency}
+Total TTC : ${fmt(totals.totalTTC)} ${currency}
+
+Conditions de paiement : ${quoteData.business.paymentTerms}
+</devis_joint>`)
+  }
+
   if (instruction) {
     parts.push('')
     parts.push(`<user_instruction>${instruction.slice(0, 500)}</user_instruction>`)
   }
 
   parts.push('')
-  parts.push('Rédige une réponse à cet email en respectant le format OBLIGATOIRE défini dans tes instructions.')
+  if (quoteContext) {
+    parts.push('Le devis ci-dessus est joint en pièce jointe PDF. Rédige un email d\'accompagnement qui annonce ce devis, en faisant référence à son numéro et aux éléments demandés. NE PROMETS PAS d\'envoyer un devis : il est déjà en pièce jointe.')
+  } else {
+    parts.push('Rédige une réponse à cet email en respectant le format OBLIGATOIRE défini dans tes instructions.')
+  }
 
   return parts.join('\n')
 }
@@ -137,6 +178,17 @@ function calculateConfidenceScore(
   return Math.min(100, Math.max(0, score))
 }
 
+interface QuoteContextForDraft {
+  quoteData: {
+    quoteNumber: string
+    date: string
+    client: { name: string }
+    lineItems: Array<{ description: string; quantity: number; unitPrice: number }>
+    business: { currency: string; taxRate: number; paymentTerms: string }
+  }
+  totals: { subtotalHT: number; taxAmount: number; totalTTC: number }
+}
+
 export async function generateDraft(
   emailSubject: string | null,
   emailFrom: string | null,
@@ -146,13 +198,15 @@ export async function generateDraft(
   options?: {
     userProfile?: string | null
     instruction?: string | null
+    quoteContext?: QuoteContextForDraft | null
   }
 ): Promise<DraftGenerationResult | DraftGenerationError> {
   const userProfile = options?.userProfile ?? null
   const instruction = options?.instruction ?? null
+  const quoteContext = options?.quoteContext ?? null
 
-  const systemPrompt = buildSystemPrompt(userProfile, kbChunks.length > 0)
-  const userMessage = buildUserMessage(emailSubject, emailFrom, emailBody, kbChunks, instruction)
+  const systemPrompt = buildSystemPrompt(userProfile, kbChunks.length > 0, quoteContext !== null)
+  const userMessage = buildUserMessage(emailSubject, emailFrom, emailBody, kbChunks, instruction, quoteContext)
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS)
