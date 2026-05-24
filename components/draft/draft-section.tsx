@@ -48,7 +48,6 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
     composeMode,
     composeTo,
     composeSubject,
-    composeQuotedBody,
     manualContent,
     isSendingManual,
     sendManualError,
@@ -122,12 +121,7 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
   const handleSendManual = useCallback(
     async (content: string) => {
       optimisticSendManual()
-      const separator = composeMode === 'forward'
-        ? '\n\n---------- Message transféré ----------\n\n'
-        : '\n\n---------- Message original ----------\n\n'
-      const fullContent = composeQuotedBody
-        ? `${content}${separator}${composeQuotedBody}`
-        : content
+      const fullContent = content
       const result = await sendManualReply(emailId, fullContent, {
         to: composeTo,
         subject: composeSubject,
@@ -139,7 +133,7 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
         failSendManual(result.error ?? 'Failed to send reply.')
       }
     },
-    [emailId, composeTo, composeSubject, composeMode, composeQuotedBody, optimisticSendManual, confirmSendManual, failSendManual]
+    [emailId, composeTo, composeSubject, composeMode, optimisticSendManual, confirmSendManual, failSendManual]
   )
 
   const handleCreateDraft = useCallback(async () => {
@@ -161,21 +155,21 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
     }
   }, [emailId, startCreating, failCreating, clearCreating, startTypewriter])
 
-  if (!isComposing) return null
+  if (!isComposing && !(responseType === 'pdf_required' && !pdfIgnored)) return null
 
   return (
     <div className="space-y-3">
-      {confidenceScore != null && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>✨ Brouillon généré par IA</span>
-          <ConfidenceBadge score={confidenceScore} size="sm" showLabel={false} />
-        </div>
-      )}
       {responseType === 'pdf_required' && !pdfIgnored && (
         <PdfConfirmationBlock
           onGenerate={() => setQuoteDialogOpen(true)}
           onIgnore={() => setPdfIgnored(true)}
         />
+      )}
+      {isComposing && confidenceScore != null && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>✨ Brouillon généré par IA</span>
+          <ConfidenceBadge score={confidenceScore} size="sm" showLabel={false} />
+        </div>
       )}
       <QuoteDialog
         open={quoteDialogOpen}
@@ -189,35 +183,38 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
           void handleCreateDraft()
         }}
       />
-      <ManualCompose
-        emailId={emailId}
-        mode={composeMode}
-        composeTo={composeTo}
-        composeSubject={composeSubject}
-        composeQuotedBody={composeQuotedBody}
-        onToChange={updateComposeTo}
-        onSubjectChange={updateComposeSubject}
-        onSend={handleSendManual}
-        onCancel={cancelComposing}
-        isSending={isSendingManual}
-        sendError={sendManualError}
-        manualContent={manualContent}
-        onContentChange={updateManualContent}
-        onCreateDraft={handleCreateDraft}
-        isCreating={isCreating}
-        isStreaming={isStreaming}
-        streamingContent={streamingContent}
-        signature={signature}
-      />
-      {createError && (
-        <div
-          className="rounded-lg border border-destructive/50 bg-destructive/10 p-3"
-          role="alert"
-        >
-          <p className="text-sm font-medium text-destructive">{createError}</p>
-        </div>
+      {isComposing && (
+        <>
+          <ManualCompose
+            emailId={emailId}
+            mode={composeMode}
+            composeTo={composeTo}
+            composeSubject={composeSubject}
+            onToChange={updateComposeTo}
+            onSubjectChange={updateComposeSubject}
+            onSend={handleSendManual}
+            onCancel={cancelComposing}
+            isSending={isSendingManual}
+            sendError={sendManualError}
+            manualContent={manualContent}
+            onContentChange={updateManualContent}
+            onCreateDraft={handleCreateDraft}
+            isCreating={isCreating}
+            isStreaming={isStreaming}
+            streamingContent={streamingContent}
+            signature={signature}
+          />
+          {createError && (
+            <div
+              className="rounded-lg border border-destructive/50 bg-destructive/10 p-3"
+              role="alert"
+            >
+              <p className="text-sm font-medium text-destructive">{createError}</p>
+            </div>
+          )}
+          <DraftRealtime draftId={null} userId={userId} onDraftUpdate={handleDraftUpdate} />
+        </>
       )}
-      <DraftRealtime draftId={null} userId={userId} onDraftUpdate={handleDraftUpdate} />
     </div>
   )
 }

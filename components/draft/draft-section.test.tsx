@@ -44,9 +44,9 @@ describe('DraftSection — not composing', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('does not show PDF block when not composing even if responseType is pdf_required', () => {
-    const { container } = render(<DraftSection {...defaultProps} responseType="pdf_required" />)
-    expect(container).toBeEmptyDOMElement()
+  it('shows PDF block when not composing but responseType is pdf_required', () => {
+    render(<DraftSection {...defaultProps} responseType="pdf_required" />)
+    expect(screen.getByText(/nécessiter un devis/i)).toBeInTheDocument()
   })
 })
 

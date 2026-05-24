@@ -36,7 +36,7 @@
 
 generated: 2026-03-27
 
-last_updated: 2026-04-09T13:20:00Z
+last_updated: 2026-05-24T07:00:00Z
 project: mail-agent
 project_key: NOKEY
 tracking_system: file-system
@@ -87,6 +87,10 @@ development_status:
   5-10-custom-category-management-modal: review
   5-11-functional-mail-action-buttons: review
   5-12-manual-draft-button-next-to-send: review
+  5-14-quote-generation-pdf-workflow: review
+  5-15-sprint-1-inbox-fundamentals: done
+  5-16-sprint-2-efficiency: in-review
+  5-17-quote-flow-ux-fixes: ready-for-dev
   epic-5-retrospective: optional
 
   epic-6: backlog

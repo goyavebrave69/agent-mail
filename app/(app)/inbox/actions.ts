@@ -270,6 +270,34 @@ export async function sendNewEmail(params: SendNewEmailParams): Promise<SendEmai
   return result
 }
 
+export async function triggerSyncAction(): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Unauthorized" }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceRoleKey) {
+    return { success: false, error: "Missing env vars" }
+  }
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/sync-emails`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+    },
+  })
+
+  if (!res.ok) {
+    return { success: false, error: `Sync failed: ${res.status}` }
+  }
+
+  return { success: true }
+}
+
 export async function reorderCustomCategoriesAction(
   orderedIds: string[]
 ): Promise<MutateCustomCategoryResult> {

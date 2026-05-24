@@ -18,7 +18,7 @@ function getScoreConfig(score: number) {
   }
   if (score >= 70) {
     return {
-      className: 'bg-blue-100 text-blue-800',
+      className: 'bg-indigo-100 text-indigo-700',
       label: 'Bonne confiance',
       pulse: false,
     }

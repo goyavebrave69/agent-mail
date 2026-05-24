@@ -237,7 +237,7 @@ describe("InboxShell — selection behavior during filtering", () => {
 
     await waitFor(() => {
       const firstButton = screen.getByRole("button", { name: /Alice/i })
-      expect(firstButton).toHaveClass("bg-sidebar-accent")
+      expect(firstButton).toHaveClass("bg-primary/8")
     })
   })
 
@@ -261,7 +261,7 @@ describe("InboxShell — selection behavior during filtering", () => {
 
     await waitFor(() => {
       const bobButton = screen.getByRole("button", { name: /Bob/i })
-      expect(bobButton).toHaveClass("bg-sidebar-accent")
+      expect(bobButton).toHaveClass("bg-primary/8")
     })
   })
 
@@ -286,7 +286,7 @@ describe("InboxShell — selection behavior during filtering", () => {
     await waitFor(() => {
       expect(screen.queryByText("Bob")).not.toBeInTheDocument()
       const aliceButton = screen.getByRole("button", { name: /Alice/i })
-      expect(aliceButton).toHaveClass("bg-sidebar-accent")
+      expect(aliceButton).toHaveClass("bg-primary/8")
     })
   })
 })

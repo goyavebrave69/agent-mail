@@ -9,7 +9,6 @@ interface ManualComposeProps {
   mode: ComposeMode | null
   composeTo: string
   composeSubject: string
-  composeQuotedBody: string
   onToChange: (to: string) => void
   onSubjectChange: (subject: string) => void
   onSend: (content: string) => void
@@ -31,7 +30,6 @@ export function ManualCompose({
   mode,
   composeTo,
   composeSubject,
-  composeQuotedBody,
   onToChange,
   onSubjectChange,
   onSend,
@@ -160,17 +158,6 @@ export function ManualCompose({
         />
       )}
 
-      {/* Quoted original email */}
-      {composeQuotedBody && (
-        <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-3 text-sm">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">
-            {mode === 'forward' ? '---------- Message transféré ----------' : '---------- Message original ----------'}
-          </p>
-          <div className="whitespace-pre-wrap break-words text-muted-foreground leading-relaxed">
-            {composeQuotedBody}
-          </div>
-        </div>
-      )}
 
       {sendError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3" role="alert">
@@ -179,13 +166,13 @@ export function ManualCompose({
       )}
 
       {pendingCancel && (
-        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/50 dark:bg-amber-950/20">
-          <span className="text-amber-800 dark:text-amber-200">Perdre le brouillon ?</span>
+        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+          <span className="text-amber-800">Perdre le brouillon ?</span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setPendingCancel(false)}
-              className="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:text-amber-300"
+              className="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
             >
               Non
             </button>
@@ -224,7 +211,7 @@ export function ManualCompose({
         <button
           onClick={() => onSend(manualContent)}
           disabled={isDisabled}
-          className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label={`Send ${modeLabel.toLowerCase()}`}
         >
           {isSending ? 'Envoi…' : modeLabel}

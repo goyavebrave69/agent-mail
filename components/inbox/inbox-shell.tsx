@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   Archive,
@@ -8,6 +8,7 @@ import {
   Forward,
   MailOpen,
   PenSquare,
+  RefreshCw,
   Reply,
   ReplyAll,
   Star,
@@ -30,6 +31,7 @@ import {
   trashManyEmails,
   unarchiveEmail,
 } from "@/app/(app)/inbox/[emailId]/actions"
+import { triggerSyncAction } from "@/app/(app)/inbox/actions"
 import { getSignature } from "@/app/(app)/settings/actions"
 import { BulkActionBar } from "@/components/inbox/bulk-action-bar"
 import { ShortcutOverlay } from "@/components/inbox/shortcut-overlay"
@@ -120,6 +122,17 @@ function EmailBodyRenderer({ html, text }: { html: string | null; text: string |
   return <p className="text-sm text-muted-foreground">Corps non disponible pour cet email.</p>
 }
 
+const CATEGORY_BADGE_COLORS: Record<string, string> = {
+  devis:        "bg-violet-50 text-violet-600 border-violet-200",
+  factures:     "bg-orange-50 text-orange-600 border-orange-200",
+  litiges:      "bg-red-50 text-red-600 border-red-200",
+  informations: "bg-blue-50 text-blue-600 border-blue-200",
+}
+
+function getCategoryBadgeClass(slug: string): string {
+  return CATEGORY_BADGE_COLORS[slug.toLowerCase()] ?? "bg-muted text-muted-foreground border-border"
+}
+
 function getSenderInitials(sender: string): string {
   const tokens = sender.trim().split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return "?"
@@ -160,6 +173,7 @@ export function InboxShell({
   const [isBulkActioning, setIsBulkActioning] = useState(false)
   const [signature, setSignature] = useState("")
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [isRefreshing, startRefreshTransition] = useTransition()
 
   // Fetch email signature once on mount
   useEffect(() => {
@@ -495,7 +509,7 @@ export function InboxShell({
 
   const filteredEmails = useMemo(() => {
     const searchQuery = search.trim().toLowerCase()
-    return emails.filter((email) => {
+    const result = emails.filter((email) => {
       if (localArchivedIds.has(email.id)) return false
       const isRead = (email.is_read || localReadIds.has(email.id)) && !localUnreadIds.has(email.id)
       if (showUnreadOnly && isRead && email.id !== selectedEmailId) return false
@@ -512,7 +526,12 @@ export function InboxShell({
         bodyPreview.includes(searchQuery)
       )
     })
-  }, [emails, search, showUnreadOnly, localReadIds, localUnreadIds, localArchivedIds, selectedEmailId])
+    // En vue "Toutes" (activeCategory === null), trier par date décroissante
+    if (activeCategory === null) {
+      result.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime())
+    }
+    return result
+  }, [emails, search, showUnreadOnly, localReadIds, localUnreadIds, localArchivedIds, selectedEmailId, activeCategory])
 
   useEffect(() => {
     if (filteredEmails.length === 0) {
@@ -566,28 +585,39 @@ export function InboxShell({
     }).length
   , [emails, localArchivedIds, localUnreadIds, localReadIds])
 
+  const handleRefresh = useCallback(() => {
+    startRefreshTransition(async () => {
+      await triggerSyncAction()
+      router.refresh()
+    })
+  }, [router, startRefreshTransition])
+
   const selectedEmail = filteredEmails.find((email) => email.id === selectedEmailId) ?? null
   const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Expéditeur inconnu"
   const selectedSenderEmail = selectedEmail?.from_email ?? "Pas d'adresse email"
 
-  const groupedEmails = useMemo(() => {
-    const slugToName = new Map(customCategoriesState.map((c) => [c.slug, c.name]))
-    const groups = new Map<string, { label: string; emails: InboxEmail[] }>()
+  const categoryLabelMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const cat of customCategoriesState) map.set(cat.slug, cat.name)
+    map.set("inbox", "Boîte de réception")
+    return map
+  }, [customCategoriesState])
 
+  const groupedEmails = useMemo(() => {
+    if (activeCategory === null) return []
+    const groups = new Map<string, { label: string; emails: InboxEmail[] }>()
     for (const cat of customCategoriesState) {
       groups.set(cat.slug, { label: cat.name, emails: [] })
     }
     groups.set("inbox", { label: "Boîte de réception", emails: [] })
-
     for (const email of filteredEmails) {
-      const key = slugToName.has(email.category) ? email.category : "inbox"
+      const key = categoryLabelMap.has(email.category) ? email.category : "inbox"
       groups.get(key)!.emails.push(email)
     }
-
     return Array.from(groups.entries())
       .filter(([, g]) => g.emails.length > 0)
       .map(([category, g]) => ({ category, label: g.label, emails: g.emails }))
-  }, [filteredEmails, customCategoriesState])
+  }, [filteredEmails, customCategoriesState, activeCategory, categoryLabelMap])
 
   return (
     <TooltipProvider delayDuration={600}>
@@ -615,6 +645,20 @@ export function InboxShell({
                   <Button
                     variant="ghost"
                     size="icon"
+                    onClick={handleRefresh}
+                    aria-label="Actualiser"
+                    disabled={isRefreshing}
+                  >
+                    <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Actualiser</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setComposeOpen(true)}
                     aria-label="Nouveau message"
                   >
@@ -636,7 +680,82 @@ export function InboxShell({
           <div className="flex-1 overflow-y-auto">
             {filteredEmails.length === 0 ? (
               <InboxZeroState processedCount={processedCount} />
+            ) : activeCategory === null ? (
+              /* ── Vue "Toutes" : liste plate triée par date + badge catégorie ── */
+              filteredEmails.map((email) => {
+                const isUnread = (!email.is_read || localUnreadIds.has(email.id)) && !localReadIds.has(email.id)
+                const isStarred = localStarred.has(email.id) ? localStarred.get(email.id)! : email.is_starred
+                const isChecked = selectedIds.has(email.id)
+                const catLabel = categoryLabelMap.get(email.category)
+                const showCatBadge = email.category !== "inbox" && catLabel
+                return (
+                  <button
+                    type="button"
+                    key={email.id}
+                    onClick={() => handleSelectEmail(email.id)}
+                    className={`group flex w-full flex-col items-start gap-1.5 border-b px-4 py-3 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-muted/50 ${
+                      email.id === selectedEmailId ? "bg-primary/8 border-l-2 border-l-primary" : ""
+                    } ${isChecked ? "bg-primary/5" : ""} ${isUnread && email.id !== selectedEmailId && !isChecked ? "bg-primary/[0.03]" : ""}`}
+                  >
+                    {/* Ligne 1 : expéditeur + badge + date + étoile */}
+                    <div className="flex w-full items-center gap-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Sélectionner ${email.from_name ?? email.from_email ?? 'cet email'}`}
+                        className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ opacity: isChecked ? 1 : undefined }}
+                        checked={isChecked}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(email.id)
+                            else next.delete(email.id)
+                            return next
+                          })
+                        }}
+                      />
+                      {isUnread && (
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label="Non lu" />
+                      )}
+                      <span className={`truncate text-xs ${isUnread ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                        {email.from_name ?? email.from_email ?? "Expéditeur inconnu"}
+                      </span>
+                      {showCatBadge && (
+                        <span className={`shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium ${getCategoryBadgeClass(email.category)}`}>
+                          {catLabel}
+                        </span>
+                      )}
+                      <span className="ml-auto shrink-0 text-[11px] text-muted-foreground/70" suppressHydrationWarning>
+                        {formatRelativeDate(email.received_at)}
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); handleToggleStar(email.id, isStarred) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleToggleStar(email.id, isStarred) } }}
+                        className={`shrink-0 transition-opacity cursor-pointer ${isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"}`}
+                        aria-label={isStarred ? "Retirer des favoris" : "Ajouter aux favoris"}
+                      >
+                        <Star className={`h-3.5 w-3.5 ${isStarred ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+                      </span>
+                    </div>
+                    {/* Ligne 2 : sujet (élément dominant) */}
+                    <span className={`line-clamp-1 text-sm ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>
+                      {email.subject ?? "(sans objet)"}
+                    </span>
+                    {/* Ligne 3 : aperçu avec fade-out */}
+                    <span className="relative block w-full overflow-hidden text-xs leading-snug text-muted-foreground" style={{ maxHeight: "2.6em" }}>
+                      <span className="line-clamp-2">
+                        {email.body_text?.trim() ?? "Aucun aperçu disponible"}
+                      </span>
+                      <span className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent group-hover:from-muted/50" />
+                    </span>
+                  </button>
+                )
+              })
             ) : (
+              /* ── Vue catégorie : groupes par section ── */
               groupedEmails.map((group) => (
                 <div key={group.category} className="border-b last:border-b-0">
                   <div className="sticky top-0 z-10 flex items-center justify-between border-y bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -679,9 +798,9 @@ export function InboxShell({
                         type="button"
                         key={email.id}
                         onClick={() => handleSelectEmail(email.id)}
-                        className={`group flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-muted/60 ${
+                        className={`group flex w-full flex-col items-start gap-1.5 border-b px-4 py-3 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-muted/50 ${
                           email.id === selectedEmailId ? "bg-primary/8 border-l-2 border-l-primary" : ""
-                        } ${isChecked ? "bg-primary/5" : ""}`}
+                        } ${isChecked ? "bg-primary/5" : ""} ${isUnread && email.id !== selectedEmailId && !isChecked ? "bg-primary/[0.03]" : ""}`}
                       >
                         <div className="flex w-full items-center gap-2">
                           <input
@@ -701,12 +820,12 @@ export function InboxShell({
                             }}
                           />
                           {isUnread && (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Non lu" />
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label="Non lu" />
                           )}
-                          <span className={`truncate ${isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"}`}>
+                          <span className={`truncate text-xs ${isUnread ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
                             {email.from_name ?? email.from_email ?? "Expéditeur inconnu"}
                           </span>
-                          <span className="ml-auto shrink-0 text-xs text-muted-foreground" suppressHydrationWarning>
+                          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground/70" suppressHydrationWarning>
                             {formatRelativeDate(email.received_at)}
                           </span>
                           <span
@@ -717,16 +836,17 @@ export function InboxShell({
                             className={`shrink-0 transition-opacity cursor-pointer ${isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"}`}
                             aria-label={isStarred ? "Retirer des favoris" : "Ajouter aux favoris"}
                           >
-                            <Star
-                              className={`h-3.5 w-3.5 ${isStarred ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
-                            />
+                            <Star className={`h-3.5 w-3.5 ${isStarred ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
                           </span>
                         </div>
-                        <span className={`line-clamp-1 ${isUnread ? "font-semibold text-foreground" : "font-normal text-foreground/70"}`}>
+                        <span className={`line-clamp-1 text-sm ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>
                           {email.subject ?? "(sans objet)"}
                         </span>
-                        <span className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                          {email.body_text?.trim() ?? email.from_email ?? "Aucun aperçu disponible"}
+                        <span className="relative block w-full overflow-hidden text-xs leading-snug text-muted-foreground" style={{ maxHeight: "2.6em" }}>
+                          <span className="line-clamp-2">
+                            {email.body_text?.trim() ?? "Aucun aperçu disponible"}
+                          </span>
+                          <span className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent group-hover:from-muted/50" />
                         </span>
                       </button>
                     )

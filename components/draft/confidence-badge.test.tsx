@@ -49,11 +49,11 @@ describe('ConfidenceBadge', () => {
     expect(badge.className).toContain('text-green-800')
   })
 
-  it('applies blue color class for good confidence (70-89)', () => {
+  it('applies indigo color class for good confidence (70-89)', () => {
     render(<ConfidenceBadge score={80} showLabel={false} />)
     const badge = screen.getByRole('status')
-    expect(badge.className).toContain('bg-blue-100')
-    expect(badge.className).toContain('text-blue-800')
+    expect(badge.className).toContain('bg-indigo-100')
+    expect(badge.className).toContain('text-indigo-700')
   })
 
   it('applies amber color class for moderate confidence (50-69)', () => {
