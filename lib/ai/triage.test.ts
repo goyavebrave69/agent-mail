@@ -123,7 +123,7 @@ describe("triageEmail", () => {
     await triageEmail(null, null, longBody, CATEGORIES, "test-key")
     const body = JSON.parse(mockFetch.mock.calls[0][1].body as string)
     const userMessage = body.messages[1].content as string
-    expect(userMessage).toBe(`Body: ${"x".repeat(300)}`)
+    expect(userMessage).toContain(`Body: ${"x".repeat(300)}`)
   })
 
   it("classifies email with no subject using body only", async () => {

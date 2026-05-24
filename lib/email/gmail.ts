@@ -19,22 +19,61 @@ function encodeBase64Url(input: string): string {
     .replace(/=+$/g, '')
 }
 
+const BOUNDARY = '==MailAgentBoundary=='
+
+/** Strip CR and LF to prevent email header injection (CRLF injection) */
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]/g, '')
+}
+
 function buildRfc2822Message(credentials: GmailCredentials, params: SendEmailParams): string {
-  const lines = [
-    `To: ${params.to}`,
-    `From: ${params.from ?? credentials.email ?? 'me'}`,
-    `Subject: ${params.subject}`,
-    'Content-Type: text/plain; charset=UTF-8',
+  const hasAttachments = params.attachments && params.attachments.length > 0
+
+  const headers = [
+    `To: ${sanitizeHeader(params.to)}`,
+    `From: ${sanitizeHeader(params.from ?? credentials.email ?? 'me')}`,
+    `Subject: ${sanitizeHeader(params.subject)}`,
     'MIME-Version: 1.0',
   ]
 
   if (params.replyToMessageId) {
-    lines.push(`In-Reply-To: ${params.replyToMessageId}`)
-    lines.push(`References: ${params.replyToMessageId}`)
+    headers.push(`In-Reply-To: ${sanitizeHeader(params.replyToMessageId)}`)
+    headers.push(`References: ${sanitizeHeader(params.replyToMessageId)}`)
   }
 
-  lines.push('', params.body)
-  return lines.join('\r\n')
+  const bodyContentType = params.isHtml ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8'
+
+  if (!hasAttachments) {
+    headers.push(`Content-Type: ${bodyContentType}`)
+    return [...headers, '', params.body].join('\r\n')
+  }
+
+  // Multipart message with attachments
+  headers.push(`Content-Type: multipart/mixed; boundary="${BOUNDARY}"`)
+  const parts: string[] = [
+    ...headers,
+    '',
+    `--${BOUNDARY}`,
+    `Content-Type: ${bodyContentType}`,
+    '',
+    params.body,
+  ]
+
+  for (const att of params.attachments!) {
+    parts.push(`--${BOUNDARY}`)
+    parts.push(`Content-Type: ${sanitizeHeader(att.contentType)}`)
+    parts.push(`Content-Disposition: attachment; filename="${sanitizeHeader(att.filename)}"`)
+    parts.push('Content-Transfer-Encoding: base64')
+    parts.push('')
+    // Chunk base64 at 76 chars per line (RFC 2045)
+    const b64 = att.contentBase64
+    for (let i = 0; i < b64.length; i += 76) {
+      parts.push(b64.slice(i, i + 76))
+    }
+  }
+
+  parts.push(`--${BOUNDARY}--`)
+  return parts.join('\r\n')
 }
 
 /**

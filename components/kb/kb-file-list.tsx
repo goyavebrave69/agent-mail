@@ -10,9 +10,9 @@ interface KbFileListProps {
 }
 
 const STATUS_BADGE: Record<KbFile["status"], { label: string; className: string }> = {
-  pending: { label: "Indexing…", className: "bg-yellow-100 text-yellow-800" },
-  ready: { label: "Ready", className: "bg-green-100 text-green-800" },
-  error: { label: "Error", className: "bg-red-100 text-red-800" },
+  pending: { label: "Indexation…", className: "bg-yellow-100 text-yellow-800" },
+  ready: { label: "Prêt", className: "bg-primary/10 text-primary" },
+  error: { label: "Erreur", className: "bg-red-100 text-red-800" },
 }
 
 function formatBytes(bytes: number): string {
@@ -61,7 +61,7 @@ export function KbFileList({ files }: KbFileListProps) {
         router.refresh()
       }
     } catch {
-      setDeleteError("Failed to delete file. Please try again.")
+      setDeleteError("Impossible de supprimer le fichier. Veuillez réessayer.")
     } finally {
       setIsDeletingId(null)
     }
@@ -70,14 +70,14 @@ export function KbFileList({ files }: KbFileListProps) {
   if (files.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No files uploaded yet. Upload a CSV or Excel file above.
+        Aucun fichier importé. Importez un fichier CSV ou Excel ci-dessus.
       </p>
     )
   }
 
   return (
     <section>
-      <h2 className="mb-3 text-base font-semibold">Uploaded Files</h2>
+      <h2 className="mb-3 text-base font-semibold">Fichiers importés</h2>
       {retryError && (
         <p className="mb-2 text-xs text-destructive">{retryError}</p>
       )}
@@ -88,10 +88,10 @@ export function KbFileList({ files }: KbFileListProps) {
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/40">
             <tr>
-              <th className="px-4 py-2 text-left font-medium text-muted-foreground">File</th>
-              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Uploaded</th>
-              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Size</th>
-              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Status</th>
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Fichier</th>
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Importé</th>
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Taille</th>
+              <th className="px-4 py-2 text-left font-medium text-muted-foreground">Statut</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -123,23 +123,23 @@ export function KbFileList({ files }: KbFileListProps) {
                           disabled={isPending || isDeleting}
                           className="text-xs text-primary underline hover:no-underline disabled:opacity-50"
                         >
-                          {isPending ? "Retrying…" : "Retry"}
+                          {isPending ? "Nouvelle tentative…" : "Réessayer"}
                         </button>
                       )}
                       {isConfirming ? (
                         <span className="flex items-center gap-1 text-xs">
-                          <span className="text-muted-foreground">Sure?</span>
+                          <span className="text-muted-foreground">Confirmer ?</span>
                           <button
                             onClick={() => handleDeleteConfirm(file.id)}
                             className="text-destructive underline hover:no-underline"
                           >
-                            Yes
+                            Oui
                           </button>
                           <button
                             onClick={() => setConfirmingId(null)}
                             className="text-muted-foreground underline hover:no-underline"
                           >
-                            No
+                            Non
                           </button>
                         </span>
                       ) : (
@@ -148,7 +148,7 @@ export function KbFileList({ files }: KbFileListProps) {
                           disabled={isDeleting || isPending}
                           className="text-xs text-muted-foreground underline hover:text-destructive hover:no-underline disabled:opacity-50"
                         >
-                          {isDeleting ? "Deleting…" : "Delete"}
+                          {isDeleting ? "Suppression…" : "Supprimer"}
                         </button>
                       )}
                     </div>

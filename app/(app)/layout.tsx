@@ -1,12 +1,12 @@
+import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 import { createClient } from "@/lib/supabase/server"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import type { CustomCategory } from "@/lib/inbox/custom-categories"
 
-export default async function AppLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+async function SidebarLoader() {
+  await connection()
   const supabase = await createClient()
   const {
     data: { user },
@@ -35,9 +35,31 @@ export default async function AppLayout({
     }
   }
 
+  return <AppSidebar customCategories={customCategories} unreadCounts={unreadCounts} />
+}
+
+async function AuthGuard() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+  return null
+}
+
+export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <div className="flex h-svh overflow-hidden">
-      <AppSidebar customCategories={customCategories} unreadCounts={unreadCounts} />
+      <Suspense fallback={null}>
+        <AuthGuard />
+      </Suspense>
+      <Suspense fallback={<div className="w-56 shrink-0 border-r" />}>
+        <SidebarLoader />
+      </Suspense>
       <main className="flex-1 min-h-0 overflow-hidden">
         {children}
       </main>

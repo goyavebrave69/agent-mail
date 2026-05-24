@@ -57,6 +57,7 @@ const baseEmail: InboxEmail = {
   received_at: new Date().toISOString(),
   is_read: false,
   is_archived: false,
+  is_starred: false,
   category: "inquiry",
   priority_rank: 1,
   body_text: "This is the body preview text",
@@ -96,7 +97,7 @@ describe("InboxShell — search filtering", () => {
     ]
     render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "alice" },
     })
 
@@ -113,7 +114,7 @@ describe("InboxShell — search filtering", () => {
     ]
     render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "alice@corp.com" },
     })
 
@@ -130,7 +131,7 @@ describe("InboxShell — search filtering", () => {
     ]
     render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "invoice" },
     })
 
@@ -147,7 +148,7 @@ describe("InboxShell — search filtering", () => {
     ]
     render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "quote" },
     })
 
@@ -161,12 +162,12 @@ describe("InboxShell — search filtering", () => {
     const emails = [makeEmail({ id: "e1", from_name: "Alice", subject: "Hello" })]
     render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "zzznomatch" },
     })
 
     await waitFor(() => {
-      expect(screen.getByText("No emails match this view.")).toBeInTheDocument()
+      expect(screen.getAllByText("Tout est traité").length).toBeGreaterThan(0)
     })
   })
 
@@ -174,7 +175,7 @@ describe("InboxShell — search filtering", () => {
     const emails = [makeEmail({ id: "e1", from_name: "Alice", subject: "Hello" })]
     render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "zzznomatch" },
     })
 
@@ -190,7 +191,7 @@ describe("InboxShell — search filtering", () => {
     ]
     render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
-    const input = screen.getByPlaceholderText("Type to search...")
+    const input = screen.getByPlaceholderText("Rechercher...")
     fireEvent.change(input, { target: { value: "alice" } })
 
     await waitFor(() => {
@@ -213,7 +214,7 @@ describe("InboxShell — search filtering", () => {
     render(<InboxShell emails={emails} userId="user-1" activeCategory={null} customCategories={[]} />)
 
     // Only whitespace → no filter applied
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "   " },
     })
 
@@ -236,7 +237,7 @@ describe("InboxShell — selection behavior during filtering", () => {
 
     await waitFor(() => {
       const firstButton = screen.getByRole("button", { name: /Alice/i })
-      expect(firstButton).toHaveClass("bg-sidebar-accent")
+      expect(firstButton).toHaveClass("bg-primary/8")
     })
   })
 
@@ -254,13 +255,13 @@ describe("InboxShell — selection behavior during filtering", () => {
     fireEvent.click(screen.getByRole("button", { name: /Bob/i }))
 
     // Search matches both
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "match" },
     })
 
     await waitFor(() => {
       const bobButton = screen.getByRole("button", { name: /Bob/i })
-      expect(bobButton).toHaveClass("bg-sidebar-accent")
+      expect(bobButton).toHaveClass("bg-primary/8")
     })
   })
 
@@ -278,14 +279,14 @@ describe("InboxShell — selection behavior during filtering", () => {
     fireEvent.click(screen.getByRole("button", { name: /Bob/i }))
 
     // Filter to only Alice
-    fireEvent.change(screen.getByPlaceholderText("Type to search..."), {
+    fireEvent.change(screen.getByPlaceholderText("Rechercher..."), {
       target: { value: "hello" },
     })
 
     await waitFor(() => {
       expect(screen.queryByText("Bob")).not.toBeInTheDocument()
       const aliceButton = screen.getByRole("button", { name: /Alice/i })
-      expect(aliceButton).toHaveClass("bg-sidebar-accent")
+      expect(aliceButton).toHaveClass("bg-primary/8")
     })
   })
 })

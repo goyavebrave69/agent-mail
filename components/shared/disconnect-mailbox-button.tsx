@@ -21,13 +21,13 @@ export function DisconnectMailboxButton({ provider }: DisconnectMailboxButtonPro
       try {
         const result = await disconnectMailboxAction({ provider })
         if ('error' in result) {
-          setError('Failed to disconnect. Please try again.')
+          setError('Échec de la déconnexion. Veuillez réessayer.')
           setConfirming(false)
         } else {
           router.refresh()
         }
       } catch {
-        setError('Failed to disconnect. Please try again.')
+        setError('Échec de la déconnexion. Veuillez réessayer.')
         setConfirming(false)
       }
     })
@@ -36,7 +36,7 @@ export function DisconnectMailboxButton({ provider }: DisconnectMailboxButtonPro
   if (confirming) {
     return (
       <div className="flex flex-col items-end gap-1">
-        <p className="text-sm text-muted-foreground">Are you sure? This will remove access to your mailbox.</p>
+        <p className="text-sm text-muted-foreground">Êtes-vous sûr ? Cela supprimera l&apos;accès à votre boîte mail.</p>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -44,7 +44,7 @@ export function DisconnectMailboxButton({ provider }: DisconnectMailboxButtonPro
             onClick={() => setConfirming(false)}
             disabled={isPending}
           >
-            Cancel
+            Annuler
           </Button>
           <Button
             variant="destructive"
@@ -52,7 +52,7 @@ export function DisconnectMailboxButton({ provider }: DisconnectMailboxButtonPro
             onClick={handleDisconnect}
             disabled={isPending}
           >
-            {isPending ? 'Disconnecting…' : 'Confirm'}
+            {isPending ? 'Déconnexion…' : 'Confirmer'}
           </Button>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -68,7 +68,7 @@ export function DisconnectMailboxButton({ provider }: DisconnectMailboxButtonPro
         onClick={() => setConfirming(true)}
         disabled={isPending}
       >
-        Disconnect
+        Déconnecter
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>

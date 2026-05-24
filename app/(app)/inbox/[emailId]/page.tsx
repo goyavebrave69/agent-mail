@@ -73,7 +73,14 @@ async function EmailDetailContent({ emailId }: { emailId: string }) {
         </div>
       )}
 
-      <DraftSection emailId={emailId} userId={user.id} responseType={email.response_type} />
+      <DraftSection
+        emailId={emailId}
+        userId={user.id}
+        responseType={email.response_type}
+        emailFrom={email.from_email ?? ''}
+        emailBody={email.body_text ?? ''}
+        emailSubject={email.subject ?? ''}
+      />
     </>
   )
 }

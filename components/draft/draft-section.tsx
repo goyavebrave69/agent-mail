@@ -5,6 +5,12 @@ import { ManualCompose } from './manual-compose'
 import { DraftRealtime } from './draft-realtime'
 import { PdfConfirmationBlock } from './pdf-confirmation-block'
 import { ConfidenceBadge } from './confidence-badge'
+import dynamic from 'next/dynamic'
+
+const QuoteDialog = dynamic(
+  () => import('@/components/quotes/quote-dialog').then((m) => m.QuoteDialog),
+  { ssr: false }
+)
 import { useDraftStore } from '@/stores/draft-store'
 import {
   sendManualReply,
@@ -18,10 +24,15 @@ interface DraftSectionProps {
   userId: string
   responseType?: 'text_reply' | 'pdf_required' | 'unknown'
   confidenceScore?: number | null
+  emailFrom?: string
+  emailBody?: string
+  emailSubject?: string
+  signature?: string
 }
 
-export function DraftSection({ emailId, userId, responseType, confidenceScore }: DraftSectionProps) {
+export function DraftSection({ emailId, userId, responseType, confidenceScore, emailFrom = '', emailBody = '', emailSubject = '', signature }: DraftSectionProps) {
   const [pdfIgnored, setPdfIgnored] = useState(false)
+  const [quoteDialogOpen, setQuoteDialogOpen] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -37,7 +48,6 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
     composeMode,
     composeTo,
     composeSubject,
-    composeQuotedBody,
     manualContent,
     isSendingManual,
     sendManualError,
@@ -111,7 +121,8 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
   const handleSendManual = useCallback(
     async (content: string) => {
       optimisticSendManual()
-      const result = await sendManualReply(emailId, content, {
+      const fullContent = content
+      const result = await sendManualReply(emailId, fullContent, {
         to: composeTo,
         subject: composeSubject,
         isForward: composeMode === 'forward',
@@ -144,52 +155,66 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore }:
     }
   }, [emailId, startCreating, failCreating, clearCreating, startTypewriter])
 
-  if (!isComposing) return null
+  if (!isComposing && !(responseType === 'pdf_required' && !pdfIgnored)) return null
 
   return (
     <div className="space-y-3">
-      {confidenceScore != null && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      {responseType === 'pdf_required' && !pdfIgnored && (
+        <PdfConfirmationBlock
+          onGenerate={() => setQuoteDialogOpen(true)}
+          onIgnore={() => setPdfIgnored(true)}
+        />
+      )}
+      {isComposing && confidenceScore != null && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>✨ Brouillon généré par IA</span>
           <ConfidenceBadge score={confidenceScore} size="sm" showLabel={false} />
         </div>
       )}
-      {responseType === 'pdf_required' && !pdfIgnored && (
-        <PdfConfirmationBlock
-          onGenerate={() => {
-            // TODO: trigger PDF generation flow (Story 6.x)
-          }}
-          onIgnore={() => setPdfIgnored(true)}
-        />
-      )}
-      <ManualCompose
+      <QuoteDialog
+        open={quoteDialogOpen}
+        onClose={() => setQuoteDialogOpen(false)}
         emailId={emailId}
-        mode={composeMode}
-        composeTo={composeTo}
-        composeSubject={composeSubject}
-        composeQuotedBody={composeQuotedBody}
-        onToChange={updateComposeTo}
-        onSubjectChange={updateComposeSubject}
-        onSend={handleSendManual}
-        onCancel={cancelComposing}
-        isSending={isSendingManual}
-        sendError={sendManualError}
-        manualContent={manualContent}
-        onContentChange={updateManualContent}
-        onCreateDraft={handleCreateDraft}
-        isCreating={isCreating}
-        isStreaming={isStreaming}
-        streamingContent={streamingContent}
+        emailFrom={emailFrom}
+        emailBody={emailBody}
+        emailSubject={emailSubject}
+        onNotifyClient={() => {
+          setQuoteDialogOpen(false)
+          void handleCreateDraft()
+        }}
       />
-      {createError && (
-        <div
-          className="rounded-lg border border-destructive/50 bg-destructive/10 p-3"
-          role="alert"
-        >
-          <p className="text-sm font-medium text-destructive">{createError}</p>
-        </div>
+      {isComposing && (
+        <>
+          <ManualCompose
+            emailId={emailId}
+            mode={composeMode}
+            composeTo={composeTo}
+            composeSubject={composeSubject}
+            onToChange={updateComposeTo}
+            onSubjectChange={updateComposeSubject}
+            onSend={handleSendManual}
+            onCancel={cancelComposing}
+            isSending={isSendingManual}
+            sendError={sendManualError}
+            manualContent={manualContent}
+            onContentChange={updateManualContent}
+            onCreateDraft={handleCreateDraft}
+            isCreating={isCreating}
+            isStreaming={isStreaming}
+            streamingContent={streamingContent}
+            signature={signature}
+          />
+          {createError && (
+            <div
+              className="rounded-lg border border-destructive/50 bg-destructive/10 p-3"
+              role="alert"
+            >
+              <p className="text-sm font-medium text-destructive">{createError}</p>
+            </div>
+          )}
+          <DraftRealtime draftId={null} userId={userId} onDraftUpdate={handleDraftUpdate} />
+        </>
       )}
-      <DraftRealtime draftId={null} userId={userId} onDraftUpdate={handleDraftUpdate} />
     </div>
   )
 }

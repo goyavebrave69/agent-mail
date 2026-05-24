@@ -2,12 +2,20 @@ import { sendViaGmail, type GmailCredentials } from './gmail'
 import { sendViaSmtp, type ImapCredentials } from './imap'
 import { sendViaOutlook, type OutlookCredentials } from './outlook'
 
+export interface EmailAttachment {
+  filename: string
+  contentBase64: string
+  contentType: string
+}
+
 export interface SendEmailParams {
   to: string
   subject: string
   body: string
+  isHtml?: boolean
   from?: string
   replyToMessageId?: string
+  attachments?: EmailAttachment[]
 }
 
 export type SendEmailErrorCode = 'PROVIDER_ERROR' | 'NO_CONNECTION' | 'RATE_LIMIT' | 'UNKNOWN'

@@ -55,6 +55,10 @@ export async function generateEmbedding(text: string, apiKey?: string): Promise<
     throw new Error(`OpenAI embeddings API error ${response.status}: ${body}`)
   }
 
-  const json = (await response.json()) as { data: { embedding: number[] }[] }
-  return json.data[0].embedding
+  const json = (await response.json()) as { data?: { embedding: number[] }[] }
+  const embedding = json.data?.[0]?.embedding
+  if (!Array.isArray(embedding) || embedding.length === 0) {
+    throw new Error("OpenAI embeddings API returned unexpected response shape")
+  }
+  return embedding
 }

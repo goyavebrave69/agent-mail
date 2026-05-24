@@ -13,12 +13,12 @@ interface InboxListProps {
 }
 
 export const CATEGORY_BADGE: Record<InboxEmail["category"], { label: string; className: string }> = {
-  quote: { label: "Quote", className: "bg-blue-100 text-blue-800" },
-  invoice: { label: "Invoice", className: "bg-orange-100 text-orange-800" },
-  inquiry: { label: "Inquiry", className: "bg-purple-100 text-purple-800" },
-  follow_up: { label: "Follow-up", className: "bg-yellow-100 text-yellow-800" },
+  quote: { label: "Devis", className: "bg-blue-100 text-blue-800" },
+  invoice: { label: "Facture", className: "bg-orange-100 text-orange-800" },
+  inquiry: { label: "Demande", className: "bg-purple-100 text-purple-800" },
+  follow_up: { label: "Suivi", className: "bg-yellow-100 text-yellow-800" },
   spam: { label: "Spam", className: "bg-red-100 text-red-800" },
-  other: { label: "Other", className: "bg-gray-100 text-gray-700" },
+  other: { label: "Autre", className: "bg-gray-100 text-gray-700" },
 }
 
 export type InboxCategory = InboxEmail["category"]
@@ -84,14 +84,14 @@ export function InboxList({ emails, userId, activeCategory }: InboxListProps) {
       const activeLabel = CATEGORY_BADGE[activeCategory].label
       return (
         <p className="text-sm text-muted-foreground">
-          No {activeLabel.toLowerCase()} emails match this filter. Clear the filter to see all emails.
+          Aucun email &laquo;{activeLabel.toLowerCase()}&raquo; ne correspond à ce filtre. Effacez le filtre pour tout voir.
         </p>
       )
     }
 
     return (
       <p className="text-sm text-muted-foreground">
-        No emails yet. Connect a mailbox in Settings to start syncing.
+        Aucun email. Connectez une boîte mail dans les Paramètres pour démarrer la synchronisation.
       </p>
     )
   }
@@ -117,7 +117,7 @@ export function InboxList({ emails, userId, activeCategory }: InboxListProps) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">
-                      {email.from_name ?? email.from_email ?? "Unknown sender"}
+                      {email.from_name ?? email.from_email ?? "Expéditeur inconnu"}
                     </span>
                     <span
                       className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
@@ -126,7 +126,7 @@ export function InboxList({ emails, userId, activeCategory }: InboxListProps) {
                     </span>
                   </div>
                   <p className="truncate text-sm text-muted-foreground">
-                    {email.subject ?? "(no subject)"}
+                    {email.subject ?? "(sans objet)"}
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-muted-foreground">

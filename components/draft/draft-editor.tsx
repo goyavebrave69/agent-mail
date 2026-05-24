@@ -19,10 +19,10 @@ export interface DraftEditorProps {
 
 function GeneratingSkeleton() {
   return (
-    <div className="space-y-3" aria-label="Generating draft" aria-busy="true">
+    <div className="space-y-3" aria-label="Génération du brouillon" aria-busy="true">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
-        <span>Generating draft…</span>
+        <span>Génération du brouillon…</span>
       </div>
       <div className="space-y-2">
         <div className="h-4 w-full animate-pulse rounded bg-muted" />
@@ -73,16 +73,16 @@ export function DraftEditor({
         role="alert"
       >
         <p className="mb-3 text-sm font-medium text-destructive">
-          {errorMessage ?? 'Draft generation failed.'}
+          {errorMessage ?? 'Échec de la génération du brouillon.'}
         </p>
         <p className="mb-4 text-sm text-muted-foreground">
-          Draft generation failed. Click retry to regenerate.
+          Échec de la génération. Cliquez sur réessayer pour régénérer.
         </p>
         <button
           onClick={onRegenerate}
           className="inline-flex items-center gap-2 rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
         >
-          Retry generation
+          Réessayer
         </button>
       </div>
     )
@@ -98,22 +98,22 @@ export function DraftEditor({
           onChange={(e) => updateEditedContent(e.target.value)}
           className="w-full resize-none rounded-lg border p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           rows={10}
-          aria-label="Edit draft content"
+          aria-label="Modifier le brouillon"
         />
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{charCount} characters</span>
+          <span className="text-xs text-muted-foreground">{charCount} caractères</span>
           <div className="flex gap-2">
             <button
               onClick={cancelEditing}
               className="rounded-md border border-input px-3 py-1.5 text-sm font-medium hover:bg-accent"
             >
-              Cancel
+              Annuler
             </button>
             <button
               onClick={onValidateAndSend}
-              className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              Send
+              Envoyer
             </button>
           </div>
         </div>
@@ -126,7 +126,7 @@ export function DraftEditor({
     <div className="space-y-4">
       {confidenceScore !== null && (
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">Confidence:</span>
+          <span className="text-sm font-medium text-muted-foreground">Confiance :</span>
           <ConfidenceBadge score={confidenceScore} />
         </div>
       )}

@@ -9,7 +9,6 @@ interface ManualComposeProps {
   mode: ComposeMode | null
   composeTo: string
   composeSubject: string
-  composeQuotedBody: string
   onToChange: (to: string) => void
   onSubjectChange: (subject: string) => void
   onSend: (content: string) => void
@@ -22,6 +21,7 @@ interface ManualComposeProps {
   isCreating?: boolean
   isStreaming?: boolean
   streamingContent?: string
+  signature?: string
 }
 
 const MAX_LENGTH = 10_000
@@ -42,15 +42,27 @@ export function ManualCompose({
   isCreating = false,
   isStreaming = false,
   streamingContent = '',
+  signature,
 }: ManualComposeProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [pendingCancel, setPendingCancel] = useState(false)
+  const signatureInjectedRef = useRef(false)
 
   useEffect(() => {
     if (!isStreaming) {
       textareaRef.current?.focus()
     }
   }, [isStreaming])
+
+  // Inject signature once on mount when content is empty
+  useEffect(() => {
+    if (signatureInjectedRef.current) return
+    if (signature && !manualContent) {
+      onContentChange(`\n\n-- \n${signature}`)
+      signatureInjectedRef.current = true
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Tab') return
@@ -70,18 +82,18 @@ export function ManualCompose({
   const toTrimmed = composeTo.trim()
   const isDisabled = !trimmed || !toTrimmed || isSending
 
-  const modeLabel = mode === 'forward' ? 'Forward' : mode === 'replyAll' ? 'Reply All' : 'Reply'
+  const modeLabel = mode === 'forward' ? 'Transférer' : mode === 'replyAll' ? 'Répondre à tous' : 'Répondre'
 
   return (
     <div className="space-y-3" role="region" aria-label={`${modeLabel} compose`}>
       {/* To field */}
       <div className="flex items-center gap-2 border-b pb-2">
-        <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">To</span>
+        <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">À</span>
         <input
           type="email"
           value={composeTo}
           onChange={(e) => onToChange(e.target.value)}
-          placeholder="recipient@example.com"
+          placeholder="destinataire@example.com"
           disabled={isSending}
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
           aria-label="To"
@@ -90,7 +102,7 @@ export function ManualCompose({
 
       {/* Subject field — editable for forward, read-only for reply */}
       <div className="flex items-center gap-2 border-b pb-2">
-        <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">Subject</span>
+        <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">Objet</span>
         {mode === 'forward' ? (
           <input
             type="text"
@@ -137,7 +149,7 @@ export function ManualCompose({
           value={manualContent}
           onChange={(e) => onContentChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Write your message..."
+          placeholder="Rédigez votre message..."
           className="w-full resize-none rounded-lg border p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           rows={8}
           maxLength={MAX_LENGTH}
@@ -146,8 +158,6 @@ export function ManualCompose({
         />
       )}
 
-      {/* Quoted original email */}
-      
 
       {sendError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3" role="alert">
@@ -156,13 +166,13 @@ export function ManualCompose({
       )}
 
       {pendingCancel && (
-        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/50 dark:bg-amber-950/20">
-          <span className="text-amber-800 dark:text-amber-200">Perdre le brouillon ?</span>
+        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+          <span className="text-amber-800">Perdre le brouillon ?</span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setPendingCancel(false)}
-              className="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:text-amber-300"
+              className="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
             >
               Non
             </button>
@@ -184,9 +194,9 @@ export function ManualCompose({
           }}
           disabled={isSending || isCreating}
           className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Cancel"
+          aria-label="Annuler"
         >
-          Cancel
+          Annuler
         </button>
         {onCreateDraft && mode !== 'forward' && (
           <button
@@ -201,10 +211,10 @@ export function ManualCompose({
         <button
           onClick={() => onSend(manualContent)}
           disabled={isDisabled}
-          className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label={`Send ${modeLabel.toLowerCase()}`}
         >
-          {isSending ? 'Envoi…' : modeLabel === 'Forward' ? 'Transférer' : 'Envoyer'}
+          {isSending ? 'Envoi…' : modeLabel}
         </button>
       </div>
     </div>

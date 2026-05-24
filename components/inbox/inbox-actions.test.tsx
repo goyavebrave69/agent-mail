@@ -4,11 +4,23 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { InboxShell } from "./inbox-shell"
 import type { InboxEmail } from "@/app/(app)/inbox/page"
 
-const { mockArchiveEmail, mockTrashEmail, mockStartComposing, mockRefresh } = vi.hoisted(() => ({
+const { mockArchiveEmail, mockTrashEmail, mockStartComposing, mockRefresh, mockToastSuccess } = vi.hoisted(() => ({
   mockArchiveEmail: vi.fn(),
   mockTrashEmail: vi.fn(),
   mockStartComposing: vi.fn(),
   mockRefresh: vi.fn(),
+  mockToastSuccess: vi.fn(),
+}))
+
+// Mock sonner: immediately invoke onAutoClose so router.refresh is called synchronously
+vi.mock("sonner", () => ({
+  toast: {
+    success: (msg: string, opts?: { action?: unknown; onAutoClose?: () => void; onDismiss?: () => void }) => {
+      mockToastSuccess(msg)
+      opts?.onAutoClose?.()
+    },
+    error: vi.fn(),
+  },
 }))
 
 vi.mock("next/navigation", () => ({
@@ -60,6 +72,7 @@ const baseEmail: InboxEmail = {
   received_at: new Date().toISOString(),
   is_read: false,
   is_archived: false,
+  is_starred: false,
   category: "inquiry",
   priority_rank: 1,
   body_text: "Body text",
@@ -110,7 +123,7 @@ describe("InboxShell — Archive action", () => {
   })
 
   it("shows error message when archive fails", async () => {
-    mockArchiveEmail.mockResolvedValue({ success: false, error: "Archive failed." })
+    mockArchiveEmail.mockResolvedValue({ success: false, error: "Échec de l'archivage. Veuillez réessayer." })
     render(<InboxShell {...defaultProps} />)
 
     await waitFor(() => screen.getByRole("button", { name: /archive/i }))
@@ -118,7 +131,7 @@ describe("InboxShell — Archive action", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument()
-      expect(screen.getByText("Archive failed.")).toBeInTheDocument()
+      expect(screen.getByText("Échec de l'archivage. Veuillez réessayer.")).toBeInTheDocument()
     })
   })
 
@@ -142,8 +155,8 @@ describe("InboxShell — Trash action", () => {
     mockTrashEmail.mockResolvedValue({ success: true })
     render(<InboxShell {...defaultProps} />)
 
-    await waitFor(() => screen.getByRole("button", { name: /trash/i }))
-    fireEvent.click(screen.getByRole("button", { name: /trash/i }))
+    await waitFor(() => screen.getByRole("button", { name: /supprimer/i }))
+    fireEvent.click(screen.getByRole("button", { name: /supprimer/i }))
 
     await waitFor(() => {
       expect(mockTrashEmail).toHaveBeenCalledWith("email-1")
@@ -154,8 +167,8 @@ describe("InboxShell — Trash action", () => {
     mockTrashEmail.mockResolvedValue({ success: true })
     render(<InboxShell {...defaultProps} />)
 
-    await waitFor(() => screen.getByRole("button", { name: /trash/i }))
-    fireEvent.click(screen.getByRole("button", { name: /trash/i }))
+    await waitFor(() => screen.getByRole("button", { name: /supprimer/i }))
+    fireEvent.click(screen.getByRole("button", { name: /supprimer/i }))
 
     await waitFor(() => {
       expect(mockRefresh).toHaveBeenCalled()
@@ -163,15 +176,15 @@ describe("InboxShell — Trash action", () => {
   })
 
   it("shows error message when trash fails", async () => {
-    mockTrashEmail.mockResolvedValue({ success: false, error: "Trash failed." })
+    mockTrashEmail.mockResolvedValue({ success: false, error: "Échec de la suppression. Veuillez réessayer." })
     render(<InboxShell {...defaultProps} />)
 
-    await waitFor(() => screen.getByRole("button", { name: /trash/i }))
-    fireEvent.click(screen.getByRole("button", { name: /trash/i }))
+    await waitFor(() => screen.getByRole("button", { name: /supprimer/i }))
+    fireEvent.click(screen.getByRole("button", { name: /supprimer/i }))
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument()
-      expect(screen.getByText("Trash failed.")).toBeInTheDocument()
+      expect(screen.getByText("Échec de la suppression. Veuillez réessayer.")).toBeInTheDocument()
     })
   })
 })
@@ -182,8 +195,8 @@ describe("InboxShell — Reply action", () => {
   it("triggers startComposing when Reply is clicked", async () => {
     render(<InboxShell {...defaultProps} />)
 
-    await waitFor(() => screen.getByRole("button", { name: /^reply$/i }))
-    fireEvent.click(screen.getByRole("button", { name: /^reply$/i }))
+    await waitFor(() => screen.getByRole("button", { name: /^répondre$/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^répondre$/i }))
 
     expect(mockStartComposing).toHaveBeenCalled()
   })
@@ -191,8 +204,8 @@ describe("InboxShell — Reply action", () => {
   it("triggers startComposing when Reply All is clicked", async () => {
     render(<InboxShell {...defaultProps} />)
 
-    await waitFor(() => screen.getByRole("button", { name: /reply all/i }))
-    fireEvent.click(screen.getByRole("button", { name: /reply all/i }))
+    await waitFor(() => screen.getByRole("button", { name: /répondre à tous/i }))
+    fireEvent.click(screen.getByRole("button", { name: /répondre à tous/i }))
 
     expect(mockStartComposing).toHaveBeenCalled()
   })
@@ -200,8 +213,8 @@ describe("InboxShell — Reply action", () => {
   it("triggers startComposing when Forward is clicked", async () => {
     render(<InboxShell {...defaultProps} />)
 
-    await waitFor(() => screen.getByRole("button", { name: /forward/i }))
-    fireEvent.click(screen.getByRole("button", { name: /forward/i }))
+    await waitFor(() => screen.getByRole("button", { name: /transférer/i }))
+    fireEvent.click(screen.getByRole("button", { name: /transférer/i }))
 
     expect(mockStartComposing).toHaveBeenCalled()
   })

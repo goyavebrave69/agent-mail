@@ -10,6 +10,7 @@ import {
   Inbox as InboxIcon,
   PanelLeft,
   Pencil,
+  PenSquare,
   Plus,
   Settings,
   Settings2,
@@ -78,6 +79,7 @@ import {
   toCustomCategorySlug,
   type CustomCategory,
 } from '@/lib/inbox/custom-categories'
+import { BrevMark } from '@/components/brand/logo'
 
 const SESSION_KEY = 'app_sidebar_collapsed'
 
@@ -89,9 +91,9 @@ type PrimaryNavItem = {
 }
 
 const PRIMARY_NAV: PrimaryNavItem[] = [
-  { key: 'inbox', label: 'Inbox', icon: InboxIcon, href: '/inbox' },
-  { key: 'knowledge-base', label: 'Knowledge Base', icon: BookOpen, href: '/knowledge-base' },
-  { key: 'settings', label: 'Settings', icon: Settings, href: '/settings' },
+  { key: 'inbox', label: 'Boîte de réception', icon: InboxIcon, href: '/inbox' },
+  { key: 'knowledge-base', label: 'Base de connaissances', icon: BookOpen, href: '/knowledge-base' },
+  { key: 'settings', label: 'Paramètres', icon: Settings, href: '/settings' },
 ]
 
 interface AppSidebarProps {
@@ -162,7 +164,7 @@ function SortableCategoryItem({
           style={style}
           className={cn(
             'group flex items-center gap-1 rounded-md text-sm text-sidebar-foreground',
-            isActive && !isRenaming ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''
+            isActive && !isRenaming ? 'bg-primary/10 text-primary' : ''
           )}
         >
           {/* Drag handle — only visible on hover when not collapsed */}
@@ -170,7 +172,7 @@ function SortableCategoryItem({
             <button
               type="button"
               className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded opacity-0 group-hover:opacity-50 active:cursor-grabbing"
-              aria-label="Drag to reorder"
+              aria-label="Glisser pour réordonner"
               {...attributes}
               {...listeners}
             >
@@ -214,18 +216,18 @@ function SortableCategoryItem({
       <ContextMenuContent>
         <ContextMenuItem onSelect={() => onRenameStart(category.id, category.name)}>
           <Pencil className="mr-2 h-4 w-4" />
-          Rename
+          Renommer
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => onEditRequest(category)}>
           <Settings2 className="mr-2 h-4 w-4" />
-          Edit
+          Modifier
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() => onDeleteRequest(category.id, category.name)}
           className="text-destructive focus:text-destructive"
         >
           <Trash2 className="mr-2 h-4 w-4" />
-          Delete
+          Supprimer
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -306,15 +308,15 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
   const handleCreateCategory = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const normalizedName = normalizeCustomCategoryName(newCategoryName)
-    if (!normalizedName) { setCategoryError('Category name is required.'); return }
+    if (!normalizedName) { setCategoryError('Le nom de la catégorie est requis.'); return }
     if (normalizedName.length > MAX_CUSTOM_CATEGORY_NAME_LENGTH) {
-      setCategoryError(`Category name must be ${MAX_CUSTOM_CATEGORY_NAME_LENGTH} characters or fewer.`)
+      setCategoryError(`Le nom doit faire ${MAX_CUSTOM_CATEGORY_NAME_LENGTH} caractères maximum.`)
       return
     }
     const slug = toCustomCategorySlug(normalizedName)
-    if (!slug) { setCategoryError('Category name must contain at least one letter or number.'); return }
+    if (!slug) { setCategoryError('Le nom doit contenir au moins une lettre ou un chiffre.'); return }
     if (categories.some((c) => c.slug === slug)) {
-      setCategoryError('Category already exists.')
+      setCategoryError('Cette catégorie existe déjà.')
       return
     }
     setCategoryError(null)
@@ -322,7 +324,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
     try {
       const result = await createCustomCategoryAction(normalizedName, newCategoryDescription || undefined)
       if (!result.success || !result.category) {
-        setCategoryError(result.error ?? 'Unable to create category. Please try again.')
+        setCategoryError(result.error ?? 'Impossible de créer la catégorie. Veuillez réessayer.')
         return
       }
       setCategories((prev) => [...prev, result.category!])
@@ -331,7 +333,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
       setCategoryError(null)
       setIsAddOpen(false)
     } catch {
-      setCategoryError('Unable to create category. Please try again.')
+      setCategoryError('Impossible de créer la catégorie. Veuillez réessayer.')
     } finally {
       setIsSubmittingCategory(false)
     }
@@ -349,19 +351,19 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
     event.preventDefault()
     if (!editTarget) return
     const normalizedName = normalizeCustomCategoryName(editName)
-    if (!normalizedName) { setEditError('Category name is required.'); return }
+    if (!normalizedName) { setEditError('Le nom de la catégorie est requis.'); return }
     if (normalizedName.length > MAX_CUSTOM_CATEGORY_NAME_LENGTH) {
-      setEditError(`Category name must be ${MAX_CUSTOM_CATEGORY_NAME_LENGTH} characters or fewer.`)
+      setEditError(`Le nom doit faire ${MAX_CUSTOM_CATEGORY_NAME_LENGTH} caractères maximum.`)
       return
     }
     const slug = toCustomCategorySlug(normalizedName)
-    if (!slug) { setEditError('Category name must contain at least one letter or number.'); return }
+    if (!slug) { setEditError('Le nom doit contenir au moins une lettre ou un chiffre.'); return }
     setEditError(null)
     setIsSubmittingEdit(true)
     try {
       const result = await updateCustomCategoryAction(editTarget.id, normalizedName, editDescription || undefined)
       if (!result.success) {
-        setEditError(result.error ?? 'Unable to update category. Please try again.')
+        setEditError(result.error ?? 'Impossible de mettre à jour la catégorie. Veuillez réessayer.')
         return
       }
       setCategories((prev) =>
@@ -373,7 +375,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
       )
       setEditTarget(null)
     } catch {
-      setEditError('Unable to update category. Please try again.')
+      setEditError('Impossible de mettre à jour la catégorie. Veuillez réessayer.')
     } finally {
       setIsSubmittingEdit(false)
     }
@@ -427,27 +429,57 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
           collapsed ? 'w-[49px]' : 'w-[220px]'
         )}
       >
-        {/* Toggle */}
+        {/* Header: logo + toggle */}
         <div
           className={cn(
             'flex h-[49px] shrink-0 items-center border-b',
-            collapsed ? 'justify-center' : 'justify-end px-3'
+            collapsed ? 'justify-center px-2' : 'justify-between px-3'
           )}
         >
+          {!collapsed && (
+            <Link href="/inbox" className="flex items-center gap-2">
+              <BrevMark size={26} />
+              <span className="text-[15px] font-semibold tracking-tight">
+                br<span className="text-[#6366f1]">è</span>v
+              </span>
+            </Link>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={toggleCollapsed}
-                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                aria-label={collapsed ? 'Développer la barre latérale' : 'Réduire la barre latérale'}
                 className="flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               >
-                <PanelLeft className="h-4 w-4 shrink-0" />
+                {collapsed ? <BrevMark size={22} /> : <PanelLeft className="h-4 w-4 shrink-0" />}
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              {collapsed ? 'Expand' : 'Collapse'}
+              {collapsed ? 'Développer' : 'Réduire'}
             </TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Compose button */}
+        <div className={cn('px-2 py-2', collapsed ? 'flex justify-center' : '')}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString())
+                  params.set('compose', '1')
+                  router.push(`/inbox?${params.toString()}`)
+                }}
+                className={cn('gap-2', collapsed ? 'h-8 w-8 p-0' : 'w-full justify-start')}
+                size={collapsed ? 'icon' : 'default'}
+                aria-label="Composer un email"
+              >
+                <PenSquare className="h-4 w-4 shrink-0" />
+                {!collapsed && <span>Composer</span>}
+              </Button>
+            </TooltipTrigger>
+            {collapsed && <TooltipContent side="right">Composer</TooltipContent>}
           </Tooltip>
         </div>
 
@@ -465,7 +497,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
                     href={item.href}
                     className={cn(
                       'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                      isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''
+                      isActive ? 'bg-primary/10 text-primary font-medium' : ''
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
@@ -488,7 +520,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
               {/* CATÉGORIES header + add button */}
               <div className={cn('mb-1 flex items-center gap-1', collapsed ? 'justify-center' : 'justify-between')}>
                 {!collapsed && (
-                  <span className="px-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                  <span className="px-1 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                     Catégories
                   </span>
                 )}
@@ -518,7 +550,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
                     onClick={() => setCategory('all')}
                     className={cn(
                       'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                      activeKey === 'all' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : '',
+                      activeKey === 'all' ? 'bg-primary/10 text-primary font-medium' : '',
                       collapsed ? 'justify-center' : ''
                     )}
                   >
@@ -535,7 +567,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
               </Tooltip>
 
               {/* Sortable custom categories */}
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <DndContext id="sidebar-categories-dnd" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={categories.map((c) => c.id)} strategy={verticalListSortingStrategy}>
                   {categories.map((category) => (
                     <SortableCategoryItem
@@ -572,20 +604,20 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
       >
         <DialogContent className="sm:max-w-md" data-testid="manage-categories-dialog">
           <DialogHeader>
-            <DialogTitle>Manage Categories</DialogTitle>
+            <DialogTitle>Gérer les catégories</DialogTitle>
             <DialogDescription>
-              Create custom inbox categories for your personal sorting taxonomy.
+              Créez des catégories personnalisées pour organiser votre boîte de réception.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateCategory} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="custom-category-name">Category name</Label>
+              <Label htmlFor="custom-category-name">Nom de la catégorie</Label>
               <Input
                 id="custom-category-name"
                 data-testid="custom-category-input"
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="e.g. VIP clients"
+                placeholder="ex. Clients VIP"
                 maxLength={MAX_CUSTOM_CATEGORY_NAME_LENGTH}
                 aria-invalid={Boolean(categoryError)}
               />
@@ -605,13 +637,13 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
             </div>
             <div className="space-y-2">
               <Label htmlFor="custom-category-description">
-                Description <span className="text-muted-foreground font-normal">(optional)</span>
+                Description <span className="text-muted-foreground font-normal">(optionnel)</span>
               </Label>
               <textarea
                 id="custom-category-description"
                 value={newCategoryDescription}
                 onChange={(e) => setNewCategoryDescription(e.target.value)}
-                placeholder="Describe what kind of emails belong here, e.g. 'Emails from key clients requiring urgent attention'"
+                placeholder="Décrivez les emails qui appartiennent ici, ex. 'Emails de clients importants nécessitant une attention urgente'"
                 maxLength={200}
                 rows={3}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
@@ -625,10 +657,10 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
                 onClick={() => setIsAddOpen(false)}
                 disabled={isSubmittingCategory}
               >
-                Cancel
+                Annuler
               </Button>
               <Button type="submit" disabled={isSubmittingCategory}>
-                {isSubmittingCategory ? 'Creating...' : 'Create category'}
+                {isSubmittingCategory ? 'Création...' : 'Créer la catégorie'}
               </Button>
             </DialogFooter>
           </form>
@@ -642,14 +674,14 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Category</DialogTitle>
+            <DialogTitle>Modifier la catégorie</DialogTitle>
             <DialogDescription>
-              Update the name and description for this category.
+              Modifiez le nom et la description de cette catégorie.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-category-name">Category name</Label>
+              <Label htmlFor="edit-category-name">Nom de la catégorie</Label>
               <Input
                 id="edit-category-name"
                 value={editName}
@@ -666,13 +698,13 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-category-description">
-                Description <span className="text-muted-foreground font-normal">(optional)</span>
+                Description <span className="text-muted-foreground font-normal">(optionnel)</span>
               </Label>
               <textarea
                 id="edit-category-description"
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                placeholder="Describe what kind of emails belong here"
+                placeholder="Décrivez les emails qui appartiennent ici"
                 maxLength={200}
                 rows={3}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
@@ -686,10 +718,10 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
                 onClick={() => setEditTarget(null)}
                 disabled={isSubmittingEdit}
               >
-                Cancel
+                Annuler
               </Button>
               <Button type="submit" disabled={isSubmittingEdit}>
-                {isSubmittingEdit ? 'Saving...' : 'Save changes'}
+                {isSubmittingEdit ? 'Enregistrement...' : 'Enregistrer'}
               </Button>
             </DialogFooter>
           </form>
@@ -700,19 +732,19 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete &ldquo;{deleteTarget?.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer &ldquo;{deleteTarget?.name}&rdquo; ?</AlertDialogTitle>
             <AlertDialogDescription>
-              This category will be permanently removed. Emails assigned to it will no longer be grouped under this label.
+              Cette catégorie sera définitivement supprimée. Les emails qui lui sont assignés ne seront plus regroupés sous ce label.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? 'Suppression...' : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

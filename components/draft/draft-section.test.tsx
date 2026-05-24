@@ -44,9 +44,9 @@ describe('DraftSection — not composing', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('does not show PDF block when not composing even if responseType is pdf_required', () => {
-    const { container } = render(<DraftSection {...defaultProps} responseType="pdf_required" />)
-    expect(container).toBeEmptyDOMElement()
+  it('shows PDF block when not composing but responseType is pdf_required', () => {
+    render(<DraftSection {...defaultProps} responseType="pdf_required" />)
+    expect(screen.getByText(/nécessiter un devis/i)).toBeInTheDocument()
   })
 })
 
@@ -60,7 +60,7 @@ describe('DraftSection — compose mode', () => {
 
   it('shows ManualCompose with Send and Brouillon IA buttons when composing', () => {
     renderComposing()
-    expect(screen.getByRole('button', { name: /send reply/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send répondre/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /brouillon ia/i })).toBeInTheDocument()
   })
 

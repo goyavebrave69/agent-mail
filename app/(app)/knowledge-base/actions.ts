@@ -104,7 +104,11 @@ export async function uploadKbFileAction(
     return { error: `File too large. Maximum size is 10 MB (got ${(file.size / 1024 / 1024).toFixed(1)} MB).` }
   }
 
-  const storagePath = `${user.id}/${Date.now()}-${file.name}`
+  // Sanitize filename with whitelist: only allow alphanumerics, dots, hyphens, underscores
+  const safeFilename = file.name
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 200)
+  const storagePath = `${user.id}/${Date.now()}-${safeFilename}`
   const uploadContentType = hasAcceptedMimeType ? file.type : (inferMimeType(file.name) ?? file.type)
 
   const { error: uploadError } = await supabase.storage

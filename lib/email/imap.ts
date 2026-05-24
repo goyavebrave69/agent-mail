@@ -38,19 +38,24 @@ function smtpCommand(socket: tls.TLSSocket, command: string): Promise<string> {
   })
 }
 
+/** Strip CR and LF to prevent email header injection (CRLF injection) */
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]/g, '')
+}
+
 function createSmtpMessage(credentials: ImapCredentials, params: SendEmailParams): string {
   const headers = [
-    `From: ${params.from ?? credentials.username}`,
-    `To: ${params.to}`,
-    `Subject: ${params.subject}`,
-    `Message-ID: <${crypto.randomUUID()}@${credentials.host}>`,
+    `From: ${sanitizeHeader(params.from ?? credentials.username)}`,
+    `To: ${sanitizeHeader(params.to)}`,
+    `Subject: ${sanitizeHeader(params.subject)}`,
+    `Message-ID: <${crypto.randomUUID()}@${sanitizeHeader(credentials.host)}>`,
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
+    `Content-Type: ${params.isHtml ? 'text/html' : 'text/plain'}; charset=UTF-8`,
   ]
 
   if (params.replyToMessageId) {
-    headers.push(`In-Reply-To: ${params.replyToMessageId}`)
-    headers.push(`References: ${params.replyToMessageId}`)
+    headers.push(`In-Reply-To: ${sanitizeHeader(params.replyToMessageId)}`)
+    headers.push(`References: ${sanitizeHeader(params.replyToMessageId)}`)
   }
 
   return `${headers.join('\r\n')}\r\n\r\n${params.body}\r\n.`

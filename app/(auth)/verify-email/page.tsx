@@ -18,7 +18,7 @@ export default function VerifyEmailPage() {
           <p className="text-sm text-muted-foreground">
             We&apos;ve sent a confirmation link to your email address. Click the
             link in the email to activate your account and continue to
-            MailAgent.
+            Brèv.
           </p>
           <p className="mt-4 text-sm text-muted-foreground">
             Didn&apos;t receive an email? Check your spam folder. The link

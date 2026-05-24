@@ -28,13 +28,17 @@ export function SignUpForm({
     const password = formData.get("password") as string
     const repeatPassword = formData.get("repeat-password") as string
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.")
+    if (password.length < 8) {
+      setError("Le mot de passe doit contenir au moins 8 caractères.")
+      return
+    }
+    if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setError("Le mot de passe doit contenir au moins une majuscule et un chiffre.")
       return
     }
 
     if (password !== repeatPassword) {
-      setError("Passwords do not match.")
+      setError("Les mots de passe ne correspondent pas.")
       return
     }
 
@@ -51,8 +55,8 @@ export function SignUpForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Sign up</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
+          <CardTitle className="text-2xl">Inscription</CardTitle>
+          <CardDescription>Créer un nouveau compte</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
@@ -68,7 +72,7 @@ export function SignUpForm({
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Mot de passe</Label>
                 <Input
                   id="password"
                   name="password"
@@ -77,7 +81,7 @@ export function SignUpForm({
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="repeat-password">Repeat Password</Label>
+                <Label htmlFor="repeat-password">Confirmer le mot de passe</Label>
                 <Input
                   id="repeat-password"
                   name="repeat-password"
@@ -87,13 +91,13 @@ export function SignUpForm({
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
               <Button type="submit" className="w-full" disabled={isPending}>
-                {isPending ? "Creating an account..." : "Sign up"}
+                {isPending ? "Création du compte..." : "S'inscrire"}
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">
-              Already have an account?{" "}
+              Déjà un compte ?{" "}
               <Link href="/login" className="underline underline-offset-4">
-                Login
+                Se connecter
               </Link>
             </div>
           </form>

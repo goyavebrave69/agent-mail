@@ -10,14 +10,14 @@ interface PdfConfirmationBlockProps {
 
 export function PdfConfirmationBlock({ onGenerate, onIgnore }: PdfConfirmationBlockProps) {
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
       <div className="flex items-start gap-3">
-        <FileText className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-500" aria-hidden="true" />
+        <FileText className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
         <div className="flex-1">
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+          <p className="text-sm font-medium text-amber-900">
             Cet email semble nécessiter un devis
           </p>
-          <p className="mt-0.5 text-sm text-amber-700 dark:text-amber-400">
+          <p className="mt-0.5 text-sm text-amber-700">
             L&apos;expéditeur paraît demander une offre commerciale ou un document chiffré.
           </p>
           <div className="mt-3 flex items-center gap-3">
@@ -27,7 +27,7 @@ export function PdfConfirmationBlock({ onGenerate, onIgnore }: PdfConfirmationBl
             <button
               type="button"
               onClick={onIgnore}
-              className="text-sm text-amber-700 underline underline-offset-2 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+              className="text-sm text-amber-700 underline underline-offset-2 hover:text-amber-900"
             >
               Ignorer
             </button>

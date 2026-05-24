@@ -1,24 +1,40 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Archive,
   EllipsisVertical,
   Forward,
+  MailOpen,
+  PenSquare,
+  RefreshCw,
   Reply,
   ReplyAll,
+  Star,
   Trash2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import type { InboxEmail } from "@/app/(app)/inbox/page"
 import { DraftSection } from "@/components/draft/draft-section"
+import { InboxZeroState } from "@/components/inbox/inbox-zero-state"
+import { ComposeSheet } from "@/components/inbox/compose-sheet"
 import {
   archiveEmail,
+  archiveManyEmails,
   fetchDraftForEmail,
   markEmailAsRead,
+  markEmailAsUnread,
+  toggleStarEmail,
   trashEmail,
+  trashManyEmails,
+  unarchiveEmail,
 } from "@/app/(app)/inbox/[emailId]/actions"
+import { triggerSyncAction } from "@/app/(app)/inbox/actions"
+import { getSignature } from "@/app/(app)/settings/actions"
+import { BulkActionBar } from "@/components/inbox/bulk-action-bar"
+import { ShortcutOverlay } from "@/components/inbox/shortcut-overlay"
 import type { Draft } from "@/types/draft"
 import { useDraftStore } from "@/stores/draft-store"
 import {
@@ -33,6 +49,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { CustomCategory } from "@/lib/inbox/custom-categories"
 
 interface InboxShellProps {
@@ -47,10 +70,10 @@ function formatRelativeDate(iso: string): string {
   const date = new Date(iso).getTime()
   const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
 
-  if (diffDays <= 0) return "Today"
-  if (diffDays === 1) return "Yesterday"
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 14) return "1 week ago"
+  if (diffDays <= 0) return "Aujourd'hui"
+  if (diffDays === 1) return "Hier"
+  if (diffDays < 7) return `Il y a ${diffDays} jours`
+  if (diffDays < 14) return "Il y a 1 semaine"
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })
 }
 
@@ -91,19 +114,27 @@ function EmailBodyRenderer({ html, text }: { html: string | null; text: string |
   }
   if (text) {
     return (
-      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#2a2a32]">
+      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
         {text}
       </div>
     )
   }
-  return <p className="text-sm text-[#6c6c77]">Body not available for this email yet.</p>
+  return <p className="text-sm text-muted-foreground">Corps non disponible pour cet email.</p>
+}
+
+const CATEGORY_BADGE_COLORS: Record<string, string> = {
+  devis:        "bg-violet-50 text-violet-600 border-violet-200",
+  factures:     "bg-orange-50 text-orange-600 border-orange-200",
+  litiges:      "bg-red-50 text-red-600 border-red-200",
+  informations: "bg-blue-50 text-blue-600 border-blue-200",
+}
+
+function getCategoryBadgeClass(slug: string): string {
+  return CATEGORY_BADGE_COLORS[slug.toLowerCase()] ?? "bg-muted text-muted-foreground border-border"
 }
 
 function getSenderInitials(sender: string): string {
-  const tokens = sender
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
+  const tokens = sender.trim().split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return "?"
   if (tokens.length === 1) return tokens[0][0]?.toUpperCase() ?? "?"
   return `${tokens[0][0] ?? ""}${tokens[tokens.length - 1][0] ?? ""}`.toUpperCase()
@@ -116,7 +147,9 @@ export function InboxShell({
   customCategories,
 }: InboxShellProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const userDeselectedRef = useRef(false)
   const [search, setSearch] = useState("")
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null)
@@ -130,10 +163,42 @@ export function InboxShell({
   const [isActioning, setIsActioning] = useState(false)
   const [sentDraft, setSentDraft] = useState<Draft | null>(null)
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set())
+  const [localUnreadIds, setLocalUnreadIds] = useState<Set<string>>(new Set())
+  const [localStarred, setLocalStarred] = useState<Map<string, boolean>>(new Map())
+  const [localArchivedIds, setLocalArchivedIds] = useState<Set<string>>(new Set())
   const [draftConfidenceScore, setDraftConfidenceScore] = useState<number | null>(null)
+  const [processedCount, setProcessedCount] = useState(0)
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkActioning, setIsBulkActioning] = useState(false)
+  const [signature, setSignature] = useState("")
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [isRefreshing, startRefreshTransition] = useTransition()
+
+  // Fetch email signature once on mount
+  useEffect(() => {
+    getSignature().then(setSignature).catch(() => { /* non-critical */ })
+  }, [])
+
+  // Open compose sheet when navigated here with ?compose=1 (e.g. from sidebar button or back/forward)
+  useEffect(() => {
+    if (searchParams.get('compose') === '1') {
+      setComposeOpen(true)
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('compose')
+      const query = params.toString()
+      router.replace(query ? `/inbox?${query}` : '/inbox')
+    }
+  }, [searchParams, router])
 
   const handleSelectEmail = (emailId: string) => {
     setSelectedEmailId(emailId)
+    setLocalUnreadIds((prev) => {
+      if (!prev.has(emailId)) return prev
+      const next = new Set(prev)
+      next.delete(emailId)
+      return next
+    })
     setLocalReadIds((prev) => {
       if (prev.has(emailId)) return prev
       const next = new Set(prev)
@@ -170,32 +235,198 @@ export function InboxShell({
     })
   }
 
+  // Auto-advance to the next email in the filtered list after an action
+  const advanceAfterAction = useCallback((emailId: string, currentFiltered: InboxEmail[]) => {
+    const currentIndex = currentFiltered.findIndex((e) => e.id === emailId)
+    const next =
+      currentFiltered[currentIndex + 1] ??
+      currentFiltered[currentIndex - 1] ??
+      null
+    setSelectedEmailId(next?.id ?? null)
+  }, [])
+
   const handleArchive = async () => {
     if (!selectedEmailId || isActioning) return
+    const emailId = selectedEmailId
     setIsActioning(true)
     setActionError(null)
-    const result = await archiveEmail(selectedEmailId)
+
+    const result = await archiveEmail(emailId)
     setIsActioning(false)
+
     if (!result.success) {
-      setActionError(result.error ?? "Archive failed. Please try again.")
-    } else {
-      setSelectedEmailId(null)
-      router.refresh()
+      setActionError(result.error ?? "Échec de l'archivage. Veuillez réessayer.")
+      return
     }
+
+    // Optimistic: remove from view, advance
+    advanceAfterAction(emailId, filteredEmails)
+    setLocalArchivedIds((prev) => new Set([...prev, emailId]))
+    setProcessedCount((c) => c + 1)
+
+    // Undo toast
+    let undoClicked = false
+    toast.success("Email archivé", {
+      action: {
+        label: "Annuler",
+        onClick: async () => {
+          undoClicked = true
+          await unarchiveEmail(emailId)
+          setLocalArchivedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(emailId)
+            return next
+          })
+          setSelectedEmailId(emailId)
+          setProcessedCount((c) => Math.max(0, c - 1))
+        },
+      },
+      onAutoClose: () => { if (!undoClicked) router.refresh() },
+    })
   }
 
   const handleTrash = async () => {
     if (!selectedEmailId || isActioning) return
+    const emailId = selectedEmailId
     setIsActioning(true)
     setActionError(null)
-    const result = await trashEmail(selectedEmailId)
+
+    const result = await trashEmail(emailId)
     setIsActioning(false)
+
     if (!result.success) {
-      setActionError(result.error ?? "Trash failed. Please try again.")
-    } else {
-      setSelectedEmailId(null)
-      router.refresh()
+      setActionError(result.error ?? "Échec de la suppression. Veuillez réessayer.")
+      return
     }
+
+    advanceAfterAction(emailId, filteredEmails)
+    setLocalArchivedIds((prev) => new Set([...prev, emailId]))
+    setProcessedCount((c) => c + 1)
+
+    let undoClicked = false
+    toast.success("Email supprimé", {
+      action: {
+        label: "Annuler",
+        onClick: async () => {
+          undoClicked = true
+          await unarchiveEmail(emailId)
+          setLocalArchivedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(emailId)
+            return next
+          })
+          setSelectedEmailId(emailId)
+          setProcessedCount((c) => Math.max(0, c - 1))
+        },
+      },
+      onAutoClose: () => { if (!undoClicked) router.refresh() },
+    })
+  }
+
+  const handleToggleStar = async (emailId: string, currentStarred: boolean) => {
+    const newStarred = !currentStarred
+    // Optimistic update
+    setLocalStarred((prev) => new Map([...prev, [emailId, newStarred]]))
+    const result = await toggleStarEmail(emailId, newStarred)
+    if (!result.success) {
+      // Revert on failure
+      setLocalStarred((prev) => new Map([...prev, [emailId, currentStarred]]))
+      toast.error("Impossible de modifier le favori.")
+    }
+  }
+
+  const handleMarkUnread = async () => {
+    if (!selectedEmailId) return
+    const emailId = selectedEmailId
+    userDeselectedRef.current = true
+    setLocalUnreadIds((prev) => new Set([...prev, emailId]))
+    setLocalReadIds((prev) => {
+      const next = new Set(prev)
+      next.delete(emailId)
+      return next
+    })
+    await markEmailAsUnread(emailId)
+    setSelectedEmailId(null)
+  }
+
+  // Helper: true when the event target is an editable element
+  const isTypingTarget = (target: EventTarget | null): boolean => {
+    const el = target as HTMLElement
+    return el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable === true
+  }
+
+  const handleBulkArchive = async () => {
+    if (!selectedIds.size || isBulkActioning) return
+    const ids = Array.from(selectedIds)
+    setIsBulkActioning(true)
+    const result = await archiveManyEmails(ids)
+    setIsBulkActioning(false)
+    if (!result.success) {
+      toast.error("Échec de l'archivage groupé.")
+      return
+    }
+    // Optimistic remove
+    setLocalArchivedIds((prev) => new Set([...prev, ...ids]))
+    setSelectedIds(new Set())
+    setProcessedCount((c) => c + ids.length)
+    // Auto-advance if selected email was in the batch
+    if (selectedEmailId && ids.includes(selectedEmailId)) {
+      advanceAfterAction(selectedEmailId, filteredEmails.filter((e) => !ids.includes(e.id)))
+    }
+    let undoClicked = false
+    toast.success(`${ids.length} email${ids.length > 1 ? 's' : ''} archivé${ids.length > 1 ? 's' : ''}`, {
+      duration: 5000,
+      action: {
+        label: "Annuler",
+        onClick: async () => {
+          undoClicked = true
+          await Promise.all(ids.map((id) => unarchiveEmail(id)))
+          setLocalArchivedIds((prev) => {
+            const next = new Set(prev)
+            ids.forEach((id) => next.delete(id))
+            return next
+          })
+          setProcessedCount((c) => Math.max(0, c - ids.length))
+        },
+      },
+      onAutoClose: () => { if (!undoClicked) router.refresh() },
+    })
+  }
+
+  const handleBulkTrash = async () => {
+    if (!selectedIds.size || isBulkActioning) return
+    const ids = Array.from(selectedIds)
+    setIsBulkActioning(true)
+    const result = await trashManyEmails(ids)
+    setIsBulkActioning(false)
+    if (!result.success) {
+      toast.error("Échec de la suppression groupée.")
+      return
+    }
+    setLocalArchivedIds((prev) => new Set([...prev, ...ids]))
+    setSelectedIds(new Set())
+    setProcessedCount((c) => c + ids.length)
+    if (selectedEmailId && ids.includes(selectedEmailId)) {
+      advanceAfterAction(selectedEmailId, filteredEmails.filter((e) => !ids.includes(e.id)))
+    }
+    let undoClicked = false
+    toast.success(`${ids.length} email${ids.length > 1 ? 's' : ''} supprimé${ids.length > 1 ? 's' : ''}`, {
+      duration: 5000,
+      action: {
+        label: "Annuler",
+        onClick: async () => {
+          undoClicked = true
+          await Promise.all(ids.map((id) => unarchiveEmail(id)))
+          setLocalArchivedIds((prev) => {
+            const next = new Set(prev)
+            ids.forEach((id) => next.delete(id))
+            return next
+          })
+          setProcessedCount((c) => Math.max(0, c - ids.length))
+        },
+      },
+      onAutoClose: () => { if (!undoClicked) router.refresh() },
+    })
   }
 
   useEffect(() => {
@@ -278,9 +509,10 @@ export function InboxShell({
 
   const filteredEmails = useMemo(() => {
     const searchQuery = search.trim().toLowerCase()
-    return emails.filter((email) => {
-      const isRead = email.is_read || localReadIds.has(email.id)
-      if (showUnreadOnly && isRead) return false
+    const result = emails.filter((email) => {
+      if (localArchivedIds.has(email.id)) return false
+      const isRead = (email.is_read || localReadIds.has(email.id)) && !localUnreadIds.has(email.id)
+      if (showUnreadOnly && isRead && email.id !== selectedEmailId) return false
       if (!searchQuery) return true
 
       const senderName = (email.from_name ?? "").toLowerCase()
@@ -294,11 +526,22 @@ export function InboxShell({
         bodyPreview.includes(searchQuery)
       )
     })
-  }, [emails, search, showUnreadOnly, localReadIds])
+    // En vue "Toutes" (activeCategory === null), trier par date décroissante
+    if (activeCategory === null) {
+      result.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime())
+    }
+    return result
+  }, [emails, search, showUnreadOnly, localReadIds, localUnreadIds, localArchivedIds, selectedEmailId, activeCategory])
 
   useEffect(() => {
     if (filteredEmails.length === 0) {
+      userDeselectedRef.current = false
       setSelectedEmailId(null)
+      return
+    }
+
+    if (userDeselectedRef.current) {
+      userDeselectedRef.current = false
       return
     }
 
@@ -308,113 +551,328 @@ export function InboxShell({
     }
   }, [filteredEmails, selectedEmailId])
 
-  const selectedEmail = filteredEmails.find((email) => email.id === selectedEmailId) ?? null
-  const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Unknown sender"
-  const selectedSenderEmail = selectedEmail?.from_email ?? "No sender email"
-  const groupedEmails = useMemo(() => {
-    const slugToName = new Map(customCategoriesState.map((c) => [c.slug, c.name]))
-    const groups = new Map<string, { label: string; emails: InboxEmail[] }>()
+  // Keyboard shortcuts (placed after filteredEmails declaration)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return
+      switch (e.key) {
+        case 'e': e.preventDefault(); handleArchive(); break
+        case '#': e.preventDefault(); handleTrash(); break
+        case 'u': e.preventDefault(); handleMarkUnread(); break
+        case 's':
+          e.preventDefault()
+          if (selectedEmailId) {
+            const email = filteredEmails.find((em) => em.id === selectedEmailId)
+            if (email) {
+              const isStarred = localStarred.has(email.id) ? localStarred.get(email.id)! : email.is_starred
+              handleToggleStar(email.id, isStarred)
+            }
+          }
+          break
+        case 'c': e.preventDefault(); setComposeOpen(true); break
+        case '?': e.preventDefault(); setShowShortcuts(true); break
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmailId, filteredEmails, localStarred])
 
-    // Preserve user-defined order
+  const unreadCount = useMemo(() =>
+    emails.filter((email) => {
+      if (localArchivedIds.has(email.id)) return false
+      return (!email.is_read || localUnreadIds.has(email.id)) && !localReadIds.has(email.id)
+    }).length
+  , [emails, localArchivedIds, localUnreadIds, localReadIds])
+
+  const handleRefresh = useCallback(() => {
+    startRefreshTransition(async () => {
+      await triggerSyncAction()
+      router.refresh()
+    })
+  }, [router, startRefreshTransition])
+
+  const selectedEmail = filteredEmails.find((email) => email.id === selectedEmailId) ?? null
+  const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Expéditeur inconnu"
+  const selectedSenderEmail = selectedEmail?.from_email ?? "Pas d'adresse email"
+
+  const categoryLabelMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const cat of customCategoriesState) map.set(cat.slug, cat.name)
+    map.set("inbox", "Boîte de réception")
+    return map
+  }, [customCategoriesState])
+
+  const groupedEmails = useMemo(() => {
+    if (activeCategory === null) return []
+    const groups = new Map<string, { label: string; emails: InboxEmail[] }>()
     for (const cat of customCategoriesState) {
       groups.set(cat.slug, { label: cat.name, emails: [] })
     }
-    // Ensure fallback bucket exists
-    groups.set("inbox", { label: "Inbox", emails: [] })
-
+    groups.set("inbox", { label: "Boîte de réception", emails: [] })
     for (const email of filteredEmails) {
-      const key = slugToName.has(email.category) ? email.category : "inbox"
+      const key = categoryLabelMap.has(email.category) ? email.category : "inbox"
       groups.get(key)!.emails.push(email)
     }
-
     return Array.from(groups.entries())
       .filter(([, g]) => g.emails.length > 0)
       .map(([category, g]) => ({ category, label: g.label, emails: g.emails }))
-  }, [filteredEmails, customCategoriesState])
+  }, [filteredEmails, customCategoriesState, activeCategory, categoryLabelMap])
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
-
+    <TooltipProvider delayDuration={600}>
+      <div className="flex h-full w-full overflow-hidden">
         {/* Email list panel */}
-        <div className="hidden w-[460px] shrink-0 flex-col border-r bg-sidebar md:flex overflow-hidden">
-          <div className="flex h-[49px] shrink-0 items-center justify-between border-b px-4">
-            <span className="text-base font-medium text-foreground">Inbox</span>
-            <Label className="flex items-center gap-2 text-sm">
-              <span>Unreads</span>
-              <Switch
-                checked={showUnreadOnly}
-                onCheckedChange={setShowUnreadOnly}
-                className="shadow-none"
-              />
-            </Label>
+        <div className="hidden w-[460px] shrink-0 flex-col border-r bg-background md:flex overflow-hidden">
+          <div className="flex h-[49px] shrink-0 items-center justify-between border-b px-4 gap-2">
+            <span className="text-base font-medium text-foreground">Boîte de réception</span>
+            <div className="flex items-center gap-3">
+              <Label className="flex items-center gap-2 text-sm">
+                <span>Non lus</span>
+                {unreadCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                    {unreadCount}
+                  </span>
+                )}
+                <Switch
+                  checked={showUnreadOnly}
+                  onCheckedChange={setShowUnreadOnly}
+                  className="shadow-none"
+                />
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRefresh}
+                    aria-label="Actualiser"
+                    disabled={isRefreshing}
+                  >
+                    <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Actualiser</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setComposeOpen(true)}
+                    aria-label="Nouveau message"
+                  >
+                    <PenSquare />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Nouveau message</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
           <div className="border-b px-3 py-2">
             <Input
-              placeholder="Type to search..."
+              placeholder="Rechercher..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8"
+              className="h-9 text-sm"
             />
           </div>
           <div className="flex-1 overflow-y-auto">
             {filteredEmails.length === 0 ? (
-              <div className="px-4 py-6 text-sm text-muted-foreground">
-                No emails match this view.
-              </div>
+              <InboxZeroState processedCount={processedCount} />
+            ) : activeCategory === null ? (
+              /* ── Vue "Toutes" : liste plate triée par date + badge catégorie ── */
+              filteredEmails.map((email) => {
+                const isUnread = (!email.is_read || localUnreadIds.has(email.id)) && !localReadIds.has(email.id)
+                const isStarred = localStarred.has(email.id) ? localStarred.get(email.id)! : email.is_starred
+                const isChecked = selectedIds.has(email.id)
+                const catLabel = categoryLabelMap.get(email.category)
+                const showCatBadge = email.category !== "inbox" && catLabel
+                return (
+                  <button
+                    type="button"
+                    key={email.id}
+                    onClick={() => handleSelectEmail(email.id)}
+                    className={`group flex w-full flex-col items-start gap-1.5 border-b px-4 py-3 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-muted/50 ${
+                      email.id === selectedEmailId ? "bg-primary/8 border-l-2 border-l-primary" : ""
+                    } ${isChecked ? "bg-primary/5" : ""} ${isUnread && email.id !== selectedEmailId && !isChecked ? "bg-primary/[0.03]" : ""}`}
+                  >
+                    {/* Ligne 1 : expéditeur + badge + date + étoile */}
+                    <div className="flex w-full items-center gap-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Sélectionner ${email.from_name ?? email.from_email ?? 'cet email'}`}
+                        className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ opacity: isChecked ? 1 : undefined }}
+                        checked={isChecked}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(email.id)
+                            else next.delete(email.id)
+                            return next
+                          })
+                        }}
+                      />
+                      {isUnread && (
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label="Non lu" />
+                      )}
+                      <span className={`truncate text-xs ${isUnread ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                        {email.from_name ?? email.from_email ?? "Expéditeur inconnu"}
+                      </span>
+                      {showCatBadge && (
+                        <span className={`shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium ${getCategoryBadgeClass(email.category)}`}>
+                          {catLabel}
+                        </span>
+                      )}
+                      <span className="ml-auto shrink-0 text-[11px] text-muted-foreground/70" suppressHydrationWarning>
+                        {formatRelativeDate(email.received_at)}
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); handleToggleStar(email.id, isStarred) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleToggleStar(email.id, isStarred) } }}
+                        className={`shrink-0 transition-opacity cursor-pointer ${isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"}`}
+                        aria-label={isStarred ? "Retirer des favoris" : "Ajouter aux favoris"}
+                      >
+                        <Star className={`h-3.5 w-3.5 ${isStarred ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+                      </span>
+                    </div>
+                    {/* Ligne 2 : sujet (élément dominant) */}
+                    <span className={`line-clamp-1 text-sm ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>
+                      {email.subject ?? "(sans objet)"}
+                    </span>
+                    {/* Ligne 3 : aperçu avec fade-out */}
+                    <span className="relative block w-full overflow-hidden text-xs leading-snug text-muted-foreground" style={{ maxHeight: "2.6em" }}>
+                      <span className="line-clamp-2">
+                        {email.body_text?.trim() ?? "Aucun aperçu disponible"}
+                      </span>
+                      <span className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent group-hover:from-muted/50" />
+                    </span>
+                  </button>
+                )
+              })
             ) : (
+              /* ── Vue catégorie : groupes par section ── */
               groupedEmails.map((group) => (
                 <div key={group.category} className="border-b last:border-b-0">
-                  <div className="sticky top-0 z-10 flex items-center justify-between border-y bg-sidebar/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-sidebar/80">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {group.label}
-                    </span>
+                  <div className="sticky top-0 z-10 flex items-center justify-between border-y bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        aria-label="Tout sélectionner"
+                        className="h-3.5 w-3.5 cursor-pointer rounded"
+                        checked={group.emails.every((e) => selectedIds.has(e.id))}
+                        ref={(el) => {
+                          if (el) {
+                            const someSelected = group.emails.some((e) => selectedIds.has(e.id))
+                            const allSelected = group.emails.every((e) => selectedIds.has(e.id))
+                            el.indeterminate = someSelected && !allSelected
+                          }
+                        }}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev)
+                            group.emails.forEach((em) => {
+                              if (e.target.checked) next.add(em.id)
+                              else next.delete(em.id)
+                            })
+                            return next
+                          })
+                        }}
+                      />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {group.label}
+                      </span>
+                    </div>
                     <span className="text-xs text-muted-foreground">{group.emails.length}</span>
                   </div>
                   {group.emails.map((email) => {
-                    const isUnread = !email.is_read && !localReadIds.has(email.id)
+                    const isUnread = (!email.is_read || localUnreadIds.has(email.id)) && !localReadIds.has(email.id)
+                    const isStarred = localStarred.has(email.id) ? localStarred.get(email.id)! : email.is_starred
+                    const isChecked = selectedIds.has(email.id)
                     return (
-                    <button
-                      type="button"
-                      key={email.id}
-                      onClick={() => handleSelectEmail(email.id)}
-                      className={`flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-sidebar-accent/70 ${
-                        email.id === selectedEmailId ? "bg-sidebar-accent border-l-2 border-l-blue-500" : ""
-                      }`}
-                    >
-                      <div className="flex w-full items-center gap-2">
-                        {isUnread && (
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Unread" />
-                        )}
-                        <span className={`truncate ${isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"}`}>
-                          {email.from_name ?? email.from_email ?? "Unknown sender"}
+                      <button
+                        type="button"
+                        key={email.id}
+                        onClick={() => handleSelectEmail(email.id)}
+                        className={`group flex w-full flex-col items-start gap-1.5 border-b px-4 py-3 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-muted/50 ${
+                          email.id === selectedEmailId ? "bg-primary/8 border-l-2 border-l-primary" : ""
+                        } ${isChecked ? "bg-primary/5" : ""} ${isUnread && email.id !== selectedEmailId && !isChecked ? "bg-primary/[0.03]" : ""}`}
+                      >
+                        <div className="flex w-full items-center gap-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`Sélectionner ${email.from_name ?? email.from_email ?? 'cet email'}`}
+                            className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            style={{ opacity: isChecked ? 1 : undefined }}
+                            checked={isChecked}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev)
+                                if (e.target.checked) next.add(email.id)
+                                else next.delete(email.id)
+                                return next
+                              })
+                            }}
+                          />
+                          {isUnread && (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-label="Non lu" />
+                          )}
+                          <span className={`truncate text-xs ${isUnread ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                            {email.from_name ?? email.from_email ?? "Expéditeur inconnu"}
+                          </span>
+                          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground/70" suppressHydrationWarning>
+                            {formatRelativeDate(email.received_at)}
+                          </span>
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); handleToggleStar(email.id, isStarred) }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleToggleStar(email.id, isStarred) } }}
+                            className={`shrink-0 transition-opacity cursor-pointer ${isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"}`}
+                            aria-label={isStarred ? "Retirer des favoris" : "Ajouter aux favoris"}
+                          >
+                            <Star className={`h-3.5 w-3.5 ${isStarred ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+                          </span>
+                        </div>
+                        <span className={`line-clamp-1 text-sm ${isUnread ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>
+                          {email.subject ?? "(sans objet)"}
                         </span>
-                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                          {formatRelativeDate(email.received_at)}
+                        <span className="relative block w-full overflow-hidden text-xs leading-snug text-muted-foreground" style={{ maxHeight: "2.6em" }}>
+                          <span className="line-clamp-2">
+                            {email.body_text?.trim() ?? "Aucun aperçu disponible"}
+                          </span>
+                          <span className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent group-hover:from-muted/50" />
                         </span>
-                      </div>
-                      <span className={`line-clamp-1 ${isUnread ? "font-semibold text-foreground" : "font-normal text-foreground/70"}`}>
-                        {email.subject ?? "(no subject)"}
-                      </span>
-                      <span className="line-clamp-2 text-xs text-muted-foreground">
-                        {email.body_text?.trim() ?? email.from_email ?? "No preview available"}
-                      </span>
-                    </button>
-                  )})}
+                      </button>
+                    )
+                  })}
                 </div>
               ))
             )}
           </div>
+          <BulkActionBar
+            selectedCount={selectedIds.size}
+            onArchive={handleBulkArchive}
+            onTrash={handleBulkTrash}
+            onDeselect={() => setSelectedIds(new Set())}
+            isProcessing={isBulkActioning}
+          />
         </div>
 
         {/* Main content area */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <header className="flex h-[49px] shrink-0 items-center gap-2 border-b bg-background px-4">
+          <header className="flex h-[49px] shrink-0 items-center gap-2 border-b bg-muted px-4">
             <Breadcrumb>
               <BreadcrumbList>
                 {activeCategory ? (
                   <>
                     <BreadcrumbItem className="hidden md:block">
-                      <BreadcrumbLink href="/inbox">Inbox</BreadcrumbLink>
+                      <BreadcrumbLink href="/inbox">Boîte de réception</BreadcrumbLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator className="hidden md:block" />
                     <BreadcrumbItem>
@@ -425,127 +883,225 @@ export function InboxShell({
                   </>
                 ) : (
                   <BreadcrumbItem>
-                    <BreadcrumbPage>Inbox</BreadcrumbPage>
+                    <BreadcrumbPage>Boîte de réception</BreadcrumbPage>
                   </BreadcrumbItem>
                 )}
               </BreadcrumbList>
             </Breadcrumb>
           </header>
+
           {!selectedEmail ? (
-            <div className="flex flex-1 flex-col gap-4 bg-[#f3f2f1] p-4 md:p-6">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-12 animate-pulse rounded-md border border-[#edebe9] bg-white/80"
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex-1 overflow-auto bg-[#f6f6f7]">
-              <div className="p-4 space-y-3">
-              <div className="flex flex-col rounded-xl border border-[#e6e6e8] bg-white">
-                <div className="sticky top-0 z-10 flex h-12 items-center justify-between rounded-t-xl border-b border-[#ececef] bg-white px-4">
-                  <div className="flex items-center gap-2 text-[#3b3b44]">
-                    <button type="button" title="Répondre" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Reply" onClick={handleReply}>
-                      <Reply className="h-4 w-4" />
-                    </button>
-                    <button type="button" title="Répondre à tous" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Reply all" onClick={handleReplyAll}>
-                      <ReplyAll className="h-4 w-4" />
-                    </button>
-                    <button type="button" title="Transférer" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Forward" onClick={handleForward}>
-                      <Forward className="h-4 w-4" />
-                    </button>
-                    <button type="button" title="Archiver" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Archive" disabled={isActioning} onClick={handleArchive}>
-                      <Archive className="h-4 w-4" />
-                    </button>
-                    <button type="button" title="Supprimer" className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50" aria-label="Trash" disabled={isActioning} onClick={handleTrash}>
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-md p-1.5 text-[#3b3b44] hover:bg-[#f4f4f6]"
-                    aria-label="More actions"
-                  >
-                    <EllipsisVertical className="h-4 w-4" />
-                  </button>
-                </div>
-                {actionError && (
-                  <Alert role="alert" variant="destructive" className="mx-4 mt-2">
-                    <AlertDescription>{actionError}</AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="border-b border-[#ececef] px-6 py-4">
-                  <h2 className="text-[22px] font-semibold leading-tight text-[#24242a]">
-                    {selectedEmail.subject ?? "(no subject)"}
-                  </h2>
-                </div>
-
-                <div className="border-b border-[#ececef] px-6 py-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ececf6] text-sm font-semibold text-[#3f3f63]">
-                      {getSenderInitials(selectedSenderName)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold text-[#24242a]">
-                        {selectedSenderName}
-                      </p>
-                      <p className="truncate text-sm text-[#6c6c77]">
-                        {selectedSenderEmail}
-                      </p>
-                    </div>
-                    <p className="whitespace-nowrap text-sm text-[#6c6c77]">
-                      {formatDateTime(selectedEmail.received_at)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="px-6 py-5 space-y-6">
-                  <EmailBodyRenderer
-                    html={selectedEmail.body_html ?? null}
-                    text={selectedEmail.body_text}
+            filteredEmails.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center bg-muted">
+                <InboxZeroState processedCount={processedCount} />
+              </div>
+            ) : (
+              <div className="flex flex-1 flex-col gap-4 bg-muted p-4 md:p-6">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-12 animate-pulse rounded-md border border-border bg-card/80"
                   />
-                  {sentDraft && (
-                    <div className="border-t border-[#ececef] pt-5">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d1fae5] text-xs font-semibold text-[#065f46]">
-                          Me
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-semibold text-[#24242a]">You</span>
-                            {sentDraft.sent_at && (
-                              <span className="text-xs text-[#6c6c77]">
-                                {formatDateTime(sentDraft.sent_at)}
-                              </span>
-                            )}
+                ))}
+              </div>
+            )
+          ) : (
+            <div className="flex-1 overflow-auto bg-muted">
+              <div className="p-4 space-y-3">
+                <div className="flex flex-col rounded-xl border border-border bg-card">
+                  <div className="sticky top-0 z-10 flex h-12 items-center justify-between rounded-t-xl border-b border-border bg-card px-4">
+                    <div className="flex items-center gap-1 text-foreground">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="rounded-md p-1.5 hover:bg-accent" aria-label="Répondre" onClick={handleReply}>
+                            <Reply className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Répondre</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="rounded-md p-1.5 hover:bg-accent" aria-label="Répondre à tous" onClick={handleReplyAll}>
+                            <ReplyAll className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Répondre à tous</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="rounded-md p-1.5 hover:bg-accent" aria-label="Transférer" onClick={handleForward}>
+                            <Forward className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Transférer</TooltipContent>
+                      </Tooltip>
+
+                      <div className="mx-1 h-4 w-px bg-border" />
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="rounded-md p-1.5 hover:bg-accent disabled:opacity-50"
+                            aria-label="Archiver"
+                            disabled={isActioning}
+                            onClick={handleArchive}
+                          >
+                            <Archive className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Archiver</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="rounded-md p-1.5 hover:bg-accent disabled:opacity-50"
+                            aria-label="Supprimer"
+                            disabled={isActioning}
+                            onClick={handleTrash}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Supprimer</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="rounded-md p-1.5 hover:bg-accent"
+                            aria-label={(() => {
+                              const isStarred = localStarred.has(selectedEmail.id) ? localStarred.get(selectedEmail.id)! : selectedEmail.is_starred
+                              return isStarred ? "Retirer des favoris" : "Ajouter aux favoris"
+                            })()}
+                            onClick={() => {
+                              const isStarred = localStarred.has(selectedEmail.id) ? localStarred.get(selectedEmail.id)! : selectedEmail.is_starred
+                              handleToggleStar(selectedEmail.id, isStarred)
+                            }}
+                          >
+                            <Star
+                              className={`h-4 w-4 ${
+                                (localStarred.has(selectedEmail.id) ? localStarred.get(selectedEmail.id)! : selectedEmail.is_starred)
+                                  ? "fill-amber-400 text-amber-400"
+                                  : ""
+                              }`}
+                            />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {(localStarred.has(selectedEmail.id) ? localStarred.get(selectedEmail.id)! : selectedEmail.is_starred)
+                            ? "Retirer des favoris"
+                            : "Ajouter aux favoris"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="rounded-md p-1.5 hover:bg-accent"
+                            aria-label="Marquer comme non lu"
+                            onClick={handleMarkUnread}
+                          >
+                            <MailOpen className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Marquer comme non lu</TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-foreground hover:bg-accent"
+                      aria-label="Plus d'actions"
+                    >
+                      <EllipsisVertical className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {actionError && (
+                    <Alert role="alert" variant="destructive" className="mx-4 mt-2">
+                      <AlertDescription>{actionError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="border-b border-border px-6 py-4">
+                    <h2 className="text-[22px] font-semibold leading-tight text-foreground">
+                      {selectedEmail.subject ?? "(sans objet)"}
+                    </h2>
+                  </div>
+
+                  <div className="border-b border-border px-6 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
+                        {getSenderInitials(selectedSenderName)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-base font-semibold text-foreground">
+                          {selectedSenderName}
+                        </p>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {selectedSenderEmail}
+                        </p>
+                      </div>
+                      <p className="whitespace-nowrap text-sm text-muted-foreground" suppressHydrationWarning>
+                        {formatDateTime(selectedEmail.received_at)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="px-6 py-5 space-y-6">
+                    <EmailBodyRenderer
+                      html={selectedEmail.body_html ?? null}
+                      text={selectedEmail.body_text}
+                    />
+                    {sentDraft && (
+                      <div className="border-t border-border pt-5">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+                            Me
                           </div>
-                          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#2a2a32]">
-                            {sentDraft.content}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm font-semibold text-foreground">Moi</span>
+                              {sentDraft.sent_at && (
+                                <span className="text-xs text-muted-foreground" suppressHydrationWarning>
+                                  {formatDateTime(sentDraft.sent_at)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                              {sentDraft.content}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {isComposing && (
-                <div className="rounded-xl border border-[#e6e6e8] bg-white p-4">
-                  <DraftSection
-                    emailId={selectedEmailId!}
-                    userId={userId}
-                    responseType={selectedEmail?.response_type}
-                    confidenceScore={draftConfidenceScore}
-                  />
-                </div>
-              )}
+                {isComposing && (
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <DraftSection
+                      emailId={selectedEmailId!}
+                      userId={userId}
+                      responseType={selectedEmail?.response_type}
+                      confidenceScore={draftConfidenceScore}
+                      emailFrom={selectedEmail?.from_email ?? ''}
+                      emailBody={selectedEmail?.body_text ?? ''}
+                      emailSubject={selectedEmail?.subject ?? ''}
+                      signature={signature}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
+
+        {/* Compose new email sheet */}
+        <ComposeSheet open={composeOpen} onClose={() => setComposeOpen(false)} signature={signature} />
+        <ShortcutOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
       </div>
-  
+    </TooltipProvider>
   )
 }
