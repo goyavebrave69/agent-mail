@@ -30,11 +30,18 @@ interface DraftSectionProps {
   signature?: string
 }
 
+type PendingAttachment = {
+  contentBase64: string
+  filename: string
+  contentType: string
+}
+
 export function DraftSection({ emailId, userId, responseType, confidenceScore, emailFrom = '', emailBody = '', emailSubject = '', signature }: DraftSectionProps) {
   const [pdfIgnored, setPdfIgnored] = useState(false)
   const [quoteDialogOpen, setQuoteDialogOpen] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null)
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -42,6 +49,11 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
       if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
     }
   }, [])
+
+  // Clear pending attachment when email changes (AC5)
+  useEffect(() => {
+    setPendingAttachment(null)
+  }, [emailId])
 
   const {
     isComposing,
@@ -54,6 +66,7 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
     isCreating,
     createError,
     cancelComposing,
+    startComposing,
     updateComposeTo,
     updateComposeSubject,
     updateManualContent,
@@ -126,14 +139,26 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
         to: composeTo,
         subject: composeSubject,
         isForward: composeMode === 'forward',
+        attachment: pendingAttachment ?? undefined,
       })
       if (result.success) {
+        setPendingAttachment(null)
         confirmSendManual()
       } else {
         failSendManual(result.error ?? 'Failed to send reply.')
       }
     },
-    [emailId, composeTo, composeSubject, composeMode, optimisticSendManual, confirmSendManual, failSendManual]
+    [emailId, composeTo, composeSubject, composeMode, pendingAttachment, optimisticSendManual, confirmSendManual, failSendManual]
+  )
+
+  const handleQuoteReady = useCallback(
+    (contentBase64: string, filename: string) => {
+      setPendingAttachment({ contentBase64, filename, contentType: 'application/pdf' })
+      if (!isComposing) {
+        startComposing('reply', { to: emailFrom, subject: `Devis — ${emailSubject}`, quotedBody: '' })
+      }
+    },
+    [isComposing, startComposing, emailFrom, emailSubject]
   )
 
   const handleCreateDraft = useCallback(async () => {
@@ -174,7 +199,6 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
       <QuoteDialog
         open={quoteDialogOpen}
         onClose={() => setQuoteDialogOpen(false)}
-        emailId={emailId}
         emailFrom={emailFrom}
         emailBody={emailBody}
         emailSubject={emailSubject}
@@ -182,6 +206,7 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
           setQuoteDialogOpen(false)
           void handleCreateDraft()
         }}
+        onQuoteReady={handleQuoteReady}
       />
       {isComposing && (
         <>
@@ -203,6 +228,8 @@ export function DraftSection({ emailId, userId, responseType, confidenceScore, e
             isStreaming={isStreaming}
             streamingContent={streamingContent}
             signature={signature}
+            attachment={pendingAttachment}
+            onRemoveAttachment={() => setPendingAttachment(null)}
           />
           {createError && (
             <div

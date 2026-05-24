@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Paperclip, Sparkles, X } from 'lucide-react'
 import type { ComposeMode } from '@/stores/draft-store'
 
 interface ManualComposeProps {
@@ -22,6 +22,8 @@ interface ManualComposeProps {
   isStreaming?: boolean
   streamingContent?: string
   signature?: string
+  attachment?: { filename: string; contentBase64: string; contentType: string } | null
+  onRemoveAttachment?: () => void
 }
 
 const MAX_LENGTH = 10_000
@@ -43,6 +45,8 @@ export function ManualCompose({
   isStreaming = false,
   streamingContent = '',
   signature,
+  attachment,
+  onRemoveAttachment,
 }: ManualComposeProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [pendingCancel, setPendingCancel] = useState(false)
@@ -116,6 +120,28 @@ export function ManualCompose({
           <span className="flex-1 truncate text-sm text-muted-foreground">{composeSubject}</span>
         )}
       </div>
+
+      {/* Attachment chip */}
+      {attachment && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted px-2 py-1 text-xs w-fit">
+          <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate max-w-[200px]">{attachment.filename}</span>
+          <span className="text-muted-foreground">
+            {Math.round((attachment.contentBase64.length * 3) / 4 / 1024)} Ko
+          </span>
+          {onRemoveAttachment && (
+            <button
+              type="button"
+              onClick={onRemoveAttachment}
+              disabled={isSending}
+              aria-label="Supprimer la pièce jointe"
+              className="ml-1 rounded-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Body — skeleton while generating, streaming overlay during animation, textarea otherwise */}
       {isCreating ? (
