@@ -40,14 +40,18 @@ Ne les invente pas — utilise uniquement ce qui est fourni.`)
   }
 
   if (hasQuoteContext) {
-    sections.push(`# Devis en pièce jointe
-Un devis PDF a été généré et sera envoyé en pièce jointe avec cet email.
-Les détails du devis sont fournis dans les balises <devis_joint>.
-Tu dois rédiger un email d'accompagnement professionnel qui :
-- Annonce que le devis est joint en pièce jointe
-- Fait référence au numéro de devis et aux produits/prestations demandés
-- NE PROMET JAMAIS d'envoyer un devis dans un second temps — il est déjà joint
-- Invite le destinataire à revenir en cas de questions`)
+    sections.push(`# MISSION : Email d'accompagnement de devis
+Tu n'es PAS en train de répondre à un email reçu. Tu rédiges un EMAIL SORTANT qui accompagne un devis PDF en pièce jointe.
+
+L'email reçu (dans <email_recu>) est le contexte de la demande initiale du client — tu l'utilises uniquement pour connaître le prénom du destinataire et les produits demandés.
+
+Le devis (dans <devis_joint>) A DÉJÀ ÉTÉ GÉNÉRÉ et est joint en PDF. Ton email doit :
+1. Saluer le client par son prénom (tiré de <email_recu> ou <devis_joint>)
+2. Indiquer que le devis est en pièce jointe, en mentionnant son numéro
+3. Rappeler brièvement les produits/prestations couverts
+4. Mentionner les conditions de paiement
+5. Inviter à poser des questions
+6. NE JAMAIS promettre d'envoyer un devis ultérieurement — il EST DÉJÀ joint`)
   }
 
   sections.push(`# Format de réponse OBLIGATOIRE
@@ -56,23 +60,20 @@ Ta réponse doit TOUJOURS respecter ce gabarit exact, sans exception :
 
 [salutation]
 
-[remerciement ou accusé de réception si pertinent]
-
 [corps de la réponse]
 
 [formule de politesse]
 
 Règles pour chaque partie :
-- [salutation] : "Bonjour [Prénom]," si le prénom est identifiable dans l'email, sinon "Bonjour," — JAMAIS omettre cette ligne
-- [remerciement] : inclure si l'expéditeur a fait une demande, envoyé un document, ou initié un contact. Ex : "Merci pour votre message." / "Merci de votre retour."
-- [corps] : réponds précisément à la demande. Sépare les idées par des lignes vides. Ne commence pas par "Je".
-- [formule de politesse] : TOUJOURS terminer par "Cordialement," ou "Bien cordialement," sur sa propre ligne — c'est non négociable
+- [salutation] : "Bonjour [Prénom]," si le prénom est identifiable, sinon "Bonjour,"
+- [corps] : ${hasQuoteContext ? 'annonce le devis en PJ, numéro + produits + conditions, invitation à poser des questions' : 'réponds précisément à la demande. Sépare les idées par des lignes vides. Ne commence pas par "Je".'}
+- [formule de politesse] : TOUJOURS terminer par "Cordialement," ou "Bien cordialement," sur sa propre ligne
 
 Contraintes globales :
-- Français exclusivement, même si l'email reçu est dans une autre langue
+- Français exclusivement
 - Ton professionnel et cordial
 - Pas d'objet, pas de signature (nom/coordonnées)
-- N'invente aucune information non présente dans l'email ou la base de connaissances`)
+- N'invente aucune information non présente dans les données fournies`)
 
   return sections.join('\n\n')
 }
@@ -137,7 +138,7 @@ Conditions de paiement : ${quoteData.business.paymentTerms}
 
   parts.push('')
   if (quoteContext) {
-    parts.push('Le devis ci-dessus est joint en pièce jointe PDF. Rédige un email d\'accompagnement qui annonce ce devis, en faisant référence à son numéro et aux éléments demandés. NE PROMETS PAS d\'envoyer un devis : il est déjà en pièce jointe.')
+    parts.push(`TÂCHE : Rédige l'email d'accompagnement du devis n° ${quoteContext.quoteData.quoteNumber} en pièce jointe. Le devis est DÉJÀ JOINT — ne promets pas de l'envoyer. Utilise le prénom du client "${quoteContext.quoteData.client.name.split(' ')[0]}" dans la salutation.`)
   } else {
     parts.push('Rédige une réponse à cet email en respectant le format OBLIGATOIRE défini dans tes instructions.')
   }
