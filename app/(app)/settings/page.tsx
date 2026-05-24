@@ -107,11 +107,12 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             : null
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12">
+    <main className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="mb-8 text-2xl font-bold">Paramètres du compte</h1>
 
       {successMessage && (
-        <p className="mb-6 rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">
+        <p className="mb-6 rounded-md bg-primary/8 px-4 py-3 text-sm text-primary">
           {successMessage}
         </p>
       )}
@@ -152,6 +153,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </p>
         <DeleteAccountButton />
       </section>
+      </div>
     </main>
   )
 }

@@ -54,7 +54,9 @@ export default function AppLayout({
 }) {
   return (
     <div className="flex h-svh overflow-hidden">
-      <AuthGuard />
+      <Suspense fallback={null}>
+        <AuthGuard />
+      </Suspense>
       <Suspense fallback={<div className="w-56 shrink-0 border-r" />}>
         <SidebarLoader />
       </Suspense>

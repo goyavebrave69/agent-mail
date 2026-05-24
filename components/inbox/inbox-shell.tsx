@@ -112,12 +112,12 @@ function EmailBodyRenderer({ html, text }: { html: string | null; text: string |
   }
   if (text) {
     return (
-      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#2a2a32]">
+      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
         {text}
       </div>
     )
   }
-  return <p className="text-sm text-[#6c6c77]">Corps non disponible pour cet email.</p>
+  return <p className="text-sm text-muted-foreground">Corps non disponible pour cet email.</p>
 }
 
 function getSenderInitials(sender: string): string {
@@ -559,6 +559,13 @@ export function InboxShell({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEmailId, filteredEmails, localStarred])
 
+  const unreadCount = useMemo(() =>
+    emails.filter((email) => {
+      if (localArchivedIds.has(email.id)) return false
+      return (!email.is_read || localUnreadIds.has(email.id)) && !localReadIds.has(email.id)
+    }).length
+  , [emails, localArchivedIds, localUnreadIds, localReadIds])
+
   const selectedEmail = filteredEmails.find((email) => email.id === selectedEmailId) ?? null
   const selectedSenderName = selectedEmail?.from_name ?? selectedEmail?.from_email ?? "Expéditeur inconnu"
   const selectedSenderEmail = selectedEmail?.from_email ?? "Pas d'adresse email"
@@ -586,12 +593,17 @@ export function InboxShell({
     <TooltipProvider delayDuration={600}>
       <div className="flex h-full w-full overflow-hidden">
         {/* Email list panel */}
-        <div className="hidden w-[460px] shrink-0 flex-col border-r bg-sidebar md:flex overflow-hidden">
+        <div className="hidden w-[460px] shrink-0 flex-col border-r bg-background md:flex overflow-hidden">
           <div className="flex h-[49px] shrink-0 items-center justify-between border-b px-4 gap-2">
             <span className="text-base font-medium text-foreground">Boîte de réception</span>
             <div className="flex items-center gap-3">
               <Label className="flex items-center gap-2 text-sm">
                 <span>Non lus</span>
+                {unreadCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                    {unreadCount}
+                  </span>
+                )}
                 <Switch
                   checked={showUnreadOnly}
                   onCheckedChange={setShowUnreadOnly}
@@ -603,11 +615,10 @@ export function InboxShell({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
                     onClick={() => setComposeOpen(true)}
                     aria-label="Nouveau message"
                   >
-                    <PenSquare className="h-4 w-4" />
+                    <PenSquare />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Nouveau message</TooltipContent>
@@ -619,7 +630,7 @@ export function InboxShell({
               placeholder="Rechercher..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8"
+              className="h-9 text-sm"
             />
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -628,7 +639,7 @@ export function InboxShell({
             ) : (
               groupedEmails.map((group) => (
                 <div key={group.category} className="border-b last:border-b-0">
-                  <div className="sticky top-0 z-10 flex items-center justify-between border-y bg-sidebar/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-sidebar/80">
+                  <div className="sticky top-0 z-10 flex items-center justify-between border-y bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -668,9 +679,9 @@ export function InboxShell({
                         type="button"
                         key={email.id}
                         onClick={() => handleSelectEmail(email.id)}
-                        className={`group flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-sidebar-accent/70 ${
-                          email.id === selectedEmailId ? "bg-sidebar-accent border-l-2 border-l-blue-500" : ""
-                        } ${isChecked ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
+                        className={`group flex w-full flex-col items-start gap-2 border-b p-4 text-left text-sm leading-tight last:border-b-0 transition-colors hover:bg-muted/60 ${
+                          email.id === selectedEmailId ? "bg-primary/8 border-l-2 border-l-primary" : ""
+                        } ${isChecked ? "bg-primary/5" : ""}`}
                       >
                         <div className="flex w-full items-center gap-2">
                           <input
@@ -690,29 +701,31 @@ export function InboxShell({
                             }}
                           />
                           {isUnread && (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Non lu" />
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Non lu" />
                           )}
                           <span className={`truncate ${isUnread ? "font-semibold text-foreground" : "font-normal text-muted-foreground"}`}>
                             {email.from_name ?? email.from_email ?? "Expéditeur inconnu"}
                           </span>
-                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                          <span className="ml-auto shrink-0 text-xs text-muted-foreground" suppressHydrationWarning>
                             {formatRelativeDate(email.received_at)}
                           </span>
-                          <button
-                            type="button"
+                          <span
+                            role="button"
+                            tabIndex={0}
                             onClick={(e) => { e.stopPropagation(); handleToggleStar(email.id, isStarred) }}
-                            className={`shrink-0 transition-opacity ${isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"}`}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleToggleStar(email.id, isStarred) } }}
+                            className={`shrink-0 transition-opacity cursor-pointer ${isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-60 hover:!opacity-100"}`}
                             aria-label={isStarred ? "Retirer des favoris" : "Ajouter aux favoris"}
                           >
                             <Star
                               className={`h-3.5 w-3.5 ${isStarred ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
                             />
-                          </button>
+                          </span>
                         </div>
                         <span className={`line-clamp-1 ${isUnread ? "font-semibold text-foreground" : "font-normal text-foreground/70"}`}>
                           {email.subject ?? "(sans objet)"}
                         </span>
-                        <span className="line-clamp-2 text-xs text-muted-foreground">
+                        <span className="line-clamp-2 text-sm leading-snug text-muted-foreground">
                           {email.body_text?.trim() ?? email.from_email ?? "Aucun aperçu disponible"}
                         </span>
                       </button>
@@ -733,7 +746,7 @@ export function InboxShell({
 
         {/* Main content area */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <header className="flex h-[49px] shrink-0 items-center gap-2 border-b bg-background px-4">
+          <header className="flex h-[49px] shrink-0 items-center gap-2 border-b bg-muted px-4">
             <Breadcrumb>
               <BreadcrumbList>
                 {activeCategory ? (
@@ -759,28 +772,28 @@ export function InboxShell({
 
           {!selectedEmail ? (
             filteredEmails.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center bg-[#f3f2f1]">
+              <div className="flex flex-1 items-center justify-center bg-muted">
                 <InboxZeroState processedCount={processedCount} />
               </div>
             ) : (
-              <div className="flex flex-1 flex-col gap-4 bg-[#f3f2f1] p-4 md:p-6">
+              <div className="flex flex-1 flex-col gap-4 bg-muted p-4 md:p-6">
                 {Array.from({ length: 8 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-12 animate-pulse rounded-md border border-[#edebe9] bg-white/80"
+                    className="h-12 animate-pulse rounded-md border border-border bg-card/80"
                   />
                 ))}
               </div>
             )
           ) : (
-            <div className="flex-1 overflow-auto bg-[#f6f6f7]">
+            <div className="flex-1 overflow-auto bg-muted">
               <div className="p-4 space-y-3">
-                <div className="flex flex-col rounded-xl border border-[#e6e6e8] bg-white">
-                  <div className="sticky top-0 z-10 flex h-12 items-center justify-between rounded-t-xl border-b border-[#ececef] bg-white px-4">
-                    <div className="flex items-center gap-1 text-[#3b3b44]">
+                <div className="flex flex-col rounded-xl border border-border bg-card">
+                  <div className="sticky top-0 z-10 flex h-12 items-center justify-between rounded-t-xl border-b border-border bg-card px-4">
+                    <div className="flex items-center gap-1 text-foreground">
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button type="button" className="rounded-md p-1.5 hover:bg-[#f4f4f6]" aria-label="Répondre" onClick={handleReply}>
+                          <button type="button" className="rounded-md p-1.5 hover:bg-accent" aria-label="Répondre" onClick={handleReply}>
                             <Reply className="h-4 w-4" />
                           </button>
                         </TooltipTrigger>
@@ -788,7 +801,7 @@ export function InboxShell({
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button type="button" className="rounded-md p-1.5 hover:bg-[#f4f4f6]" aria-label="Répondre à tous" onClick={handleReplyAll}>
+                          <button type="button" className="rounded-md p-1.5 hover:bg-accent" aria-label="Répondre à tous" onClick={handleReplyAll}>
                             <ReplyAll className="h-4 w-4" />
                           </button>
                         </TooltipTrigger>
@@ -796,20 +809,20 @@ export function InboxShell({
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button type="button" className="rounded-md p-1.5 hover:bg-[#f4f4f6]" aria-label="Transférer" onClick={handleForward}>
+                          <button type="button" className="rounded-md p-1.5 hover:bg-accent" aria-label="Transférer" onClick={handleForward}>
                             <Forward className="h-4 w-4" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>Transférer</TooltipContent>
                       </Tooltip>
 
-                      <div className="mx-1 h-4 w-px bg-[#e6e6e8]" />
+                      <div className="mx-1 h-4 w-px bg-border" />
 
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
+                            className="rounded-md p-1.5 hover:bg-accent disabled:opacity-50"
                             aria-label="Archiver"
                             disabled={isActioning}
                             onClick={handleArchive}
@@ -823,7 +836,7 @@ export function InboxShell({
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            className="rounded-md p-1.5 hover:bg-[#f4f4f6] disabled:opacity-50"
+                            className="rounded-md p-1.5 hover:bg-accent disabled:opacity-50"
                             aria-label="Supprimer"
                             disabled={isActioning}
                             onClick={handleTrash}
@@ -837,7 +850,7 @@ export function InboxShell({
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            className="rounded-md p-1.5 hover:bg-[#f4f4f6]"
+                            className="rounded-md p-1.5 hover:bg-accent"
                             aria-label={(() => {
                               const isStarred = localStarred.has(selectedEmail.id) ? localStarred.get(selectedEmail.id)! : selectedEmail.is_starred
                               return isStarred ? "Retirer des favoris" : "Ajouter aux favoris"
@@ -866,7 +879,7 @@ export function InboxShell({
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            className="rounded-md p-1.5 hover:bg-[#f4f4f6]"
+                            className="rounded-md p-1.5 hover:bg-accent"
                             aria-label="Marquer comme non lu"
                             onClick={handleMarkUnread}
                           >
@@ -878,7 +891,7 @@ export function InboxShell({
                     </div>
                     <button
                       type="button"
-                      className="rounded-md p-1.5 text-[#3b3b44] hover:bg-[#f4f4f6]"
+                      className="rounded-md p-1.5 text-foreground hover:bg-accent"
                       aria-label="Plus d'actions"
                     >
                       <EllipsisVertical className="h-4 w-4" />
@@ -891,26 +904,26 @@ export function InboxShell({
                     </Alert>
                   )}
 
-                  <div className="border-b border-[#ececef] px-6 py-4">
-                    <h2 className="text-[22px] font-semibold leading-tight text-[#24242a]">
+                  <div className="border-b border-border px-6 py-4">
+                    <h2 className="text-[22px] font-semibold leading-tight text-foreground">
                       {selectedEmail.subject ?? "(sans objet)"}
                     </h2>
                   </div>
 
-                  <div className="border-b border-[#ececef] px-6 py-4">
+                  <div className="border-b border-border px-6 py-4">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ececf6] text-sm font-semibold text-[#3f3f63]">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
                         {getSenderInitials(selectedSenderName)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-base font-semibold text-[#24242a]">
+                        <p className="truncate text-base font-semibold text-foreground">
                           {selectedSenderName}
                         </p>
-                        <p className="truncate text-sm text-[#6c6c77]">
+                        <p className="truncate text-sm text-muted-foreground">
                           {selectedSenderEmail}
                         </p>
                       </div>
-                      <p className="whitespace-nowrap text-sm text-[#6c6c77]">
+                      <p className="whitespace-nowrap text-sm text-muted-foreground" suppressHydrationWarning>
                         {formatDateTime(selectedEmail.received_at)}
                       </p>
                     </div>
@@ -922,21 +935,21 @@ export function InboxShell({
                       text={selectedEmail.body_text}
                     />
                     {sentDraft && (
-                      <div className="border-t border-[#ececef] pt-5">
+                      <div className="border-t border-border pt-5">
                         <div className="flex items-start gap-3">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d1fae5] text-xs font-semibold text-[#065f46]">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
                             Me
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="text-sm font-semibold text-[#24242a]">Moi</span>
+                              <span className="text-sm font-semibold text-foreground">Moi</span>
                               {sentDraft.sent_at && (
-                                <span className="text-xs text-[#6c6c77]">
+                                <span className="text-xs text-muted-foreground" suppressHydrationWarning>
                                   {formatDateTime(sentDraft.sent_at)}
                                 </span>
                               )}
                             </div>
-                            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[#2a2a32]">
+                            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
                               {sentDraft.content}
                             </div>
                           </div>
@@ -947,7 +960,7 @@ export function InboxShell({
                 </div>
 
                 {isComposing && (
-                  <div className="rounded-xl border border-[#e6e6e8] bg-white p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <DraftSection
                       emailId={selectedEmailId!}
                       userId={userId}

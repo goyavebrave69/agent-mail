@@ -79,6 +79,7 @@ import {
   toCustomCategorySlug,
   type CustomCategory,
 } from '@/lib/inbox/custom-categories'
+import { BrevMark } from '@/components/brand/logo'
 
 const SESSION_KEY = 'app_sidebar_collapsed'
 
@@ -163,7 +164,7 @@ function SortableCategoryItem({
           style={style}
           className={cn(
             'group flex items-center gap-1 rounded-md text-sm text-sidebar-foreground',
-            isActive && !isRenaming ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''
+            isActive && !isRenaming ? 'bg-primary/10 text-primary' : ''
           )}
         >
           {/* Drag handle — only visible on hover when not collapsed */}
@@ -428,13 +429,21 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
           collapsed ? 'w-[49px]' : 'w-[220px]'
         )}
       >
-        {/* Toggle */}
+        {/* Header: logo + toggle */}
         <div
           className={cn(
             'flex h-[49px] shrink-0 items-center border-b',
-            collapsed ? 'justify-center' : 'justify-end px-3'
+            collapsed ? 'justify-center px-2' : 'justify-between px-3'
           )}
         >
+          {!collapsed && (
+            <Link href="/inbox" className="flex items-center gap-2">
+              <BrevMark size={26} />
+              <span className="text-[15px] font-semibold tracking-tight">
+                br<span className="text-[#6366f1]">è</span>v
+              </span>
+            </Link>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -443,7 +452,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
                 aria-label={collapsed ? 'Développer la barre latérale' : 'Réduire la barre latérale'}
                 className="flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               >
-                <PanelLeft className="h-4 w-4 shrink-0" />
+                {collapsed ? <BrevMark size={22} /> : <PanelLeft className="h-4 w-4 shrink-0" />}
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -488,7 +497,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
                     href={item.href}
                     className={cn(
                       'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                      isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''
+                      isActive ? 'bg-primary/10 text-primary font-medium' : ''
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
@@ -511,7 +520,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
               {/* CATÉGORIES header + add button */}
               <div className={cn('mb-1 flex items-center gap-1', collapsed ? 'justify-center' : 'justify-between')}>
                 {!collapsed && (
-                  <span className="px-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                  <span className="px-1 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                     Catégories
                   </span>
                 )}
@@ -541,7 +550,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
                     onClick={() => setCategory('all')}
                     className={cn(
                       'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                      activeKey === 'all' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : '',
+                      activeKey === 'all' ? 'bg-primary/10 text-primary font-medium' : '',
                       collapsed ? 'justify-center' : ''
                     )}
                   >
@@ -558,7 +567,7 @@ export function AppSidebar({ customCategories: initialCategories, unreadCounts =
               </Tooltip>
 
               {/* Sortable custom categories */}
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <DndContext id="sidebar-categories-dnd" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={categories.map((c) => c.id)} strategy={verticalListSortingStrategy}>
                   {categories.map((category) => (
                     <SortableCategoryItem
