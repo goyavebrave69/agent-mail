@@ -330,7 +330,18 @@ export async function rejectDraft(draftId: string): Promise<RejectDraftResult> {
 
 // ─── Create draft on demand ───────────────────────────────────────────────────
 
-export async function createDraftOnDemand(emailId: string): Promise<CreateDraftResult> {
+export interface QuoteContext {
+  quoteData: {
+    quoteNumber: string
+    date: string
+    client: { name: string }
+    lineItems: Array<{ description: string; quantity: number; unitPrice: number }>
+    business: { currency: string; taxRate: number; paymentTerms: string }
+  }
+  totals: { subtotalHT: number; taxAmount: number; totalTTC: number }
+}
+
+export async function createDraftOnDemand(emailId: string, quoteContext?: QuoteContext): Promise<CreateDraftResult> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -389,7 +400,7 @@ export async function createDraftOnDemand(emailId: string): Promise<CreateDraftR
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
       },
-      body: JSON.stringify({ emailId, userId: user.id }),
+      body: JSON.stringify({ emailId, userId: user.id, quoteContext: quoteContext ?? null }),
     }
   )
 
@@ -562,7 +573,12 @@ export async function trashEmail(
 export async function sendManualReply(
   emailId: string,
   content: string,
-  overrides?: { to?: string; subject?: string; isForward?: boolean }
+  overrides?: {
+    to?: string
+    subject?: string
+    isForward?: boolean
+    attachment?: { filename: string; contentBase64: string; contentType: string }
+  }
 ): Promise<SendEmailResult> {
   const sanitized = content.trim()
   if (!sanitized) {
@@ -640,6 +656,7 @@ export async function sendManualReply(
       subject,
       body: sanitized,
       replyToMessageId: isForward ? undefined : (email.provider_email_id ?? undefined),
+      attachments: overrides?.attachment ? [overrides.attachment] : undefined,
     }
   )
 

@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { X, FileText, CheckCircle, Download, PackageX } from 'lucide-react'
+import { X, FileText, Download, PackageX } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { QuoteForm } from './quote-form'
-import { sendQuoteAction } from '@/app/(app)/inbox/[emailId]/send-quote-action'
 import { extractClientInfo } from '@/lib/quotes/extract-client-info'
 import { todayIso } from '@/lib/quotes/generate-quote-number'
 import type { QuoteData, QuoteTotals, InvoiceSettings } from '@/lib/quotes/types'
@@ -19,11 +18,11 @@ const QuotePdfPreview = dynamic(
 interface QuoteDialogProps {
   open: boolean
   onClose: () => void
-  emailId: string
   emailFrom: string
   emailBody: string
   emailSubject: string
   onNotifyClient?: () => void
+  onQuoteReady?: (contentBase64: string, filename: string, quoteData: QuoteData, totals: QuoteTotals) => void
 }
 
 function computeTotals(quoteData: QuoteData): QuoteTotals {
@@ -106,40 +105,28 @@ function OutOfScopeState({ onDecline }: { onDecline?: () => void }) {
   )
 }
 
-function SuccessOverlay({ clientName }: { clientName: string }) {
-  return (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-background/95">
-      <CheckCircle className="h-12 w-12 text-green-500" />
-      <p className="text-base font-semibold">Devis envoyé à {clientName}</p>
-    </div>
-  )
-}
-
 export function QuoteDialog({
   open,
   onClose,
-  emailId,
   emailFrom,
   emailBody,
   emailSubject,
   onNotifyClient,
+  onQuoteReady,
 }: QuoteDialogProps) {
   const [settings, setSettings] = useState<InvoiceSettings | null>(null)
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [quoteData, setQuoteData] = useState<QuoteData | null>(null)
   const [noKbMatch, setNoKbMatch] = useState(false)
   const [outOfScope, setOutOfScope] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const [showSuccess, setShowSuccess] = useState(false)
-  const [quoteSubject] = useState(`Devis — ${emailSubject}`)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   // Load settings and init quote when dialog opens
   useEffect(() => {
     if (!open) return
     setLoadingSettings(true)
-    setSendError(null)
-    setShowSuccess(false)
+    setGenerateError(null)
     setNoKbMatch(false)
     setOutOfScope(false)
 
@@ -215,8 +202,8 @@ export function QuoteDialog({
 
   const handleSend = useCallback(async () => {
     if (!quoteData) return
-    setSending(true)
-    setSendError(null)
+    setGenerating(true)
+    setGenerateError(null)
 
     try {
       const { pdf } = await import('@react-pdf/renderer')
@@ -228,29 +215,17 @@ export function QuoteDialog({
       let binary = ''
       for (const byte of uint8) binary += String.fromCharCode(byte)
       const contentBase64 = btoa(binary)
+      const filename = `devis-${quoteData.quoteNumber}.pdf`
+      const totals = computeTotals(quoteData)
 
-      const result = await sendQuoteAction(
-        emailId,
-        {
-          filename: `devis-${quoteData.quoteNumber}.pdf`,
-          contentBase64,
-          contentType: 'application/pdf',
-        },
-        quoteSubject
-      )
-
-      if (result.success) {
-        setShowSuccess(true)
-        setTimeout(onClose, 2500)
-      } else {
-        setSendError(result.error ?? 'Erreur lors de l\'envoi.')
-      }
+      onQuoteReady?.(contentBase64, filename, quoteData, totals)
+      onClose()
     } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Erreur inattendue.')
+      setGenerateError(err instanceof Error ? err.message : 'Erreur inattendue.')
     } finally {
-      setSending(false)
+      setGenerating(false)
     }
-  }, [quoteData, emailId, quoteSubject, onClose])
+  }, [quoteData, onQuoteReady, onClose])
 
   const handleDownload = useCallback(async () => {
     if (!quoteData) return
@@ -292,7 +267,7 @@ export function QuoteDialog({
           <div className="flex items-center gap-2">
             {settings && quoteData && (
               <>
-                <Button variant="ghost" size="sm" onClick={handleDownload} disabled={sending}>
+                <Button variant="ghost" size="sm" onClick={handleDownload} disabled={generating}>
                   <Download className="mr-1.5 h-4 w-4" />
                   Télécharger
                 </Button>
@@ -300,12 +275,12 @@ export function QuoteDialog({
                   variant="ghost"
                   size="sm"
                   onClick={onClose}
-                  disabled={sending}
+                  disabled={generating}
                 >
                   Annuler
                 </Button>
-                <Button size="sm" onClick={handleSend} disabled={sending}>
-                  {sending ? 'Envoi…' : 'Envoyer en PJ'}
+                <Button size="sm" onClick={handleSend} disabled={generating}>
+                  {generating ? 'Préparation…' : 'Envoyer en PJ'}
                 </Button>
               </>
             )}
@@ -320,18 +295,14 @@ export function QuoteDialog({
           </div>
         </div>
 
-        {sendError && (
+        {generateError && (
           <div className="shrink-0 bg-destructive/10 px-6 py-2 text-sm text-destructive">
-            {sendError}
+            {generateError}
           </div>
         )}
 
         {/* Body */}
         <div className="relative flex flex-1 min-h-0">
-          {showSuccess && quoteData && (
-            <SuccessOverlay clientName={quoteData.client.name} />
-          )}
-
           {loadingSettings && (
             <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
               Chargement…
@@ -369,7 +340,7 @@ export function QuoteDialog({
                   quoteData={quoteData}
                   totals={totals}
                   emailTo={emailFrom}
-                  emailSubject={quoteSubject}
+                  emailSubject={`Devis — ${emailSubject}`}
                   onChange={(patch) => setQuoteData((prev) => prev ? { ...prev, ...patch } : prev)}
                 />
               </div>

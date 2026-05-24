@@ -1,6 +1,6 @@
 # Story 5.17: Quote Flow UX Fixes — Attachment Preview, Send Sequencing & Dialog Sync
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -124,33 +124,33 @@ export async function sendManualReply(
 
 ## Tasks
 
-- [ ] **Task 1 — QuoteDialog: generate blob instead of sending**
-  - [ ] 1.1 Replace `handleSend()` logic: generate PDF blob, compute base64, call `onQuoteReady(contentBase64, filename)` prop
-  - [ ] 1.2 Remove `sendQuoteAction` call from QuoteDialog
-  - [ ] 1.3 Remove success overlay (Option A) — dialog simply closes after `onQuoteReady` fires
-  - [ ] 1.4 Add `onQuoteReady: (contentBase64: string, filename: string) => void` to QuoteDialogProps
+- [x] **Task 1 — QuoteDialog: generate blob instead of sending**
+  - [x] 1.1 Replace `handleSend()` logic: generate PDF blob, compute base64, call `onQuoteReady(contentBase64, filename)` prop
+  - [x] 1.2 Remove `sendQuoteAction` call from QuoteDialog
+  - [x] 1.3 Remove success overlay (Option A) — dialog simply closes after `onQuoteReady` fires
+  - [x] 1.4 Add `onQuoteReady: (contentBase64: string, filename: string) => void` to QuoteDialogProps
 
-- [ ] **Task 2 — DraftSection: pending attachment state**
-  - [ ] 2.1 Add `pendingAttachment: { contentBase64: string; filename: string; contentType: string } | null` state
-  - [ ] 2.2 Implement `handleQuoteReady(contentBase64, filename)`: set pendingAttachment, call `startComposing('reply', ...)` if not already composing
-  - [ ] 2.3 Pass `onQuoteReady={handleQuoteReady}` to QuoteDialog
-  - [ ] 2.4 Pass `pendingAttachment` to ManualCompose
-  - [ ] 2.5 Clear pendingAttachment when compose is cancelled or email changes (`useEffect` on `emailId`)
+- [x] **Task 2 — DraftSection: pending attachment state**
+  - [x] 2.1 Add `pendingAttachment: { contentBase64: string; filename: string; contentType: string } | null` state
+  - [x] 2.2 Implement `handleQuoteReady(contentBase64, filename)`: set pendingAttachment, call `startComposing('reply', ...)` if not already composing
+  - [x] 2.3 Pass `onQuoteReady={handleQuoteReady}` to QuoteDialog
+  - [x] 2.4 Pass `pendingAttachment` to ManualCompose
+  - [x] 2.5 Clear pendingAttachment when compose is cancelled or email changes (`useEffect` on `emailId`)
 
-- [ ] **Task 3 — ManualCompose: attachment chip UI**
-  - [ ] 3.1 Accept `attachment?: { filename: string; contentBase64: string; contentType: string } | null` prop
-  - [ ] 3.2 Accept `onRemoveAttachment?: () => void` prop
-  - [ ] 3.3 Render attachment chip above textarea when attachment is present
-  - [ ] 3.4 ✕ button calls `onRemoveAttachment`
+- [x] **Task 3 — ManualCompose: attachment chip UI**
+  - [x] 3.1 Accept `attachment?: { filename: string; contentBase64: string; contentType: string } | null` prop
+  - [x] 3.2 Accept `onRemoveAttachment?: () => void` prop
+  - [x] 3.3 Render attachment chip above textarea when attachment is present
+  - [x] 3.4 ✕ button calls `onRemoveAttachment`
 
-- [ ] **Task 4 — sendManualReply: support attachment**
-  - [ ] 4.1 Add optional `attachment` to options type
-  - [ ] 4.2 Forward attachment to `sendEmailViaProvider`
-  - [ ] 4.3 Verify `sendEmailViaProvider` in `lib/email/send.ts` already supports attachment param (it does — used by sendQuoteAction) — if not, add it
+- [x] **Task 4 — sendManualReply: support attachment**
+  - [x] 4.1 Add optional `attachment` to options type
+  - [x] 4.2 Forward attachment to `sendEmailViaProvider`
+  - [x] 4.3 Verify `sendEmailViaProvider` in `lib/email/send.ts` already supports attachment param (it does — used by sendQuoteAction) — if not, add it
 
-- [ ] **Task 5 — DraftSection: wire send with attachment**
-  - [ ] 5.1 In `handleSendManual`, pass `pendingAttachment` to `sendManualReply` options
-  - [ ] 5.2 On successful send, clear `pendingAttachment`
+- [x] **Task 5 — DraftSection: wire send with attachment**
+  - [x] 5.1 In `handleSendManual`, pass `pendingAttachment` to `sendManualReply` options
+  - [x] 5.2 On successful send, clear `pendingAttachment`
 
 ---
 
@@ -166,13 +166,26 @@ export async function sendManualReply(
 
 ## Dev Agent Record
 
-_To be filled by dev agent after implementation._
-
 ### Implementation Notes
-_(empty)_
+- Refactored `QuoteDialog.handleSend` : génère le blob PDF et appelle `onQuoteReady(contentBase64, filename)` puis ferme le dialog — l'email n'est plus envoyé ici.
+- Supprimé `SuccessOverlay`, `sendQuoteAction` import, et les états `sending`/`sendError`/`showSuccess` de `QuoteDialog`.
+- `emailId` retiré des props de `QuoteDialog` car plus nécessaire.
+- `DraftSection` : ajout de `pendingAttachment` state, `handleQuoteReady` callback, `useEffect` sur `emailId` pour clear l'attachment lors d'un changement d'email (AC5).
+- `ManualCompose` : ajout du chip d'attachment (📎 filename • size Ko ✕) entre le champ Objet et le textarea.
+- `sendManualReply` : signature étendue avec `attachment?` optionnel, forwardé à `sendEmailViaProvider` via `attachments: [...]`.
+- `sendEmailViaProvider` supportait déjà les attachements via `EmailAttachment[]` — aucun changement sur `lib/email/send.ts`.
+- `send-quote-action.ts` conservé intact (non utilisé par ce flow mais gardé comme prévu).
 
 ### Files Modified
-_(empty)_
+- `components/quotes/quote-dialog.tsx`
+- `components/draft/draft-section.tsx`
+- `components/draft/manual-compose.tsx`
+- `app/(app)/inbox/[emailId]/actions.ts`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
 ### Tests
-_(empty)_
+- TypeScript : 0 erreur (`npx tsc --noEmit`)
+- Lint ESLint : 0 erreur (`npm run lint`)
+
+## Change Log
+- 2026-05-24: Implémentation story 5-17 — quote flow UX fixes (attachment preview, send sequencing, dialog sync)
