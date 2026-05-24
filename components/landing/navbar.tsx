@@ -22,11 +22,11 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
           : "bg-transparent"
       }`}
     >
-      <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
+      <div className="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
         <BrevWordmark href="/" />
 
         {/* Nav links */}
-        <nav className="hidden md:flex items-center gap-7">
+        <nav className="hidden md:flex items-center gap-8">
           {[
             { label: "Fonctionnalités", href: "#features" },
             { label: "Comment ça marche", href: "#how-it-works" },
@@ -34,7 +34,7 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
             <a
               key={item.href}
               href={item.href}
-              className="text-[13px] text-slate-400 hover:text-white transition-colors duration-200"
+              className="text-[15px] text-slate-400 hover:text-white transition-colors duration-200"
             >
               {item.label}
             </a>
@@ -46,22 +46,22 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
           {isAuthenticated ? (
             <Link
               href="/inbox"
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-[15px] font-medium text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
             >
               Accéder à l&apos;app
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-4 h-4" />
             </Link>
           ) : (
             <>
               <Link
                 href="/login"
-                className="text-[13px] text-slate-400 hover:text-white transition-colors duration-200 px-3 py-2"
+                className="text-[15px] text-slate-400 hover:text-white transition-colors duration-200 px-3 py-2"
               >
                 Connexion
               </Link>
               <Link
                 href="/demo"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-[15px] font-medium text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
               >
                 Demander une démo
               </Link>

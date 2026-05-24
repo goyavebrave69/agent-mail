@@ -90,7 +90,7 @@ export function ImapConnectForm() {
       </div>
 
       {result?.success && (
-        <p className="text-sm text-green-700">Compte IMAP connecté avec succès.</p>
+        <p className="text-sm text-primary">Compte IMAP connecté avec succès.</p>
       )}
       {errorMessage && (
         <p className="text-sm text-red-600">{errorMessage}</p>

@@ -11,7 +11,7 @@ interface KbFileListProps {
 
 const STATUS_BADGE: Record<KbFile["status"], { label: string; className: string }> = {
   pending: { label: "Indexation…", className: "bg-yellow-100 text-yellow-800" },
-  ready: { label: "Prêt", className: "bg-green-100 text-green-800" },
+  ready: { label: "Prêt", className: "bg-primary/10 text-primary" },
   error: { label: "Erreur", className: "bg-red-100 text-red-800" },
 }
 

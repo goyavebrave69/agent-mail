@@ -55,7 +55,7 @@ export async function SyncStatusIndicator() {
             <span
               className={
                 job.status === "active"
-                  ? "rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+                  ? "rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
                   : job.status === "error"
                     ? "rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700"
                     : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"

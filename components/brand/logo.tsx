@@ -77,13 +77,13 @@ export function BrevWordmark({
   size?: "sm" | "md" | "lg"
   href?: string
 }) {
-  const iconSize = size === "sm" ? 24 : size === "lg" ? 40 : 32
+  const iconSize = size === "sm" ? 28 : size === "lg" ? 44 : 38
   const textClass =
     size === "sm"
-      ? "text-[13px]"
+      ? "text-[15px]"
       : size === "lg"
-      ? "text-[22px]"
-      : "text-[15px]"
+      ? "text-[24px]"
+      : "text-[19px]"
 
   const content = (
     <span className={`flex items-center gap-2 group`}>

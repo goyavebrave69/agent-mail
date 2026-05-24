@@ -206,7 +206,7 @@ export function Hero() {
         {/* Announcement badge */}
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-indigo-500/20 bg-indigo-500/5 text-sm text-slate-300 mb-8 animate-fade-in">
           <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-          <span className="text-[13px]">Propulsé par GPT-4o & Claude — Intelligence native</span>
+          <span className="text-[13px]">Propulsé par Majid DEV — Intelligence native</span>
         </div>
 
         {/* Headline */}
